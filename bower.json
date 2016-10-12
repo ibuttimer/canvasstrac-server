@@ -1,0 +1,39 @@
+{
+  "name": "CanvassTrac",
+  "version": "1.0.0",
+  "description": "CanvassTrac Management Console",
+  "main": "index.html",
+  "moduleType": [],
+  "keywords": [
+    "CanvassTrac",
+    "Election"
+  ],
+  "authors": [
+    "Ian Buttimer"
+  ],
+  "license": "MIT",
+  "homepage": "",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "bootstrap": "~3.3.6",
+    "font-awesome": "~4.5.0",
+    "angular": "~1.5.0",
+    "angular-route": "^1.5.0",
+    "angular-ui-router": "^0.2.18",
+    "angular-resource": "^1.5.0",
+    "angular-mocks": "^1.5.0",
+    "ng-dialog": "^0.6.1",
+    "angular-sanitize": "^1.5.5",
+    "nya-bootstrap-select": "^2.1.6",
+    "bootstrap-social": "^5.0.0"
+  },
+  "devDependencies": {
+    "angular-bootstrap": "^1.3.2"
+  }
+}
