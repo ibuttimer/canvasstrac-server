@@ -19,19 +19,19 @@ var mongoose = require('mongoose'),
 var schema = new Schema({
   available: {
     type: Boolean,
-    default: true
+    default: false
   },
-  dontCanvassAgain: {
+  dontCanvass: {
     type: Boolean,
     default: false
   },
   tryAgain: {
     type: Boolean,
-    default: true
+    default: false
   },
-  supporter: {
+  support: {
     type: Number,
-    default: 0
+    default: -1
   },
   date: {
     type: Date,
@@ -71,7 +71,7 @@ function getTemplate (source, exPaths) {
   // set defaults for arguments not passed
   if (!exPaths) {
     // exclude object ref fields by default
-    exPaths = ['answers', 'canvasser', 'voter', 'address'];
+    exPaths = ['canvass', 'answers', 'canvasser', 'voter', 'address'];
   }
   return getUtilsTemplate(source, model, exPaths);
 }

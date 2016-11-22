@@ -6,6 +6,7 @@ var express = require('express'),
   Module = require('../models/answer'),
     model = Module.model,
     getTemplate = Module.getTemplate,
+    populateSubDocs = Module.populateSubDocs,
   router_utils = require('./router_utils'),
     checkError = router_utils.checkError,
     errorReply = router_utils.errorReply,
@@ -14,6 +15,7 @@ var express = require('express'),
     updateDoc = router_utils.updateDoc,
     removeDoc = router_utils.removeDoc,
     getDocById = router_utils.getDocById,
+    populateSubDocsReply = router_utils.populateSubDocsReply,
   utils = require('../misc/utils'),
   Verify = require('./verify'),
   Consts = require('../consts');
@@ -21,6 +23,29 @@ var express = require('express'),
 var router = express.Router();
 
 router.use(bodyParser.json());
+
+
+function createAnswer (accessCheck, req, data, res, next) {
+
+  accessCheck(req, res, function (err) {
+
+    if (err) {
+      errorReply(res, err.status, err.message);
+      return;
+    }
+    
+    var fields = getTemplate(data);
+
+    model.create(fields, function (err, doc) {
+      if (!checkError (err, res)) {
+        // success
+        populateSubDocs(doc, function (err, doc) {
+          populateSubDocsReply(err, res, next, doc, Consts.HTTP_CREATED);
+        });
+      }
+    });
+  });
+}
 
 
 router.route('/')
@@ -35,11 +60,9 @@ router.route('/')
   })
 
   .post(Verify.verifyHasStaffAccess, function (req, res, next) {
-    model.create(req.body, function (err, doc) {
-      if (!checkError(err, res)) {
-        res.json(doc);
-      }
-    });
+
+    // create answer (no access check as done on route)
+    createAnswer(Verify.verifyNoCheck, req, req.body, res, resultReply);
   })
 
   .delete(Verify.verifyHasStaffAccess, function (req, res, next) {
@@ -70,6 +93,7 @@ router.route('/:objId')
   });
 
 module.exports = {
-  router: router
+  router: router,
+  createAnswer: createAnswer
 };
 

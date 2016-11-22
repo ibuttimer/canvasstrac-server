@@ -38,6 +38,7 @@ var answerRouter = require('./routes/answerRouter').router;
 var surveyRouter = require('./routes/surveyRouter').router;
 var canvassRouter = require('./routes/canvassRouter').router;
 var canvassAssignmentRouter = require('./routes/canvassAssignmentRouter').router;
+var canvassResultRouter = require('./routes/canvassResultRouter').router;
 
 
 var app = express();
@@ -96,6 +97,7 @@ app.use('/answers', answerRouter);
 app.use('/surveys', surveyRouter);
 app.use('/canvasses', canvassRouter);
 app.use('/canvassassignment', canvassAssignmentRouter);
+app.use('/canvassresult', canvassResultRouter);
 
 
 

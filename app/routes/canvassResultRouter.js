@@ -15,6 +15,8 @@ var express = require('express'),
     doChecks = router_utils.doChecks,
     updateDoc = router_utils.updateDoc,
     removeDoc = router_utils.removeDoc,
+  addCanvassResult = require('./canvassRouter').addCanvassResult,
+  createAnswer = require('./answerRouter').createAnswer,
   utils = require('../misc/utils'),
   Verify = require('./verify'),
   Consts = require('../consts');
@@ -22,6 +24,32 @@ var express = require('express'),
 var router = express.Router();
 
 router.use(bodyParser.json());
+
+
+function createCanvassResult (req, answers, res, next) {
+
+  var fields = getTemplate(req.body, ['answers']),  // exclude only answers
+    canvassId = req.body.canvass;
+
+  fields.answers = answers;
+
+  model.create(fields, function (err, resDoc) {
+    if (!checkError(err, res)) {
+
+      addCanvassResult (canvassId, resDoc._id, function (err, doc) {
+        if (!checkError(err, res)) {
+          // success
+          populateSubDocs(resDoc, function (err, doc) {
+            if (!checkError(err, res)) {
+              // success
+              res.json(doc);
+            }
+          });
+        }
+      });
+    }
+  });
+}
 
 
 router.route('/')
@@ -41,16 +69,30 @@ router.route('/')
   })
 
   .post(Verify.verifyHasStaffAccess, function (req, res, next) {
-    model.create(req.body, function (err, doc) {
-      if (!checkError(err, res)) {
-        populateSubDocs(doc, function (err, doc) {
-          if (!checkError(err, res)) {
-            // success
-            res.json(doc);
+
+    var rawAnswers = req.body.answers,
+      answers = [];
+
+    if (rawAnswers && rawAnswers.length) {
+      // first save all the answers, then the result
+      for (var i = 0; i < rawAnswers.length; ++i) {
+        // create answers (no access check as done on route)
+        createAnswer(Verify.verifyNoCheck, req, rawAnswers[i], res, function (result, res) {
+          if (result) {
+            // answer successfully created
+            answers.push(result.payload._id);
+
+            if (answers.length === rawAnswers.length) {
+              // save the canvass result now that all the answers are saved
+              createCanvassResult(req, answers, res, next);
+            }
           }
         });
       }
-    });
+    } else {
+      // no answers so just save result
+      createCanvassResult(req, answers, res, next);
+    }
   })
 
   .delete(Verify.verifyHasStaffAccess, function (req, res, next) {

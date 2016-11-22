@@ -9,9 +9,10 @@ var express = require('express'),
   Consts = require('../consts');
 
 /**
- * Check a database result for an error condition and send response is necessary
- * @param{object} err - database result
- * @param{object} res - response
+ * Check a database result for an error condition and send response if necessary
+ * @param {object} err - database result
+ * @param {object} res - response
+ * @returns {boolean} true if error
  */
 function checkError (err, res) {
   var isErr = false;
@@ -33,7 +34,7 @@ function checkError (err, res) {
   return isErr;
 }
 
-/*
+/**
  * Reply with an error
  * @param {Object} res     - http response
  * @param {number} status  - http status code
@@ -51,7 +52,7 @@ function errorReply(res, status, message) {
   }
 }
 
-/*
+/**
  * Reply with a result
  * @param {Object} result  - result object
  * @param {Object} res     - http response
@@ -63,7 +64,7 @@ function resultReply(result, res) {
   }
 }
 
-/*
+/**
  * Reply with a result of a populate
  * @param {Object} result  - result object
  * @param {Object} res     - http response
@@ -75,10 +76,8 @@ function populateSubDocsReply (err, res, next, docs, okStatus) {
 }
 
 
-
-
-/*
- * MAke a result object
+/**
+ * Make a result object
  * @param {number} status - result http status
  * @param {Object} result - result payload
  */
@@ -227,7 +226,14 @@ function getDocById (accessCheck, model, id, req, res) {
   });
 }
 
-
+/**
+ * Split a url path string into select and query objects 
+ * @param {string} string               - string to split
+ * @param {function} isValidModelPath   - function to check if valid model path
+ * @param {boolean} checkSub            - check sub document model(s) flag
+ * @param {Array} fieldErrors           - where to save error info
+ * @returns {object}  object comtaining select, query parameter and model node properties
+ */
 function splitPathString(path, isValidModelPath, checkSub, fieldErrors) {
   var fields = path.split(' '),
     select = '',
@@ -253,6 +259,13 @@ function splitPathString(path, isValidModelPath, checkSub, fieldErrors) {
   return {select: select, queryParam: queryParam, queryModelNodes: queryModelNodes}; 
 }
 
+/**
+ * Generate a mongoose query parameter value 
+ * @param {object} modelNode            - modelNode to generate query for
+ * @param {string} path                 - model path
+ * @param {string} raw                  - raw value
+ * @returns {object}  query parameter
+ */
 function getQueryParamValue(modelNode, path, raw) {
   var type = modelNode.model.schema.path(path),
     modOp = raw.charAt(0),
@@ -297,6 +310,13 @@ function getQueryParamValue(modelNode, path, raw) {
   return value;
 }
 
+/**
+ * Generate a mongoose query parameter object with multiple values 
+ * @param {string} queryVal             - raw value
+ * @param {Array} queryParam            - array of query parameters
+ * @param {Array} queryModelNodes       - array of model nodes corresponding to query parameters
+ * @returns {object}  query parameter
+ */
 function generateMultiConditionObject (queryVal, queryParam, queryModelNodes) {
   // generate OR parameter
   var params = [];  // array of condition objects

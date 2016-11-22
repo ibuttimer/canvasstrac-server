@@ -196,6 +196,13 @@ function isValidModelPath (modelNodes, path, exPaths) {
   return valid;
 }
 
+/**
+  * Get a template object with the paths in a Mongoose schema and values
+  * @param {object} source       - source to get values from
+  * @param {object} model        - mongoose model object to get paths from
+  * @param {string[]} exPaths    - array of other paths to exclude
+  * @return {object} object with only valid model paths as properties and corresponding values
+  */
 function getTemplate (source, model, exPaths) {
   var paths = getModelPathNames(model, true, true, exPaths);
   var fields;

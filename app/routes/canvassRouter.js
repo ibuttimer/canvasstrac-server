@@ -58,6 +58,25 @@ function updateCanvass (id, req, res, next) {
   );
 }
 
+/**
+ * @param {string} canvassId   - id of canvass doc to update
+ * @param {string} resultId    - id of canvass result doc to add to canvass doc
+ */
+function addCanvassResult (canvassId, resultId, next) {
+
+  model.findById(canvassId, function (err, doc) {
+      if (err) {
+        next(err, doc);
+      } else {
+        doc.results.push(resultId);
+        doc.save(function (err, doc) {
+          next(err, doc);
+        });
+      }
+    }
+  );
+}
+
 function deleteCanvass (id, req, res, next) {
 
   model.findById(id, function (err, doc) {
@@ -166,25 +185,6 @@ router.route('/:objId')
   .put(Verify.verifySelfOrHasCanvasserAccess, function (req, res, next) {
     
     updateCanvass(req.params.objId, req, res, resultReply);
-
-    // var fields = getTemplate(req.body);
-
-    // model.findByIdAndUpdate(req.params.objId, {
-    //     $set: fields
-    //   }, {
-    //     new: true // return the modified document rather than the original
-    //   }, function (err, user) {
-    //     if (!checkError (err, res)) {
-    //       // success
-    //       populateSubDocs(user, function (err, doc) {
-    //         if (!checkError(err, res)) {
-    //           // success
-    //           res.json(doc);
-    //         }
-    //       });
-    //     }
-    //   }
-    // );
   })
 
   .delete(Verify.verifyHasStaffAccess, function (req, res, next) {
@@ -195,6 +195,7 @@ router.route('/:objId')
   });
 
 module.exports = {
-  router: router
+  router: router,
+  addCanvassResult: addCanvassResult
 };
 

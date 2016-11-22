@@ -1,2 +1,2 @@
 # canvasstrac-server
-Server code for CanvassTrac application
+Server application for CanvassTrac suite

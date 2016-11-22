@@ -41,105 +41,10 @@ var express = require('express'),
 
 var router = express.Router();
 
-// function getDocsQuery (query, objId, select, res, next) {
-//   if (select.length > 0) {
-//     query.select(select);
-//   }
-//   query.exec(function (err, docs) {
-//     if (!checkError(err, res)) {
-//       if (docs) {
-//         // success
-//         populateSubDocs(docs, function (err, docs) {
-//           populateSubDocsReply(err, res, next, docs, Consts.HTTP_OK);
-//         });
-//       } else if (objId) {
-//         errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown address identifier');
-//       }
-//     }
-//   });
-// }
-
-// function getDocs (req, res, next) {
-//   // check request for query params to select returned model paths
-//   var decode = decodeReq(req, res, isValidModelPath, true);
-//   if (decode) {
-//     // execute the query
-//     var root = getModelNodeTree(),
-//       model = root.model,
-//       fieldNames = Object.getOwnPropertyNames(decode.queryModelNodes);
-
-//     if (req.params.objId) {
-//       // retrieve doc using id
-//       var query = model.findById(req.params.objId);
-//       getDocsQuery(query, req.params.objId, decode.select, res, next);
-//     } else if (fieldNames.length == 0) {
-//       // no ModelNodes therefore must be a get all request
-//       var query = model.find(decode.queryParam);
-//       getDocsQuery(query, req.params.objId, decode.select, res, next);
-//     } else {
-//       /* fields may be spread across several models so build a list, 
-//         * and find the root owner of each document, if its a user then
-//         * return it */
-//       var queryResult = {},
-//         processed = 0, 
-//         toProcess = 0;
-//       fieldNames.forEach(function (prop) {
-//         // for each modelNode & corresponding query value, find the matching docs
-//         var //propQuery = {},
-//           propModelNode = decode.queryModelNodes[prop], // ModelNode
-//           propModel = propModelNode.model,              // model of ModelNode 
-//           propQuery = cloneObject(decode.queryParam, [prop]); // query using provided value
-
-//         // propQuery[prop] = decode.queryParam[prop];  // query using provided value
-
-//         getDocsUsingObj(res, propModel, propQuery, function (res, docs) {
-//           toProcess += docs.length;
-
-//           // get the root owner of each of the returned docs
-//           docs.forEach(function (doc) {
-             
-//             getRootOwner(res, propModelNode, doc.owner, doc, function (modelNode, docx) {
-//               // if root is of correct type, add to queryResult
-//               if (modelNode.model.modelName === root.model.modelName) {
-//                 if (!queryResult[prop]) {
-//                   queryResult[prop] = [];
-//                 }
-//                 queryResult[prop].push(docx._id);
-//               }
-//               ++processed;
-//               if (processed === toProcess) {
-//                 // all have been processed
-//                 var resultFields = Object.getOwnPropertyNames(queryResult),
-//                   haveRes = (resultFields.length && (resultFields.length === fieldNames.length));
-//                 if (haveRes) {
-//                   // have results for all input query fields
-//                   var idsArray = queryResult[resultFields[0]];
-//                   for (var i = 1; i < resultFields.length; ++i) {
-//                     idsArray = arrayIntersection(idsArray, queryResult[resultFields[i]]); 
-//                   }
-//                   haveRes = (idsArray.length > 0);
-//                   if (haveRes) {
-//                     var query = model.find({_id: {$in: idsArray}});
-//                     getDocsQuery(query, req.params.objId, decode.select, res, next);
-//                   }
-//                 } 
-//                 if (!haveRes) {
-//                   // nothing found
-//                   res.json([]);
-//                 }
-//               } 
-//             });
-//           });
-//         }); 
-//       });
-//     }
-//   }
-// }
-
 function createUser (req, res, next) {
 
   if (!req.body.password) {
-    // if not password supplied, use default
+    // if no password supplied, use default
     req.body.password = config.dfltPassword;
   }
 

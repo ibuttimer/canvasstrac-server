@@ -27,24 +27,6 @@ var router = express.Router();
 router.use(bodyParser.json());
 
 
-function isValidPath (path, exPaths, checkSub) {
-  
-  // var modelNode = isValidModelPath(path, exPaths, checkSub);
-  // if () 
-  // checkSub = checkSub || false;
-
-  // var modelNodes;
-  // if (checkSub) {
-  //   modelNodes = modelTree;
-  // } else {
-  //   modelNodes = modelNode;
-  // }
-  // return utilsIsValidModelPath(modelNodes, path, exPaths);
-
-
-  
-}
-
 
 
 
