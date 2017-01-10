@@ -5,8 +5,10 @@ var express = require('express'),
   bodyParser = require('body-parser'),
   Module = require('../models/canvass'),
     model = Module.model,
+    getModelNodeTree = Module.getModelNodeTree,
     getTemplate = Module.getTemplate,
     populateSubDocs = Module.populateSubDocs,
+    isValidModelPath = Module.isValidModelPath,
   router_utils = require('./router_utils'),
     checkError = router_utils.checkError,
     errorReply = router_utils.errorReply,
@@ -16,6 +18,7 @@ var express = require('express'),
     updateDoc = router_utils.updateDoc,
     removeDoc = router_utils.removeDoc,
     getDocById = router_utils.getDocById,
+    getDocs = router_utils.getDocs,
   utils = require('../misc/utils'),
   Verify = require('./verify'),
   Consts = require('../consts');
@@ -98,47 +101,11 @@ function deleteCanvass (id, req, res, next) {
 
 
 
-function getDocs (req, res, next) {
-  // check request for query params to select returned model paths    
-  var select = '';
-  for (var path in req.query) {
-    if (isValidModelPath(path)) {
-      if (select.length > 0) {
-        select += ' ';
-      }
-      select += path;
-    } 
-  }
-
-  var query;
-  if (req.params.objId) {
-    query = model.findById(req.params.objId);
-  } else {
-    query = model.find({});
-  }
-  if (select.length > 0) {
-    query.select(select);
-  }
-  query.exec(function (err, docs) {
-    if (!checkError(err, res)) {
-      if (docs) {
-        populateSubDocs(docs, function (err, docs) {
-          if (!checkError(err, res)) {
-            res.json(docs);
-          }
-        });
-      } else if (req.params.objId) {
-        errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown canvass identifier');
-      }
-    }
-  });
-}
-
 router.route('/')
 
   .get(Verify.verifyHasCanvasserAccess, function (req, res, next) {
     
-    getDocs(req, res, next);
+    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply); 
   })
 
   .post(Verify.verifyHasStaffAccess, function (req, res, next) {
@@ -179,7 +146,9 @@ router.route('/:objId')
 
   .get(Verify.verifySelfOrHasCanvasserAccess, function (req, res, next) {
 
-    getDocs(req, res, next);
+    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply, {
+      objName: 'canvass'
+    }); 
   })
 
   .put(Verify.verifySelfOrHasCanvasserAccess, function (req, res, next) {

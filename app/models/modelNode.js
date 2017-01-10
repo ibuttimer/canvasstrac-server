@@ -261,6 +261,27 @@ ModelNode.prototype.getTree = function () {
   return tree;
 }
 
+ModelNode.prototype.dumpTree = function () {
+  var dump = function (node, title) {
+    var msg = title + ' ' + node.model.modelName;
+    if (node.path) {
+      msg += ' path "' + node.path + '"';
+    }
+    console.log(msg);
+  }
+  this.forEach(function (node) {
+    dump(node, 'model');
+    // console.log('model', node.model.modelName, 'path', node.path);
+    var indent = '  ',
+      parent;
+    for (parent = node.parent; parent; parent = parent.parent) {
+      dump(parent, indent + 'parent');
+      // console.log(indent + 'parent', parent.model.modelName, 'path', parent.path);
+      indent += '  ';
+    }
+  });
+}
+
 
 module.exports = {
   ModelNode: ModelNode

@@ -10,6 +10,7 @@ var express = require('express'),
     getSubDocPopulateOptions = UserModule.getSubDocPopulateOptions,
     populateSubDocs = UserModule.populateSubDocs,
     isValidModelPath = UserModule.isValidModelPath,
+    getProjection = UserModule.getProjection,
   Roles = require('../models/roles').model,
   personRouterModule = require('./personRouter'),
     createPerson = personRouterModule.createPerson,
@@ -147,10 +148,9 @@ router.route('/')
 
   .get(Verify.verifyAdmin, function (req, res, next) {
 
-    // TODO add exclude paths to prevent returning the password field
-
-    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply); 
-    // getDocs(req, res, resultReply);
+    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply, {
+      projection: getProjection()
+    }); 
   })
 
   .post(Verify.verifyAdmin, function (req, res) {
@@ -207,7 +207,7 @@ router.post('/login', function (req, res, next) {
       var token = Verify.getToken({
         "username": user.username,
         "_id": user._id,
-        "role":user.role
+        "role": user.role
       });
       
       res.status(Consts.HTTP_OK).json({
@@ -274,20 +274,28 @@ router.route('/:objId')
 
   .get(Verify.verifySelfOrAdmin, function (req, res, next) {
     // only admin or the user themselves may access their user info
-    User.findById(req.params.objId)
-      .exec(function (err, doc) {
-        if (!checkError(err, res)) {
-          if (doc) {
-            populateSubDocs(doc, function (err, doc) {
-              if (!checkError(err, res)) {
-                res.json(doc);
-              }
-            });
-          } else {
-            errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown user identifier');
-          }
-        }
-      });
+
+    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply, {
+      projection: getProjection(),
+      objName: 'user'
+    }); 
+
+
+
+    // User.findById(req.params.objId, getProjection())
+    //   .exec(function (err, doc) {
+    //     if (!checkError(err, res)) {
+    //       if (doc) {
+    //         populateSubDocs(doc, function (err, doc) {
+    //           if (!checkError(err, res)) {
+    //             res.json(doc);
+    //           }
+    //         });
+    //       } else {
+    //         errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown user identifier');
+    //       }
+    //     }
+    //   });
   })
 
   .put(Verify.verifySelfOrAdmin, function (req, res, next) {

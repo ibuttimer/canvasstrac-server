@@ -5,6 +5,7 @@ var express = require('express'),
   ElectionModule = require('../models/election'),
     Election = ElectionModule.model,
     schema = ElectionModule.schema,
+    getModelNodeTree = ElectionModule.getModelNodeTree,
     getElectionTemplate = ElectionModule.getTemplate,
     isValidModelPath = ElectionModule.isValidModelPath,
     getSubDocPopulateOptions = ElectionModule.getSubDocPopulateOptions,
@@ -20,6 +21,7 @@ var express = require('express'),
     removeDoc = router_utils.removeDoc,
     removeDocAccessOk = router_utils.removeDocAccessOk,
     decodeReq = router_utils.decodeReq,
+    getDocs = router_utils.getDocs,
   utils = require('../misc/utils'),
   Consts = require('../consts');
 
@@ -78,41 +80,11 @@ function deleteElection (id, req, res, next) {
   });
 }
 
-function getDocs (req, res, next) {
-  // check request for query params to select returned model paths    
-  var decode = decodeReq (req, res, isValidModelPath);
-  if (decode) {
-    // execute the query
-    var query;
-    if (req.params.objId) {
-      query = Election.findById(req.params.objId);
-    } else {
-      query = Election.find(decode.queryParam);
-    }
-    if (decode.select.length > 0) {
-      query.select(decode.select);
-    }
-    query.exec(function (err, docs) {
-      if (!checkError(err, res)) {
-        if (docs) {
-          populateSubDocs(docs, function (err, docs) {
-            if (!checkError(err, res)) {
-              res.json(docs);
-            }
-          });
-        } else if (req.params.objId) {
-          errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown election identifier');
-        }
-      }
-    });
-  }
-}
-
 router.route('/')
 
   .get(Verify.verifyHasCanvasserAccess, function (req, res, next) {
 
-    getDocs (req, res, next);
+    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply); 
   })
     
   .post(Verify.verifyHasStaffAccess, function (req, res) {
@@ -143,7 +115,9 @@ router.route('/:objId')
 
   .get(Verify.verifyHasCanvasserAccess, function (req, res, next) {
 
-    getDocs (req, res, next);
+    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply, {
+      objName: 'election'
+    }); 
   })
 
   .put(Verify.verifyHasStaffAccess, function (req, res, next) {

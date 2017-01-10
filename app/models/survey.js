@@ -8,7 +8,10 @@ var mongoose = require('mongoose'),
     ModelNode = ModelNodeModule.ModelNode,
   QuestionModule = require('./question'),
   utilsModule = require('../misc/utils'),
+    utilsIsValidModelPath = utilsModule.isValidModelPath,
     getUtilsTemplate = utilsModule.getTemplate,
+    getModelPathNames = utilsModule.getModelPathNames,
+  populateSubDocsUtil = require('./model_utils').populateSubDocs,
   questionPopulateOptions = require('./question').getSubDocPopulateOptions;
 
 // create the address schema
@@ -34,6 +37,8 @@ var model = mongoose.model('Survey', schema);
 
 var modelNode = new ModelNode(model, populateSubDocs);
 
+var modelTree = modelNode.getTree();
+
 /*
  * Generates a survey template object from the specified source
  * @param{object} source      - object with properties to extract
@@ -43,28 +48,53 @@ function getTemplate (source, exPaths) {
   return getUtilsTemplate(source, model, exPaths);
 }
 
-function getModelNodeTree () {
-  var models = [model];
-  [QuestionModule].forEach(function (mod) {
-    mod.getModelNodeTree().forEach(function (submodel) {
-      models.push(submodel);
-    });
-  });
-  return models;
+/**
+ * Check if a path is valid for this model
+ * @param {string} path       - path to check
+ * @param {string[]} exPaths  - array of paths to exclude
+ * @param {boolean} checkSub  - check sub documents flag
+ * @returns false or ModelNode if valid path 
+ */
+function isValidModelPath (path, exPaths, checkSub) {
+  checkSub = checkSub || false;
+
+  var modelNodes;
+  if (checkSub) {
+    modelNodes = modelTree;
+  } else {
+    modelNodes = modelNode;
+  }
+  return utilsIsValidModelPath(modelNodes, path, exPaths);
 }
 
+/**
+ * Get the subdocument populate options
+ * @returns an array of populate objects of the form:
+ *  @param {string} path       - path to subdocument
+ *  @param {string} model      - name of subdocument model
+ *  @param {function} populate - function to populate subdocument
+ */
 function getSubDocPopulateOptions () {
   return [
     { path: 'questions', model: 'Question', populate: questionPopulateOptions() }
   ];
 }
 
-function populateSubDocs (docs, next) {
-  var options = getSubDocPopulateOptions();
+/**
+ * Get the root of the ModelNode tree for this model
+ * @returns {object} root of ModelNode tree
+ */
+function getModelNodeTree () {
+  return modelNode;
+}
 
-  model.populate(docs, options, function (err, docs) {
-    next(err, docs);
-  });
+/**
+ * Populate the subdocuments in a result set
+ * @param {Array} docs    - documents to populate
+ * @param {function} next - next function
+ */
+function populateSubDocs (docs, next) {
+  populateSubDocsUtil(model, docs, getSubDocPopulateOptions(), next);
 }
 
 
@@ -72,7 +102,8 @@ module.exports = {
   schema: schema,
   model: model,
   getTemplate: getTemplate,
-  getModelNodeTree: getModelNodeTree,
+  isValidModelPath: isValidModelPath,
   getSubDocPopulateOptions: getSubDocPopulateOptions,
+  getModelNodeTree: getModelNodeTree,
   populateSubDocs: populateSubDocs
 };

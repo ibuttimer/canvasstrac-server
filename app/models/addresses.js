@@ -9,7 +9,8 @@ var mongoose = require('mongoose'),
   utilsModule = require('../misc/utils'),
     utilsIsValidModelPath = utilsModule.isValidModelPath,
     getUtilsTemplate = utilsModule.getTemplate,
-    getModelPathNames = utilsModule.getModelPathNames;
+    getModelPathNames = utilsModule.getModelPathNames,
+  populateSubDocsUtil = require('./model_utils').populateSubDocs;
 
 // create the address schema
 var schema = new Schema({
@@ -83,9 +84,6 @@ function getTemplate (source, exPaths) {
   return getUtilsTemplate(source, model, exPaths);
 }
 
-
-
-
 /**
  * Check if a path is valid for this model
  * @param {string} path       - path to check
@@ -94,34 +92,49 @@ function getTemplate (source, exPaths) {
  * @returns false or ModelNode if valid path 
  */
 function isValidModelPath (path, exPaths, checkSub) {
-  return utilsIsValidModelPath(modelNode, path, exPaths);
+  checkSub = checkSub || false;
+
+  var modelNodes;
+  if (checkSub) {
+    modelNodes = modelTree;
+  } else {
+    modelNodes = modelNode;
+  }
+  return utilsIsValidModelPath(modelNodes, path, exPaths);
 }
 
-
+/**
+ * Get the subdocument populate options
+ * @returns an array of populate objects of the form:
+ *  @param {string} path       - path to subdocument
+ *  @param {string} model      - name of subdocument model
+ *  @param {function} populate - function to populate subdocument
+ */
 function getSubDocPopulateOptions () {
   return [];
 }
 
+/**
+ * Get the root of the ModelNode tree for this model
+ * @returns {object} root of ModelNode tree
+ */
 function getModelNodeTree () {
   return modelNode;
 }
 
+/**
+ * Populate the subdocuments in a result set
+ * @param {Array} docs    - documents to populate
+ * @param {function} next - next function
+ */
 function populateSubDocs (docs, next) {
-  var options = getSubDocPopulateOptions();
-  if (options.length > 0) {
-    model.populate(docs, options, function (err, docs) {
-      next(err, docs);
-    });
-  } else {
-    next(err, docs);
-  }
+  populateSubDocsUtil(model, docs, getSubDocPopulateOptions(), next);
 }
 
 
 module.exports = {
   schema: schema,
   model: model,
-  modelNode: modelNode,
   getTemplate: getTemplate,
   isValidModelPath: isValidModelPath,
   getSubDocPopulateOptions: getSubDocPopulateOptions,

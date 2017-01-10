@@ -6,7 +6,10 @@ var mongoose = require('mongoose'),
   ModelNodeModule = require('./modelNode'),
     ModelNode = ModelNodeModule.ModelNode,
   utilsModule = require('../misc/utils'),
+    utilsIsValidModelPath = utilsModule.isValidModelPath,
     getUtilsTemplate = utilsModule.getTemplate,
+    getModelPathNames = utilsModule.getModelPathNames,
+  populateSubDocsUtil = require('./model_utils').populateSubDocs,
   AnswerModule = require('./answer'),
     answerPopulateOptions = AnswerModule.getSubDocPopulateOptions,
   UserModule = require('./user'),
@@ -62,8 +65,10 @@ var model = mongoose.model('CanvassResult', schema);
 
 var modelNode = new ModelNode(model, populateSubDocs);
 
+var modelTree = modelNode.getTree();
+
 /*
- * Generates an cavvass template object from the specified source
+ * Generates a canvass result template object from the specified source
  * @param{object} source      - object with properties to extract
  * @param {string[]} exPaths  - array of other paths to exclude
  */
@@ -76,10 +81,32 @@ function getTemplate (source, exPaths) {
   return getUtilsTemplate(source, model, exPaths);
 }
 
-function getModelNodeTree () {
-  return modelNode;
+/**
+ * Check if a path is valid for this model
+ * @param {string} path       - path to check
+ * @param {string[]} exPaths  - array of paths to exclude
+ * @param {boolean} checkSub  - check sub documents flag
+ * @returns false or ModelNode if valid path 
+ */
+function isValidModelPath (path, exPaths, checkSub) {
+  checkSub = checkSub || false;
+
+  var modelNodes;
+  if (checkSub) {
+    modelNodes = modelTree;
+  } else {
+    modelNodes = modelNode;
+  }
+  return utilsIsValidModelPath(modelNodes, path, exPaths);
 }
 
+/**
+ * Get the subdocument populate options
+ * @returns an array of populate objects of the form:
+ *  @param {string} path       - path to subdocument
+ *  @param {string} model      - name of subdocument model
+ *  @param {function} populate - function to populate subdocument
+ */
 function getSubDocPopulateOptions () {
   return [
     { path: 'answers', model: 'Answer', populate: answerPopulateOptions() },
@@ -89,12 +116,22 @@ function getSubDocPopulateOptions () {
   ];
 }
 
-function populateSubDocs (docs, next) {
-  var options = getSubDocPopulateOptions();
+/**
+ * Get the root of the ModelNode tree for this model
+ * @returns {object} root of ModelNode tree
+ */
+function getModelNodeTree () {
+  return modelNode;
+}
 
-  model.populate(docs, options, function (err, docs) {
-    next(err, docs);
-  });
+/**
+ * Populate the subdocuments in a result set
+ * @param {Array} docs    - documents to populate
+ * @param {function} next - next function
+ */
+function populateSubDocs (docs, next) {
+  populateSubDocsUtil(model, docs, getSubDocPopulateOptions(), next);
+
 }
 
 
@@ -102,7 +139,8 @@ module.exports = {
   schema: schema,
   model: model,
   getTemplate: getTemplate,
-  getModelNodeTree: getModelNodeTree,
+  isValidModelPath: isValidModelPath,
   getSubDocPopulateOptions: getSubDocPopulateOptions,
+  getModelNodeTree: getModelNodeTree,
   populateSubDocs: populateSubDocs
 };

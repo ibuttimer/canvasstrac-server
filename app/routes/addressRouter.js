@@ -18,6 +18,7 @@ var express = require('express'),
     removeDoc = router_utils.removeDoc,
     decodeReq = router_utils.decodeReq,
     processCountReq = router_utils.processCountReq,
+    getDocs = router_utils.getDocs,
   utils = require('../misc/utils'),
   Verify = require('./verify'),
   Consts = require('../consts');
@@ -27,38 +28,11 @@ var router = express.Router();
 router.use(bodyParser.json());
 
 
-function getDocs (req, res, next) {
-  // check request for query params to select returned model paths
-  var decode = decodeReq(req, res, isValidModelPath);
-  if (decode) {
-    // execute the query
-    var query;
-    if (req.params.objId) {
-      query = model.findById(req.params.objId);
-    } else {
-      query = model.find(decode.queryParam);
-    }
-    if (decode.select.length > 0) {
-      query.select(decode.select);
-    }
-    query.exec(function (err, docs) {
-      if (!checkError(err, res)) {
-        if (docs) {
-          res.json(docs);
-        } else if (req.params.objId) {
-          errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown address identifier');
-        }
-      }
-    });
-  }
-}
-
 router.route('/')
 
   .get(Verify.verifyHasCanvasserAccess, function (req, res, next) {
     
     getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply); 
-    // getDocs(req, res, next);
   })
 
   .post(Verify.verifyHasCanvasserAccess, function (req, res, next) {
@@ -87,8 +61,10 @@ router.route('/count')
 router.route('/:objId')
 
   .get(Verify.verifyHasCanvasserAccess, function (req, res, next) {
-    
-    getDocs (req, res, next);
+
+    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply, {
+      objName: 'address'
+    }); 
   })
 
   .put(function (req, res, next) {

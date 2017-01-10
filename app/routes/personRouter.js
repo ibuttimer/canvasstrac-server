@@ -31,79 +31,12 @@ var express = require('express'),
     removeDocAccessOk = router_utils.removeDocAccessOk,
     decodeReq = router_utils.decodeReq,
     processCountReq = router_utils.processCountReq,
-    filterByField = router_utils.filterByField,
-    getDocsUsingObj = router_utils.getDocsUsingObj,
-    getRootOwner = router_utils.getRootOwner,
+    getDocs = router_utils.getDocs,
   utils = require('../misc/utils'),
   Consts = require('../consts');
 
 
 var router = express.Router();
-
-function getDocsQuery (query, objId, select, res, next) {
-  if (select.length > 0) {
-    query.select(select);
-  }
-  query.exec(function (err, docs) {
-    if (!checkError(err, res)) {
-      if (docs) {
-        // success
-        populateSubDocs(docs, function (err, docs) {
-          populateSubDocsReply(err, res, next, docs, Consts.HTTP_OK);
-        });
-      } else if (objId) {
-        errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown address identifier');
-      }
-    }
-  });
-}
-
-function getDocs (req, res, next) {
-  // check request for query params to select returned model paths
-  var decode = decodeReq(req, res, isValidModelPath, true);
-  if (decode) {
-    // execute the query
-    var root = getModelNodeTree(),
-      model = root.model;
-
-    if (req.params.objId) {
-      // retrieve doc using id
-      var query = model.findById(req.params.objId);
-      getDocsQuery(query, req.params.objId, decode.select, res, next);
-    } else {
-      var array = [],
-        propNames = Object.getOwnPropertyNames(decode.queryModelNodes),
-        processedNames = [];
-      propNames.forEach(function (prop) {
-        // for each modelNode & corresponding query value, find the matching docs
-        var propQuery = {},
-          propModelNode = decode.queryModelNodes[prop], // ModelNode
-          propModel = propModelNode.model;              // model of ModelNode 
-        propQuery[prop] = decode.queryParam[prop];  // query using provided value
-
-        getDocsUsingObj(res, propModel, propQuery, function (res, docs) {
-          // get the root owner of each of the returned docs
-          docs.forEach(function (doc) {
-             
-            getRootOwner(res, propModelNode, doc.owner, doc, function (modelNode, docx) {
-              // if root is of correct type, add to array
-              if (modelNode.model.modelName === root.model.modelName) {
-                array.push(docx._id);
-              }
-              
-              processedNames.push(prop);
-              if (processedNames.length === propNames.length) {
-                // all have been processed
-                var query = model.find({_id: {$in: array}});
-                getDocsQuery(query, req.params.objId, decode.select, res, next);
-              }
-            });
-          })
-        }); 
-      });
-    }
-  }
-}
 
 
 
@@ -111,8 +44,8 @@ router.route('/')
 
   .get(Verify.verifyHasCanvasserAccess, function (req, res, next) {
 
-    getDocs (req, res, resultReply);
-    });
+    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply); 
+  });
 
 /*
  * Remove person, address and contact details docuements
@@ -320,20 +253,9 @@ router.route('/:objId')
 
   .get(Verify.verifyHasCanvasserAccess, function (req, res) {
 
-    People.findById(req.params.objId)
-      .exec(function (err, doc) {
-        if (!checkError(err, res)) {
-          if (doc) {
-            populateSubDocs(doc, function (err, doc) {
-              if (!checkError(err, res)) {
-                res.json(doc);
-              }
-            });
-          } else {
-            errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown person identifier');
-          }
-        }
-      });
+    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply, {
+      objName: 'person'
+    }); 
   })
 
   .put(Verify.verifySelfOrHasCanvasserAccess, function (req, res) {

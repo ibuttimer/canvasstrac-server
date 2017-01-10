@@ -486,7 +486,18 @@ function getRootOwner(res, modelNode, owner, docIn, next) {
   }
 }
 
-function getDocsQuery (query, objId, select, root, res, next) {
+/**
+ * Retrieve documents
+ * @param {Object} query    - query to use
+ * @param {Object} select   - field selection
+ * @param {Object} root     - root of ModelNode tree
+ * @param {Object} res      - http response
+ * @param {function} next   - next function
+ * @param {Object} options  - object containing optional arguments:
+ *    @param {Object} objId    + ObjectId (if find by id query)
+ *    @param {string} objName  + object name for not found by id message
+ */
+function getDocsQuery (query, select, root, res, next, options) {
   if (select.length > 0) {
     query.select(select);
   }
@@ -501,37 +512,68 @@ function getDocsQuery (query, objId, select, root, res, next) {
         } else {
           populateSubDocsReply(err, res, next, docs, Consts.HTTP_OK);
         }
-      } else if (objId) {
-        errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown address identifier');
+      } else if (options && options.objId) {
+        var msg = 'Unknown ';
+        if (options.objName) {
+          msg += options.objName + ' ';
+        }
+        msg += 'identifier';
+        errorReply(res, Consts.HTTP_NOT_FOUND, msg);
       }
     }
   });
 }
 
+/**
+ * Retrieve documents
+ * @param {Object} req                - http request
+ * @param {Object} res                - http response
+ * @param {function} isValidModelPath - function to test valid model paths
+ * @param {Object} root               - root of ModelNode tree
+ * @param {function} next             - next function
+ * @param {Object} options            - object containing optional arguments:
+ *    @param {Object} projection        + determines fields to be returned in the matching documents
+ *    @param {string} objName           + object name for not found by id message
+ */
+function getDocs (req, res, isValidModelPath, root, next, options) {
+  /* Note: the client request can select paths to return via the 'select' field 
+           in the decoded request. The projection argument is intended for 
+           path selection/exclusion within the server */
+  var projection,
+    objName;
+  if (options) {
+    projection = options.projection;
+    objName = options.objName;
+  }
 
-function getDocs (req, res, isValidModelPath, root, next) {
   // check request for query params to select returned model paths
   var decode = decodeReq(req, res, isValidModelPath, true);
   if (decode) {
     // execute the query
     var model = root.model,
-      fieldNames = Object.getOwnPropertyNames(decode.queryModelNodes);
+      fieldNames = Object.getOwnPropertyNames(decode.queryModelNodes),
+      fldProced = 0,  // fields processed count
+      fldToProc = fieldNames.length;  // total number of fields to process
 
     if (req.params.objId) {
       // retrieve doc using id
-      var query = model.findById(req.params.objId);
-      getDocsQuery(query, req.params.objId, decode.select, root, res, next);
-    } else if (fieldNames.length == 0) {
+      var query = model.findById(req.params.objId, projection);
+      getDocsQuery(query, decode.select, root, res, next, {
+        objId: req.params.objId,
+        objName: objName
+      });
+    } else if (fldToProc == 0) {
       // no ModelNodes therefore must be a get all request
-      var query = model.find(decode.queryParam);
-      getDocsQuery(query, req.params.objId, decode.select, root, res, next);
+      var query = model.find(decode.queryParam, projection);
+      getDocsQuery(query, decode.select, root, res, next);
     } else {
       /* fields may be spread across several models so build a list, 
-        * and find the root owner of each document, if its the correc model 
+        * and find the root owner of each document, if its the correct model 
         * then return it */
       var queryResult = {}, // obj containing arrays of docs matching individual query fields
-        processed = 0,  // docs processed count
-        toProcess = 0;  // total number of docs to process
+        docProced = 0,  // docs processed count
+        docToProc = 0;  // total number of docs to process
+
       fieldNames.forEach(function (prop) {
         // for each modelNode & corresponding query value, find the matching docs
         var propModelNode = decode.queryModelNodes[prop], // ModelNode
@@ -539,14 +581,15 @@ function getDocs (req, res, isValidModelPath, root, next) {
           propQuery = cloneObject(decode.queryParam, [prop]); // query using provided value
 
         getDocsUsingObj(res, propModel, propQuery, function (res, docs) {
-          toProcess += docs.length; // inc total number of docs to process
+          docToProc += docs.length; // inc total number of docs to process
+          fldProced++;  // inc number of fields processed
 
           // get the root owner of each of the returned docs
           docs.forEach(function (doc) {
              
             getRootOwner(res, propModelNode, doc.owner, doc, function (modelNode, docx) {
               // if root is of correct type, add to queryResult
-              ++processed;
+              ++docProced;
               if (modelNode.model.modelName === root.model.modelName) {
                 if (!queryResult[prop]) {
                   queryResult[prop] = [];
@@ -554,10 +597,10 @@ function getDocs (req, res, isValidModelPath, root, next) {
                 queryResult[prop].push(docx._id); // save doc id
               }
 
-              if (processed === toProcess) {
+              if (docProced === docToProc) {
                 // all have been processed
                 var resultFields = Object.getOwnPropertyNames(queryResult),
-                  haveRes = (resultFields.length && (resultFields.length === fieldNames.length));
+                  haveRes = (resultFields.length && (resultFields.length === fldToProc));
                 if (haveRes) {
                   // have results for all input query fields, so generate array of docs that match all query params
                   var idsArray = queryResult[resultFields[0]];
@@ -568,7 +611,9 @@ function getDocs (req, res, isValidModelPath, root, next) {
                   if (haveRes) {
                     // retrieve the docs to return 
                     var query = modelNode.model.find({_id: {$in: idsArray}});
-                    getDocsQuery(query, req.params.objId, decode.select, root, res, next);
+                    getDocsQuery(query, decode.select, root, res, next, {
+                      objId: req.params.objId
+                    });
                   }
                 } 
                 if (!haveRes) {
@@ -578,6 +623,11 @@ function getDocs (req, res, isValidModelPath, root, next) {
               } 
             });
           });
+
+          if ((docToProc === 0) && (fldProced === fldToProc)) {
+            // nothing found matching query
+            populateSubDocsReply(undefined, res, next, [], Consts.HTTP_NO_CONTENT);
+          }
         }); 
       });
     }
