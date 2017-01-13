@@ -279,23 +279,6 @@ router.route('/:objId')
       projection: getProjection(),
       objName: 'user'
     }); 
-
-
-
-    // User.findById(req.params.objId, getProjection())
-    //   .exec(function (err, doc) {
-    //     if (!checkError(err, res)) {
-    //       if (doc) {
-    //         populateSubDocs(doc, function (err, doc) {
-    //           if (!checkError(err, res)) {
-    //             res.json(doc);
-    //           }
-    //         });
-    //       } else {
-    //         errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown user identifier');
-    //       }
-    //     }
-    //   });
   })
 
   .put(Verify.verifySelfOrAdmin, function (req, res, next) {

@@ -597,7 +597,7 @@ function getDocs (req, res, isValidModelPath, root, next, options) {
                 queryResult[prop].push(docx._id); // save doc id
               }
 
-              if (docProced === docToProc) {
+              if ((docProced === docToProc) && (fldProced === fldToProc)) {
                 // all have been processed
                 var resultFields = Object.getOwnPropertyNames(queryResult),
                   haveRes = (resultFields.length && (resultFields.length === fldToProc));
