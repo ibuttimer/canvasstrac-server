@@ -31,7 +31,7 @@ var schema = new Schema({
 // create a model using schema
 var model = mongoose.model('Candidate', schema);
 
-var modelNode = new ModelNode(model, populateSubDocs);
+var modelNode = new ModelNode(model, { populateSubDocs: populateSubDocs });
 
 var modelTree = modelNode.getTree();
 

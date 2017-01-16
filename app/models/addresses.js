@@ -65,7 +65,7 @@ var schema = new Schema({
 // create a model using schema
 var model = mongoose.model('Address', schema);
 
-var modelNode = new ModelNode(model, populateSubDocs);
+var modelNode = new ModelNode(model, { populateSubDocs: populateSubDocs });
 // TODO ignoring votingDistrict for now
 
 var modelTree = modelNode.getTree();

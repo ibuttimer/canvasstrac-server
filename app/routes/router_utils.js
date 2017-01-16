@@ -434,22 +434,28 @@ function processCountReq (req, res, isValidModelPath, model) {
 
 /**
  * Retrieve document(s) using a query object
- * @param {Object} res                        - http response
- * @param {mongoose.Model} model              - model to retrieve from
- * @param {Object} queryObj                   - query object
- * @param {String} select                     - field select string
- * @param {function} next                     - next function
+ * @param {Object} res                - http response
+ * @param {mongoose.Model} model      - model to retrieve from
+ * @param {Object} queryObj           - query object
+ * @param {Object} options            - object containing optional arguments:
+ *    @param {String} select            + field select string
+ *    @param {Object} projection        + determines fields to be returned in the matching documents
+ * @param {function} next             - next function
  */
-function getDocsUsingObj (res, model, queryObj, select, next) {
-  if (typeof select === 'function') {
-    next = select;
-    select = '';
+function getDocsUsingObj (res, model, queryObj, options, next) {
+  /* Note: the client request can select paths to return via the 'select' field 
+           in the decoded request. The projection argument is intended for 
+           path selection/exclusion within the server */
+  if (typeof options === 'function') {
+    next = options;
+    options = {};
   }
+  var select = options.select;
   if (!select) {
     select = '';
   }
   // execute the query
-  var query = model.find(queryObj);
+  var query = model.find(queryObj, options.projection);
   if (select.length > 0) {
     query.select(select);
   }
@@ -580,7 +586,9 @@ function getDocs (req, res, isValidModelPath, root, next, options) {
           propModel = propModelNode.model,              // model of ModelNode 
           propQuery = cloneObject(decode.queryParam, [prop]); // query using provided value
 
-        getDocsUsingObj(res, propModel, propQuery, function (res, docs) {
+        getDocsUsingObj(res, propModel, propQuery, { 
+            projection: projection,
+            select: decode.select }, function (res, docs) {
           docToProc += docs.length; // inc total number of docs to process
           fldProced++;  // inc number of fields processed
 
@@ -610,7 +618,7 @@ function getDocs (req, res, isValidModelPath, root, next, options) {
                   haveRes = (idsArray.length > 0);
                   if (haveRes) {
                     // retrieve the docs to return 
-                    var query = modelNode.model.find({_id: {$in: idsArray}});
+                    var query = modelNode.model.find({_id: {$in: idsArray}}, modelNode.getProjection());
                     getDocsQuery(query, decode.select, root, res, next, {
                       objId: req.params.objId
                     });

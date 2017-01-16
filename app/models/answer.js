@@ -32,7 +32,7 @@ var schema = new Schema({
 // create a model using schema
 var model = mongoose.model('Answer', schema);
 
-var modelNode = new ModelNode(model, populateSubDocs);
+var modelNode = new ModelNode(model, { populateSubDocs: populateSubDocs });
 modelNode.addChildBranch(QuestionModule.getModelNodeTree(), 'question');
 
 var modelTree = modelNode.getTree();

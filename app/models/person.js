@@ -52,7 +52,7 @@ schema.methods.getName = function () {
 // create a model using schema
 var model = mongoose.model('Person', schema);
 
-var modelNode = new ModelNode(model, populateSubDocs);
+var modelNode = new ModelNode(model, { populateSubDocs: populateSubDocs });
 modelNode.addChildBranch(ContactDetailsModule.getModelNodeTree(), 'contactDetails');
 modelNode.addChildBranch(AddressModule.getModelNodeTree(), 'address');
 

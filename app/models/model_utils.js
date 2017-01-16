@@ -13,9 +13,6 @@ var utils = require('../misc/utils'),
  */
 function populateSubDocs (model, docs, options, next) {
   
-  // TODO method of not populating fields that should not be returned, e.g. password for users
-  
-  
   if (options.length > 0) {
     model.populate(docs, options, function (err, docs) {
       next(err, docs);

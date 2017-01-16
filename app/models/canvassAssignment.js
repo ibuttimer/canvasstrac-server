@@ -14,6 +14,7 @@ var mongoose = require('mongoose'),
     canvassPopulateOptions = CanvassModule.getSubDocPopulateOptions,
   UserModule = require('./user'),
     userPopulateOptions = UserModule.getSubDocPopulateOptions,
+    userPopulateProjection = UserModule.getPopulateProjection,
   AddressModule = require('./addresses'),
     addressPopulateOptions = AddressModule.getSubDocPopulateOptions;
 
@@ -37,7 +38,7 @@ var schema = new Schema({
 // create a model using schema
 var model = mongoose.model('CanvassAssignment', schema);
 
-var modelNode = new ModelNode(model, populateSubDocs);
+var modelNode = new ModelNode(model, { populateSubDocs: populateSubDocs });
 modelNode.addChildBranch(UserModule.getModelNodeTree(), 'canvasser');
 modelNode.addChildBranch(AddressModule.getModelNodeTree(), 'addresses');
 
@@ -89,7 +90,7 @@ function isValidModelPath (path, exPaths, checkSub) {
 function getSubDocPopulateOptions () {
   return [
     { path: 'canvass', model: 'Canvass', populate: canvassPopulateOptions() },
-    { path: 'canvasser', model: 'User', populate: userPopulateOptions() },
+    { path: 'canvasser', model: 'User', populate: userPopulateOptions(), select: userPopulateProjection() },
     { path: 'addresses', model: 'Address', populate: addressPopulateOptions() }
   ];
 }

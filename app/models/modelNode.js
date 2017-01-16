@@ -10,20 +10,27 @@ var mongoose = require('mongoose'),
     getUtilsTemplate = utilsModule.getTemplate,
     getModelPathNames = utilsModule.getModelPathNames;
 
-function ModelNode (model, path, parent, populateSubDocs) {
-  if (typeof path === 'function') {
-    populateSubDocs = path;
-    path = undefined;
-    parent = undefined;
-  } else if (typeof parent === 'function') {
-    populateSubDocs = parent;
-    parent = undefined;
+/**
+ * ModeNode object
+ * @param {mongoose.model} model  - mongoose.model to represent
+ * @param {Object} options        - object containing optional arguments:
+ *    @param {string} parent            + ref to parent node
+ *    @param {string} path              + path in parent model to this model
+ *    @param {function} populateSubDocs + function to populate subdocuments
+ *    @param {Object} projection        + determines fields to be returned/excluded in queries
+ */
+function ModelNode (model, options) {
+  this.model = model;
+  this.path = undefined;
+  this.parent = undefined;
+  this.populateSubDocs = undefined;
+  this.projection = undefined;
+  if (options) {
+    this.path = options.path;
+    this.parent = options.parent;
+    this.populateSubDocs = options.populateSubDocs;
+    this.projection = options.projection;
   }
-
-  this.model = model;     // mongoose model
-  this.path = path;       // path in parent model to this model
-  this.parent = parent;   // ref to parent node
-  this.populateSubDocs = populateSubDocs; // function to populate sub docs
   this.sibling = undefined;// ref to next node in sibling chain or undefined if end of chain
   this.child = undefined;  // ref to first child in child chain or undefined if no children
 }
@@ -112,15 +119,34 @@ ModelNode.prototype.addAsLastChild = function (node, child) {
   return child;
 }
 
-ModelNode.prototype.addChild = function (model, path) {
+/**
+ * Add a child
+ * @param {mongoose.model} model  - mongoose.model of child
+ * @param {string} path           - path in parent model to child model
+ * @param {Object} options        - object containing optional Child arguments:
+ *    @param {function} populateSubDocs + function to populate subdocuments
+ *    @param {Object} projection        + determines fields to be returned/excluded in queries
+ */
+ModelNode.prototype.addChild = function (model, path, options) {
   if (!model) {
     throw new Error('Unable to add child: model is required');
   }
   if (!path) {
     throw new Error('Unable to add child: path is required');
   }
+  var opts;
+  if (!options) {
+    opts = {};
+  } else {
+    opts = {
+      populateSubDocs: options.populateSubDocs,
+      projection: options.projection
+    }
+  }
+  opts.path = path;
+  opts.parent = this;
   // insert new child node at end of children node chain
-  var child = new ModelNode(model, path, this); 
+  var child = new ModelNode(model, opts);
   return this.addAsLastChild(this, child);
 }
 
@@ -157,7 +183,15 @@ ModelNode.prototype.addChildBranch = function (node, path) {
   return this.addAsLastChild(this, child);
 };
 
-ModelNode.prototype.addSibling = function (model, path) {
+/**
+ * Add a sibling
+ * @param {mongoose.model} model  - mongoose.model of child
+ * @param {string} path           - path in parent model to child model
+ * @param {Object} options        - object containing optional Child arguments:
+ *    @param {function} populateSubDocs + function to populate subdocuments
+ *    @param {Object} projection        + determines fields to be returned/excluded in queries
+ */
+ModelNode.prototype.addSibling = function (model, path, options) {
   if (!model) {
     throw new Error('Unable to add sibling: model is required');
   }
@@ -167,8 +201,19 @@ ModelNode.prototype.addSibling = function (model, path) {
   if (!this.parent) {
     throw new Error('Unable to add sibling to root ModelNode');
   }
+  var opts;
+  if (!options) {
+    opts = {};
+  } else {
+    opts = {
+      populateSubDocs: options.populateSubDocs,
+      projection: options.projection
+    }
+  }
+  opts.path = path;
+  opts.parent = this.parent;
   // insert new sibling node after this node
-  var sibling = new ModelNode(model, path, this.parent);
+  var sibling = new ModelNode(model, opts);
   sibling.sibling = this.sibling;
   this.sibling = sibling;
   return sibling;
@@ -280,6 +325,113 @@ ModelNode.prototype.dumpTree = function () {
       indent += '  ';
     }
   });
+}
+
+/**
+ * Returns a projection for a query in the form { 
+ *  <field>: x,
+ *  <path>.<field>: x,
+ * }
+ */
+ModelNode.prototype.getProjection = function () {
+  var projection = {},
+    parent,
+    join,
+    path;
+
+  this.forEach(function (node) {
+    if (node.projection) {
+      path = node.path;
+      if (!path) {
+        path = '';
+      }
+      for (parent = node.parent; parent; parent = parent.parent) {
+        if (parent.path)  {
+          join = parent.path;
+          if (path.length) {
+            join += '.';
+          }
+        } else {
+          join = '';
+        }
+        path = join + path;
+      }
+      Object.getOwnPropertyNames(node.projection).forEach(function (name) {
+        var prop;
+        if (path) {
+          prop = path + '.' + name;
+        } else {
+          prop = name;
+        }
+        projection[prop] = node.projection[name];
+      });
+    }
+  });
+  return projection;
+}
+
+/**
+ * Convert a projection in object notation to string syntax.
+ * @param {object} projection   object to convert
+ * @return {string} string syntax
+ */
+ModelNode.prototype.objectNotationToStringSyntax = function (projection) {
+  var result = '';
+  if (typeof projection === 'string') {
+    result = projection;
+  } else if (typeof projection === 'object') {
+    Object.getOwnPropertyNames(projection).forEach(function (name) {
+      if (result.length) {
+        result += ' ';
+      }
+      if (this[name] === 0) {
+        result += '-'; // use '-' syntax to exclude
+      }
+      result += name;
+    }, projection);
+  }
+  return result;
+}
+
+/**
+ * Convert a projection in string syntax to object notation.
+ * @param {object} projection   object to convert
+ * @return {string} object notation
+ */
+ModelNode.prototype.stringSyntaxToObjectNotation = function (projection) {
+  var result;
+  if (typeof projection === 'object') {
+    result = projection;
+  } else if (typeof projection === 'string') {
+    var splits = projection.split(' ');
+    splits.forEach(function (name) {
+      if (!result) {
+        result = {};
+      }
+      if (name.indexOf('-') === 0) {  // use '-' syntax to exclude
+        result[name] = 0;
+      } else {
+        result[name] = 1;
+      }
+    }, projection);
+  }
+  return result;
+}
+
+/**
+ * Returns a projection for a populate in object notation { 
+ *  field: '0|1'
+ * }
+ */
+ModelNode.prototype.getPopulateProjection = function () {
+  var projection;
+
+  /* if the projection is in object notation, return as is, and if its in 
+  string syntax convert to object notation */
+  if (this.projection) {
+    projection = this.stringSyntaxToObjectNotation(this.projection);
+  }
+  return projection;
 }
 
 

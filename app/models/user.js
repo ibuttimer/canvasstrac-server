@@ -40,11 +40,21 @@ schema.plugin(passportLocalMongoose);
 // create a model using schema
 var model = mongoose.model('User', schema);
 
-var modelNode = new ModelNode(model, populateSubDocs);
+var modelNode = new ModelNode(model, { 
+  populateSubDocs: populateSubDocs,
+  projection: {
+    password: 0,
+    OauthId: 0,
+    OauthToken: 0,
+    __v: 0
+  }
+});
 modelNode.addChildBranch(RoleModule.getModelNodeTree(), 'role');
 modelNode.addChildBranch(PeopleModule.getModelNodeTree(), 'person');
 
 var modelTree = modelNode.getTree();
+
+//modelNode.dumpTree();
 
 /*
  * Generates a user template object from the specified source
@@ -112,14 +122,17 @@ function populateSubDocs (docs, next) {
 }
 
 /**
- * Return a projection of the paths to always exclude
+ * Return a projection of the paths to always exclude from the results of a query
  */
 function getProjection () {
-  return {
-    password: 0,
-    OauthId: 0,
-    OauthToken: 0
-  };
+  return modelNode.projection;
+}
+
+/**
+ * Return a projection of the paths to always exclude from a populate
+ */
+function getPopulateProjection () {
+  return modelNode.getPopulateProjection();
 }
 
 module.exports = {
@@ -130,5 +143,6 @@ module.exports = {
   getSubDocPopulateOptions: getSubDocPopulateOptions,
   getModelNodeTree: getModelNodeTree,
   populateSubDocs: populateSubDocs,
-  getProjection: getProjection
+  getProjection: getProjection,
+  getPopulateProjection: getPopulateProjection
 };

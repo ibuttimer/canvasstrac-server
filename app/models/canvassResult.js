@@ -14,6 +14,7 @@ var mongoose = require('mongoose'),
     answerPopulateOptions = AnswerModule.getSubDocPopulateOptions,
   UserModule = require('./user'),
     userPopulateOptions = UserModule.getSubDocPopulateOptions,
+    userPopulateProjection = UserModule.getPopulateProjection,
   PersonModule = require('./person'),
     personPopulateOptions = PersonModule.getSubDocPopulateOptions,
   AddressModule = require('./addresses'),
@@ -63,7 +64,7 @@ var schema = new Schema({
 // create a model using schema
 var model = mongoose.model('CanvassResult', schema);
 
-var modelNode = new ModelNode(model, populateSubDocs);
+var modelNode = new ModelNode(model, { populateSubDocs: populateSubDocs });
 
 var modelTree = modelNode.getTree();
 
@@ -110,7 +111,7 @@ function isValidModelPath (path, exPaths, checkSub) {
 function getSubDocPopulateOptions () {
   return [
     { path: 'answers', model: 'Answer', populate: answerPopulateOptions() },
-    { path: 'canvasser', model: 'User', populate: userPopulateOptions() },
+    { path: 'canvasser', model: 'User', populate: userPopulateOptions(), select: userPopulateProjection() },
     { path: 'voter', model: 'Person', populate: personPopulateOptions() },
     { path: 'address', model: 'Address', populate: addressPopulateOptions() }
   ];
