@@ -77,6 +77,22 @@ router.route('/')
     });
   });
 
+router.route('/canvasses')
+
+  .get(Verify.verifySelfOrHasCanvasserAccess, function (req, res, next) {
+
+    getDocs(req, res, isValidModelPath, getModelNodeTree(), function (result, res) {
+      if (result) {
+        // success
+        var array = []
+        result.payload.forEach(function (alloc) {
+          array.push(alloc.canvass);
+        });
+        res.status(result.status).json(array);
+      }
+    }); 
+  });
+
 router.route('/:objId')
 
   .get(Verify.verifySelfOrHasCanvasserAccess, function (req, res, next) {
