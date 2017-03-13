@@ -5,8 +5,9 @@ var gulp = require('gulp'),
       .usage('Usage: $0 -production')
       .argv,
     replace = require('gulp-replace-task'),
+    notify = require('gulp-notify'),
     path = require('path'),
-    fs = require('fs');
+    fs = require('fs'),
     browserSync = require('browser-sync');
 
 var basePaths = {
@@ -27,7 +28,7 @@ gulp.task('replace', function () {
 
   // Get the environment from the command line
   var env = argv.env || 'localdev',
-
+    envfilename = 'env.json',
   // Read the settings from the right file
     filename = env + '.json',
     settings = JSON.parse(fs.readFileSync(basePaths.config + filename, 'utf8')),
@@ -39,7 +40,7 @@ gulp.task('replace', function () {
       { match: 'httpsPortOffset', replacement: settings.httpsPortOffset },
       { match: 'baseURL', replacement: settings.baseURL },
       { match: 'jwtSecretKey',  replacement: settings.jwtSecretKey },
-      { match: 'tokenLife', replacement: settings.tokenLife },
+      { match: 'jwtTokenLife', replacement: settings.jwtTokenLife },
       { match: 'disableAuth', replacement: settings.disableAuth },
       { match: 'fbClientID', replacement: settings.fbClientID },
       { match: 'fbClientSecret', replacement: settings.fbClientSecret },
@@ -48,8 +49,10 @@ gulp.task('replace', function () {
     ];
 
   // Replace each placeholder with the correct value for the variable.
-  gulp.src(basePaths.config + 'config.js')
-  .pipe(replace({ patterns: patterns }))
+//  gulp.src(basePaths.config + 'config.js')
+  gulp.src(basePaths.config + envfilename)
+    .pipe(notify({ message: 'Creating ' + envfilename + ' from ' + filename }))
+    .pipe(replace({ patterns: patterns }))
     .pipe(gulp.dest(basePaths.src));
 });
 

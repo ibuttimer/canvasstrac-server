@@ -1,39 +1,53 @@
 /*jslint node: true */
 'use strict';
 
-// the types of properties to be set
-var types = {
-  dbAddr: 'str',
-  baseURL: 'str',
-  forceHttps: 'bool',
-  httpPort: 'num',
-  httpsPortOffset: 'num',
-  jwtSecretKey: 'str',
-  jwtTokenLife: 'num',
-  disableAuth: 'bool',
-  fbClientID: 'str',
-  fbClientSecret: 'str',
-  dfltPassword: 'str',
-  testOptions: 'str'
-};
+var fs = require('fs'),
+  // the types of properties to be set
+  types = {
+    dbAddr: 'str',
+    baseURL: 'str',
+    forceHttps: 'bool',
+    httpPort: 'num',
+    httpsPortOffset: 'num',
+    jwtSecretKey: 'str',
+    jwtTokenLife: 'num',
+    disableAuth: 'bool',
+    fbClientID: 'str',
+    fbClientSecret: 'str',
+    dfltPassword: 'str',
+    testOptions: 'str'
+  },
+  path = 'app/env.json',
+  cfg,
+  prop;
 
-var cfg = {};
-cfg.dbAddr = '@@dbAddr';
-cfg.baseURL = '@@baseURL';
-cfg.forceHttps = '@@forceHttps';          // flag to force all traffic through https channel
-cfg.httpPort = '@@httpPort';              // http port
-cfg.httpsPortOffset = '@@httpsPortOffset';// offset of https port from http port
-cfg.jwtSecretKey = '@@jwtSecretKey';
-cfg.jwtTokenLife = '@@jwtTokenLife';// validity of logged in token
-cfg.disableAuth = '@@disableAuth';  // flag to disable authentication for dev purposes
-cfg.fbClientID = '@@fbClientID';
-cfg.fbClientSecret = '@@fbClientSecret';
-cfg.dfltPassword = '@@dfltPassword';
-cfg.testOptions = '@@testOptions';
+if (fs.existsSync(path)) {
+  cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
+} else{
+  cfg = {};
+  cfg.dbAddr = '@@dbAddr';
+  cfg.baseURL = '@@baseURL';
+  cfg.forceHttps = '@@forceHttps';          // flag to force all traffic through https channel
+  cfg.httpPort = '@@httpPort';              // http port
+  cfg.httpsPortOffset = '@@httpsPortOffset';// offset of https port from http port
+  cfg.jwtSecretKey = '@@jwtSecretKey';
+  cfg.jwtTokenLife = '@@jwtTokenLife';// validity of logged in token
+  cfg.disableAuth = '@@disableAuth';  // flag to disable authentication for dev purposes
+  cfg.fbClientID = '@@fbClientID';
+  cfg.fbClientSecret = '@@fbClientSecret';
+  cfg.dfltPassword = '@@dfltPassword';
+  cfg.testOptions = '@@testOptions';
+}
 
-// check if cfg properties have been set and of not read from environment
-for (var prop in cfg) {
+// check if cfg properties have been set and if not read from environment
+for (prop in cfg) {
   if (cfg[prop].indexOf('@@') == 0) {
+    cfg[prop] = process.env[prop];
+  }
+}
+// make sure we have everything and convert to the correct type
+for (prop in types) {
+  if (!cfg[prop]) {
     cfg[prop] = process.env[prop];
   }
   // set to correct type

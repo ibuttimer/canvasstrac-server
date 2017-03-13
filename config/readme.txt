@@ -1,7 +1,6 @@
 The environment variable replacement functionality is based on a post by Jeff French, available at http://geekindulgence.com/environment-variables-in-angularjs-and-ionic/
 
-There is a gulp task 'replace' which reads the contents of a json config file from this folder and 
-creates version of app.config.js in the www folder.
+There is a gulp task 'replace' which reads the contents of a json config file from this folder and creates an env.json in the app folder. If the env.json file doesn't exist in the app folder, the variables are read from the environment.
 
 WARNING: nice idea but need to investigate further as regards passing the '--env localdev' argument to
 gulp from the Visual studio build.
@@ -17,7 +16,7 @@ The json config file should have the following format
   "baseURL": "<<base url for server, e.g. localhost>>",
 
   "jwtSecretKey": "<<JWT secret key>>",
-  "tokenLife": <<JWT token life, e.g. 3600>>,
+  "jwtTokenLife": <<JWT token life, e.g. 3600>>,
 
   "disableAuth": <<true to disable authentication, false otherwise>>,
 
