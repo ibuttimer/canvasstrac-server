@@ -34,7 +34,7 @@ function verifyToken(token, res, next) {
   var err = null;
   if (token) {
     // verifies secret and checks exp
-    jwt.verify(token, config.secretKey, function (err, decoded) {
+    jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
       if (err) {
         // err = new Error('You are not authenticated!');
         // err.status = Consts.HTTP_UNAUTHORISED;
@@ -164,8 +164,8 @@ function verifyAccess(minLevel, maxLevel, req, res, next) {
 };
 
 function getToken(user) {
-  return jwt.sign(user, config.secretKey, {
-    expiresIn: config.tokenLife
+  return jwt.sign(user, config.jwtSecretKey, {
+    expiresIn: config.jwtTokenLife
   });
 }
 
