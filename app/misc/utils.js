@@ -1,7 +1,6 @@
 /*jslint node: true */
 'use strict';
 
-var request = require('supertest');
 var assert = require('assert');
 var mongoose = require('mongoose');
 
