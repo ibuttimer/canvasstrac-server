@@ -3,8 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "start_prod": "node ./app/bin/www",
-    "start": "nodemon ./app/bin/www",
+    "start": "node ./app/bin/www",
+    "start_dev": "nodemon ./app/bin/www",
     "test": "mocha ./test/test.js"
   },
   "dependencies": {
