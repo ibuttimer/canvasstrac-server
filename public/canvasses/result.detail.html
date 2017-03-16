@@ -1,0 +1,43 @@
+<div class="ngdialog-message">
+  <div class="row row-content">
+    <div class="col-sm-12">
+      <div class="col-sm-9">
+        <p>{{question.question}}</p>
+      </div>
+      <div class="col-sm-3">
+        <p class="text-right"><span class="label label-default">{{getQuestionTypeName(question.type)}}</span></p>
+      </div>
+    </div>
+    <div ng-if="chart" class="col-sm-12">
+      <canvas ng-if="showPieChart(chart)" id="pie" class="chart chart-pie"
+        chart-data="question.resData.data" chart-labels="question.resData.labels" chart-options="question.chartOptions">
+      </canvas>
+      <canvas ng-if="showBarChart(chart)" id="bar" class="chart chart-horizontal-bar"
+        chart-data="question.resData.data" chart-labels="question.resData.labels" chart-options="question.chartOptions">
+      </canvas>
+      <canvas ng-if="showPolarAreaChart(chart)" id="polar" class="chart chart-polar-area"
+        chart-data="question.resData.data" chart-labels="question.resData.labels" chart-options="question.chartOptions">
+      </canvas>
+    </div>
+    <div ng-if="chart" class="col-sm-12">
+      <div ng-repeat="detail in details">
+        <div class="col-sm-6">
+          {{detail.label}}
+        </div>
+        <div class="col-sm-3">
+          {{detail.value}}
+        </div>
+        <div class="col-sm-3">
+          {{detail.percent}} %
+        </div>
+      </div>
+    </div>
+    <div ng-if="!chart" class="col-sm-12">
+      <div ng-repeat="detail in details track by $index">
+        <div>
+          <p>{{detail}}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

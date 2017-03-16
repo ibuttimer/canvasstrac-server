@@ -1,0 +1,112 @@
+<nav class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" ui-sref="{{homeMenu.sref}}"><img src="images/logo.png" height=30 width=41></a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li ui-sref-active-eq="active"><a ui-sref="{{homeMenu.sref}}">
+          <span class="glyphicon glyphicon-home"
+           aria-hidden="true"></span>&nbsp;{{homeMenu.name}}</a>
+        </li>
+        
+        <li ui-sref-active="active"><a ui-sref="{{aboutMenu.sref}}">
+          <span class="glyphicon glyphicon-info-sign"
+           aria-hidden="true"></span>&nbsp;{{aboutMenu.name}}</a>
+        </li>
+
+        <li ui-sref-active="active"><a ui-sref="{{contactMenu.sref}}">
+          <span class="fa fa-envelope-o"
+           aria-hidden="true"></span>&nbsp;{{contactMenu.name}}</a>
+        </li>
+
+        <li role="presentation" class="dropdown" ng-class="{active: inSubstate('{{configMenu.root.sref}}')}" uib-dropdown is-open="status.cfgIsOpen">
+          <a href="#" class="dropdown-toggle" data-toggle="dropdown"
+           role="button" aria-haspopup="true" aria-expanded="false" uib-dropdown-toggle ng-disabled="disabled">
+              <span class="fa fa-cog" aria-hidden="true"></span> Configutation <span class="caret"></span>
+          </a>
+          <ul class="dropdown-menu" uib-dropdown-menu role="menu">
+            <li class="dropdown-header">{{configMenu.votingsys.header}}</li>
+              <li role="menuitem" ng-repeat="entry in configMenu.votingsys.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
+            <li class="dropdown-header">{{configMenu.roles.header}}</li>
+              <li role="menuitem" ng-repeat="entry in configMenu.roles.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
+            <li class="dropdown-header">{{configMenu.users.header}}</li>
+              <li role="menuitem" ng-repeat="entry in configMenu.users.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
+          </ul>
+        </li>
+
+        <li role="presentation" class="dropdown" ng-class="{active: inSubstate('{{campaignMenu.root.sref}}')}" uib-dropdown is-open="status.cmpgnIsOpen">
+          <a href="#" class="dropdown-toggle" data-toggle="dropdown"
+           role="button" aria-haspopup="true" aria-expanded="false" uib-dropdown-toggle ng-disabled="disabled">
+            <span class="fa fa-pencil-square" aria-hidden="true"></span>&nbsp;{{campaignMenu.root.name}}&nbsp;<span class="caret"></span>
+          </a>
+          <ul class="dropdown-menu" uib-dropdown-menu role="menu">
+            <li class="dropdown-header">{{campaignMenu.elections.header}}</li>
+              <li role="menuitem" ng-repeat="entry in campaignMenu.elections.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
+            <li class="dropdown-header">{{campaignMenu.candidates.header}}</li>
+              <li role="menuitem" ng-repeat="entry in campaignMenu.candidates.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
+            <li class="dropdown-header">{{campaignMenu.canvass.header}}</li>
+              <li role="menuitem" ng-repeat="entry in campaignMenu.canvass.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
+          </ul>
+        </li>
+
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li ng-if="!loggedIn"><a ng-click="openLogin()">
+          <span class="glyphicon glyphicon-log-in"></span> Login</a>
+        </li>
+        <li ng-if="loggedIn">
+          <a>{{username}}</a>
+        </li>
+        <li ng-if="loggedIn">
+          <a ng-click="logOut()">
+          <span class="glyphicon glyphicon-log-in"></span> Logout</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>         
+
+<!--
+<header class="jumbotron">
+
+    <div class="container">
+        <div class="row row-header">
+            <div class="col-xs-12 col-sm-8">
+                <h1>Ristorante con Fusion</h1>
+                <p style="padding:40px;"></p>
+                <p>We take inspiration from the World's best cuisines, and create
+                 a unique fusion experience. Our lipsmacking creations will 
+                 tickle your culinary senses!</p>
+            </div>
+            <div class="col-xs-12 col-sm-2">
+            <p style="padding:20px;"></p>
+            <img src="images/logo.png" class="img-responsive">
+            </div>
+            <div class="col-xs-12 col-sm-2">
+            </div>
+        </div>
+    </div>
+</header>
+-->
+
+<div class="container">
+  <div class="row">
+    <div class="col-xs-12">
+      <ul class="breadcrumb">
+        <li ng-repeat="crumb in breadcrumb" ng-class="{ active: crumb.active }"><a ng-if="crumb.active" href="{{crumb.href}}">{{crumb.name}}</a><span ng-if="!crumb.active">{{crumb.name}}</span></li>
+      </ul>
+    </div>
+    <div class="col-xs-12">
+      <h3 ng-if="stateIs('{{aboutMenu.sref}}')">{{aboutMenu.name}}</h3>
+      <hr>
+    </div>
+  </div>
+</div>
+

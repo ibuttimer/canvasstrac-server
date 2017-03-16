@@ -1,0 +1,17 @@
+<ul ng-if="showPager(pager)" class="pagination">
+  <li ng-class="{disabled:isFirstPage(pager)}">
+    <a ng-click="setPage(pager,1)"><span class="glyphicon glyphicon-fast-backward"/></a>
+  </li>
+  <li ng-class="{disabled:isFirstPage(pager)}">
+    <a ng-click="decPage(pager)"><span class="glyphicon glyphicon-step-backward"/></a>
+  </li>
+  <li ng-repeat="page in pager.pages" ng-class="{active:isActivePage(pager,page)}">
+    <a ng-click="setPage(pager,page)">{{page}}</a>
+  </li>               
+  <li ng-class="{disabled:isLastPage(pager)}">
+    <a ng-click="incPage(pager)"><span class="glyphicon glyphicon-step-forward"/></a>
+  </li>
+  <li ng-class="{disabled:isLastPage(pager)}">
+    <a ng-click="setPage(pager,'last')"><span class="glyphicon glyphicon-fast-forward"/></a>
+  </li>
+</ul>

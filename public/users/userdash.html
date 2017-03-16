@@ -1,0 +1,52 @@
+
+<div class="container" ng-controller="UserController">
+  <div class="row row-content">
+    <div class="col-sm-12">
+      <form class="form-inline">
+        <div class="form-group col-sm-2">
+          <h4>Filter by:</h4>
+        </div>
+
+        <div class="form-group col-sm-4">
+          <label for="name" class="control-label col-sm-2">Name&nbsp;&nbsp;</label>
+          <input type="text" class="form-control" id="name" name="name" placeholder="Enter name" ng-model="userFilterText">
+        </div>
+
+        <div class="form-group col-sm-1">
+          <label for="op" class="sr-only">Filter operation</label>
+          <select id="op" name="op" ng-model="userFilterOp">
+            <option ng-repeat="op in userFilterOps" value="{{op}}">{{op}}</option>
+          </select>
+        </div>
+        
+        <div class="form-group col-sm-4">
+          <label for="role" class="control-label col-sm-2">Role&nbsp;&nbsp;</label>
+          <select id="role" name="role" ng-model="userFilterRole">
+            <option ng-repeat="role in roles" value="{{role._id}}">{{role.name}}</option>
+          </select>
+        </div>
+        <div class="form-group col-sm-1">
+          <button type="reset" class="btn btn-default" ng-click="initUserFilter()">Clear</button>
+        </div>
+      </form>
+    </div>
+    <div class="col-sm-8">
+      <div class="list-group">
+        <button type="button" class="list-group-item" ng-repeat="user in users | filterDashUser: userFilterText : userFilterOp : userFilterRole" ng-class="{active: user.isSelected}" ng-click="toggleSelection(user)">
+          <p>{{user.person.firstname}} {{user.person.lastname}}</p>
+          <p>{{user.role.name}}</p>
+        </button>
+      </div>
+    </div>
+    <div class="col-sm-4">
+      <div class="btn-group-vertical" role="group">
+        <button type="button" class="btn btn-default" ui-sref="{{newState}}">New</button>
+        <button type="button" class="btn btn-default" ng-disabled="selectedCnt != 1" ng-click="viewUser()">View</button>
+        <button type="button" class="btn btn-default" ng-disabled="selectedCnt != 1" ng-click="editUser()">Update</button>
+        <button type="button" class="btn btn-default" ng-disabled="selectedCnt < 1" ng-click="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>  <!-- end of container -->
+
+

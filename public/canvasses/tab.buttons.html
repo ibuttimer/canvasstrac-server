@@ -1,0 +1,18 @@
+<!-- navigation buttons -->
+<div class="col-sm-1">
+  <button type="button" class="btn btn-primary btn-sm" ng-click="prevTab()"
+          ng-if="hasPrev" ng-disabled="prevEnabled()">
+    <span class="glyphicon glyphicon-menu-left" aria-hidden="true"></span>&nbsp;Prev</span>
+  </button>
+</div>
+<div class="col-sm-offset-1 col-sm-2">
+  <button type="reset" class="btn btn-default btn-sm"
+          ng-if="hasReset" ng-disabled="editDisabled">Reset</button>
+</div>
+<div class="col-sm-offset-4 col-sm-1">
+  <button type="button" class="btn btn-danger btn-sm" ng-click="gotoDash()">Cancel</button>
+</div>
+<div class="col-sm-offset-1 col-sm-1">
+  <button type="submit" class="btn btn-primary btn-sm" ng-disabled="nextEnabled()">{{nextText}}&nbsp;<span class="glyphicon glyphicon-menu-right" aria-hidden="true"></span>
+  </button>
+</div>

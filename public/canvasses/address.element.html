@@ -1,0 +1,13 @@
+<div class="list-group">
+  <button type="button" class="list-group-item" ng-repeat="addr in pager.pageItems" ng-class="{active: addr.isSelected}" ng-click="toggleItemSel(list,addr)">
+    <div class="row">
+      <div class="col-sm-12">
+        <p>{{addr.addrLine1}} {{addr.addrLine2}} {{addr.addrLine3}}
+          <span ng-if="showBadge" class="text-right label" ng-class="addr.labelClass">{{addr.badge}}</span>
+        </p>
+        <p>{{addr.town}} {{addr.city}} {{addr.county}}</p>
+        <p class="text-right">{{addr.postcode}}</p>
+      </div>
+    </div>
+  </button>
+</div>

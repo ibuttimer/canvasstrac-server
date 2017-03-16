@@ -1,0 +1,176 @@
+
+<div class="container" ng-controller="UserController">
+  <div class="row row-content">
+    <div class="col-xs-12 col-sm-8">
+      <h2>{{getTitle()}}</h2>
+      <form class="form-horizontal" name="userForm" role="form" ng-submit="processForm()" novalidate>
+
+        <div class="form-group" ng-class="{ 'has-error' : userForm.firstname.$error.required && !userForm.firstname.$pristine }">
+          <label for="firstname" class="col-sm-2 control-label">First name</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="firstname" name="firstname" placeholder="Enter your first name"
+                   ng-model="user.firstname" ng-disabled="editDisabled" required>
+            <span ng-show="userForm.firstname.$error.required && !userForm.firstname.$pristine" 
+                  class="help-block">Your first name is required.</span>
+          </div>
+        </div>
+
+        <div class="form-group" ng-class="{ 'has-error' : userForm.lastname.$error.required && !userForm.lastname.$pristine }">
+          <label for="lastname" class="col-sm-2 control-label">Last name</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="lastname" name="lastname" placeholder="Enter your last name"
+                   ng-model="user.lastname" ng-disabled="editDisabled" required>
+            <span ng-show="userForm.lastname.$error.required && !userForm.lastname.$pristine" 
+                  class="help-block">Your last name is required.</span>
+          </div>
+        </div>
+
+        <div class="form-group" ng-class="{ 'has-error' : userForm.username.$error.required && !userForm.username.$pristine }">
+          <label for="username" class="col-sm-2 control-label">Username</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="username" name="username" placeholder="Enter your userame"
+                   ng-model="user.username" ng-disabled="editDisabled" required>
+            <span ng-show="userForm.username.$error.required && !userForm.username.$pristine" 
+                  class="help-block">Your username is required.</span>
+          </div>
+        </div>
+
+        <div class="form-group" ng-class="{ 'has-error' : userForm.role.$error.required && !userForm.role.$pristine }">
+          <label for="role" class="col-sm-2 control-label">Role</label>
+          <div class="col-sm-10">
+            <select id="role" name="role" ng-model="user.role" ng-disabled="editDisabled" required>
+              <option ng-repeat="role in roles" value="{{role._id}}">{{role.name}}</option>
+            </select>
+            <span ng-show="userForm.role.$error.required && !userForm.role.$pristine" 
+                  class="help-block">Role selection is required.</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="feedback" class="col-sm-2 control-label">Note</label>
+          <div class="col-sm-10">
+            <textarea class="form-control" rows="12" id="note" name="note" placeholder="Enter note" ng-model="user.note" ng-disabled="editDisabled">
+            </textarea>
+          </div>
+        </div> 
+
+        <div class="form-group">
+          <label for="addrLine1" class="col-sm-2 control-label">Address</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="addrLine1" name="addrLine1" placeholder="Enter address"
+                   ng-model="user.addrLine1" ng-disabled="editDisabled">
+            <input type="text" class="form-control" id="addrLine2" name="addrLine2" ng-model="user.addrLine2" ng-disabled="editDisabled">
+            <input type="text" class="form-control" id="addrLine3" name="addrLine3" ng-model="user.addrLine3" ng-disabled="editDisabled">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="town" class="col-sm-2 control-label">Town</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="town" name="town" placeholder="Enter town" ng-model="user.town" ng-disabled="editDisabled">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="city" class="col-sm-2 control-label">City</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="city" name="city" placeholder="Enter city" ng-model="user.city" ng-disabled="editDisabled">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="county" class="col-sm-2 control-label">County</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="county" name="county" placeholder="Enter county" ng-model="user.county" ng-disabled="editDisabled">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="country" class="col-sm-2 control-label">Country</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="country" name="country" placeholder="Enter country" ng-model="user.country" ng-disabled="editDisabled">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="postcode" class="col-sm-2 control-label">Postcode</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="postcode" name="postcode" placeholder="Enter postcode" ng-model="user.postcode" ng-disabled="editDisabled">
+          </div>
+        </div>
+
+        <div class="form-group" ng-class="{ 'has-error has-feedback' : userForm.phone.$invalid && !userForm.phone.$pristine }">
+          <label for="phone" class="col-sm-2 control-label">Phone</label>
+          <div class="col-sm-10">
+            <input type="tel" class="form-control" id="phone" name="phone" placeholder="Enter phone number" ng-model="user.phone" ng-disabled="editDisabled">
+            <span ng-show="userForm.phone.$invalid && !userForm.phone.$pristine" class="glyphicon glyphicon-remove form-control-feedback" aria-hidden="true"></span>
+            <span ng-show="(userForm.phone.$invalid || userForm.phone.$error.required) &&
+                            !userForm.phone.$pristine"
+             class="help-block">Enter a valid phone number.</span>
+          </div>
+        </div>
+
+        <div class="form-group" ng-class="{ 'has-error has-feedback' : userForm.mobile.$invalid && !userForm.mobile.$pristine }">
+          <label for="mobile" class="col-sm-2 control-label">Mobile</label>
+          <div class="col-sm-10">
+            <input type="tel" class="form-control" id="mobile" name="mobile" placeholder="Enter mobile number" ng-model="user.mobile" ng-disabled="editDisabled">
+            <span ng-show="userForm.mobile.$invalid && !userForm.mobile.$pristine" class="glyphicon glyphicon-remove form-control-feedback" aria-hidden="true"></span>
+            <span ng-show="(userForm.mobile.$invalid || userForm.mobile.$error.required) &&
+                            !userForm.mobile.$pristine"
+             class="help-block">Enter a valid phone number.</span>
+          </div>
+        </div>
+
+        <div class="form-group" ng-class="{ 'has-error has-feedback' : userForm.email.$invalid && !userForm.email.$pristine }">
+          <label for="email" class="col-sm-2 control-label">Email</label>
+          <div class="col-sm-10">
+            <input type="email" class="form-control" id="email" name="email" placeholder="Enter email" ng-model="user.email" ng-disabled="editDisabled">
+            <span ng-show="userForm.email.$invalid && !userForm.email.$pristine" class="glyphicon glyphicon-remove form-control-feedback" aria-hidden="true"></span>
+            <span ng-show="(userForm.email.$invalid || userForm.email.$error.required) &&
+                            !userForm.email.$pristine"
+             class="help-block">Enter a valid email.</span>
+          </div>
+        </div>
+
+        <div class="form-group" ng-class="{ 'has-error has-feedback' : userForm.website.$invalid && !userForm.website.$pristine }">
+          <label for="website" class="col-sm-2 control-label">Website</label>
+          <div class="col-sm-10">
+            <input type="url" class="form-control" id="website" name="website" placeholder="Enter website" ng-model="user.website" ng-disabled="editDisabled">
+            <span ng-show="userForm.website.$invalid && !userForm.website.$pristine" class="glyphicon glyphicon-remove form-control-feedback" aria-hidden="true"></span>
+            <span ng-show="(userForm.website.$invalid || userForm.website.$error.required) &&
+                            !userForm.website.$pristine"
+             class="help-block">Enter a valid website.</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="facebook" class="col-sm-2 control-label">Facebook</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="facebook" name="facebook" placeholder="Enter facebook" ng-model="user.facebook" ng-disabled="editDisabled">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="twitter" class="col-sm-2 control-label">Twitter</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="twitter" name="twitter" placeholder="Enter twitter" ng-model="user.twitter" ng-disabled="editDisabled">
+          </div>
+        </div>
+        
+        <div class="col-sm-offset-2 col-sm-2">
+          <button type="reset" class="btn btn-default" ng-disabled="editDisabled">Reset</button>
+        </div>
+        <div class="col-sm-offset-7 col-sm-1">
+          <button type="submit" class="btn btn-primary" ng-disabled="userForm.$invalid">Done</button>
+        </div>
+      </form>
+    </div>
+    <div class="col-sm-4">
+      <div class="btn-group-vertical" role="group">
+        <button type="button" class="btn btn-default" ui-sref="{{newState}}">New</button>
+        <button type="button" class="btn btn-default" ng-if="stateIsNot(viewState)" ng-click="viewUser()">View</button>
+        <button type="button" class="btn btn-default" ng-if="stateIsNot(editState)" ng-click="editUser()">Update</button>
+        <button type="button" class="btn btn-default" ng-if="stateIsNot(newState)">Delete</button>
+      </div>
+  </div>
+</div>  <!-- end of container -->

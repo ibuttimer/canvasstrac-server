@@ -1,0 +1,80 @@
+
+<div class="container" ng-controller="ElectionController">
+  <div class="row row-content">
+    <div class="col-xs-12 col-sm-8">
+      <h2>{{getTitle()}}</h2>
+      <form class="form-horizontal" name="electionForm" role="form" ng-submit="processForm()" novalidate>
+
+        <div class="form-group" ng-class="{ 'has-error' : electionForm.name.$error.required && !electionForm.name.$pristine }">
+          <label for="name" class="col-sm-2 control-label">Name</label>
+          <div class="col-sm-10">
+            <input type="text" class="form-control" id="name" name="name" placeholder="Enter election name"
+                   ng-model="election.name" ng-disabled="editDisabled" required>
+            <span ng-show="electionForm.name.$error.required && !electionForm.name.$pristine" 
+                  class="help-block">Election name is required.</span>
+          </div>
+        </div>
+
+        <div class="form-group" ng-class="{ 'has-error' : electionForm.description.$error.required && !electionForm.description.$pristine }">
+          <label for="description" class="col-sm-2 control-label">Description</label>
+          <div class="col-sm-10">
+            <textarea class="form-control" rows="12" id="description" name="description" placeholder="Enter description" ng-model="election.description" ng-disabled="editDisabled" required>
+            </textarea>
+            <span ng-show="electionForm.description.$error.required && !electionForm.description.$pristine" 
+                  class="help-block">Election description is required.</span>
+          </div>
+        </div>
+
+        <div class="form-group" ng-class="{ 'has-error' : electionForm.seats.$error.required && !electionForm.seats.$pristine }">
+          <label for="seats" class="col-sm-2 control-label">Number of seats</label>
+          <div class="col-sm-2">
+            <input type="number" class="form-control" id="seats" name="seats" placeholder="Enter number of seats" min="1" 
+                   ng-model="election.seats" ng-disabled="editDisabled" required>
+            <span ng-show="electionForm.seats.$error.required && !electionForm.seats.$pristine" 
+                  class="help-block">Number of seats required.</span>
+          </div>
+        </div>
+
+        <div class="form-group" ng-class="{ 'has-error' : electionForm.system.$error.required && !electionForm.system.$pristine }">
+          <label for="system" class="col-sm-2 control-label">Voting system</label>
+          <div class="col-sm-10">
+            <select id="system" name="system" ng-model="election.system" ng-disabled="editDisabled" required>
+              <option ng-repeat="system in votingSystems" value="{{system._id}}">{{system.name}}</option>
+            </select>
+            <span ng-show="electionForm.system.$error.required && !electionForm.system.$pristine" 
+                  class="help-block">Voting system selection is required.</span>
+          </div>
+        </div>
+
+        <div class="form-group" ng-class="{ 'has-error has-feedback' : electionForm.electionDate.$invalid && !electionForm.electionDate.$pristine }">
+          <label for="electionDate" class="col-sm-2 control-label">Date</label>
+          <div class="col-sm-4">
+            <input type="date" class="form-control" id="electionDate" name="electionDate" placeholder="Enter election date" ng-model="election.electionDate" ng-disabled="editDisabled" required>
+            <span class="glyphicon glyphicon-calendar form-control-feedback"></span>
+            <span ng-show="electionForm.electionDate.$invalid && !electionForm.electionDate.$pristine" class="glyphicon glyphicon-remove form-control-feedback" aria-hidden="true"></span>
+            <span ng-show="(electionForm.electionDate.$invalid || electionForm.electionDate.$error.required) &&
+                            !electionForm.electionDate.$pristine"
+             class="help-block">Enter a valid date.</span>
+          </div>
+        </div>
+
+        <div class="col-sm-offset-2 col-sm-2">
+          <button type="reset" class="btn btn-default" ng-disabled="editDisabled">Reset</button>
+        </div>
+        <div class="col-sm-offset-5 col-sm-1">
+          <button type="button" class="btn btn-danger" ng-click="gotoDash()">Cancel</button>
+        </div>
+        <div class="col-sm-offset-1 col-sm-1">
+          <button type="submit" class="btn btn-primary" ng-disabled="electionForm.$invalid">Done</button>
+        </div>
+      </form>
+    </div>
+    <div class="col-sm-4">
+      <div class="btn-group-vertical" role="group" ng-if="stateIsNot(newState)">
+        <button type="button" class="btn btn-default" ui-sref="{{newState}}">New</button>
+        <button type="button" class="btn btn-default" ng-if="stateIs(viewState)" ng-click="editItem()">Update</button>
+        <button type="button" class="btn btn-default" ng-if="stateIsNot(newState)" ng-click="deleteItem()">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>  <!-- end of container -->

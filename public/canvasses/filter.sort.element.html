@@ -1,0 +1,17 @@
+<div class="btn-group" role="group">
+  <button type="button" class="btn btn-primary btn-sm" ng-click="filterList(list,'a')" ng-if="reqAll"><i class="fa fa-list-alt" aria-hidden="true"></i>&nbsp;All</button>
+  <button type="button" class="btn btn-primary btn-sm" ng-click="filterList(list,'f')"><i class="fa fa-filter" aria-hidden="true"></i>&nbsp;Filter</button>
+  <button type="button" class="btn btn-warning btn-sm" ng-click="filterList(list,'c')"><i class="fa fa-eraser" aria-hidden="true"></i>&nbsp;Clear</button>
+</div>
+<p>Sort by:
+  <select ng-model="list.sortBy" ng-change="sortList(list, pager)" 
+  ng-options="sortOpt.name for sortOpt in sortOptions track by sortOpt.value">
+  </select>
+</p>
+<p>Selected: {{list.selCount}} of {{list.filterCount}}&nbsp;&nbsp;
+  <div class="btn-group" role="group">
+    <button type="button" class="btn btn-default" ng-click="setItemSel(list,CLR_SEL)" ng-disabled="editDisabled">Clear</button>
+    <button type="button" class="btn btn-default" ng-click="setItemSel(list,SET_SEL)" ng-disabled="editDisabled">All</button>
+    <button type="button" class="btn btn-default" ng-click="setItemSel(list,TOGGLE_SEL)" ng-disabled="editDisabled">Invert</button>
+  </div>
+</p>

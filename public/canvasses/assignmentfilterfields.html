@@ -1,0 +1,7 @@
+<div class="form-group col-sm-12">
+  <label for="assignment" class="control-label col-sm-3">{{assignmentLabel}}&nbsp;&nbsp;</label>
+  
+  <input ng-repeat-start="opt in ngDialogData.ctrl.assignmentChoices" type="radio" ng-value="opt.val" ng-model="ngDialogData.filter.assignment"><span ng-repeat-end>&nbsp;{{opt.text}}&nbsp;&nbsp;</span>
+
+  
+</div>

@@ -1,0 +1,15 @@
+<div class="list-group">
+  <button type="button" class="list-group-item" ng-repeat="user in pager.pageItems" ng-class="{active: user.isSelected}" ng-click="toggleItemSel(list,user)">
+    <div class="row">
+      <div class="col-sm-12">
+        <p>{{user.person.firstname}} <b>{{user.person.lastname}}</b>
+          <span ng-if="showBadge" class="text-right label" ng-class="user.labelClass">{{user.addresses.length}}</span>
+        </p>
+        <p>{{user.person.address.addrLine1}} {{user.person.address.addrLine2}} {{user.person.address.addrLine3}}
+        </p>
+        <p>{{user.person.address.town}} {{user.person.address.city}} {{user.person.address.county}}</p>
+        <p class="text-right">{{user.person.address.postcode}}</p>
+      </div>
+    </div>
+  </button>
+</div>

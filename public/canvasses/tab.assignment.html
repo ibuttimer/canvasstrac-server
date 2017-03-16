@@ -1,0 +1,101 @@
+<div role="tabpanel" class="tab-pane fade in active">
+  <form class="form-horizontal" name="assignmentForm" role="form" ng-submit="processForm()" novalidate>
+
+    <div class="form-group">
+      <div class="col-sm-12">
+        <div class="col-sm-5">
+          <h4>Addresses</h4>
+          <p>Filter by: {{allocatedAddrFilterStr}}</p>
+          <p>Showing: {{allocatedAddr.filterCount}} of {{allocatedAddr.count}}</p>
+        </div>
+
+        <div class="col-sm-2"></div>
+
+        <div class="col-sm-5">
+          <h4>Canvassers</h4>
+          <p>Filter by: {{allocatedCanvasserFilterStr}}</p>
+          <p>Showing: {{allocatedCanvasser.filterCount}} of {{allocatedCanvasser.count}}</p>
+        </div>
+      </div>
+      <div class="col-sm-12">
+        <div class="col-sm-5">
+          <!-- allocated address pager -->
+          <div ng-controller="CanvassAssignmentAddressController">
+            <div ng-include="'canvasses/pager.element.html'"></div>
+          </div>
+        </div>
+
+        <div class="col-sm-2">
+          <p>Items per page</p>
+          <select id="allocperpage" name="allocperpage" ng-change="setPerPage([allocatedCanvasserPager,allocatedAddrPager],perPage)" ng-model="perPage"
+          ng-options="perPage for perPage in perPageOpt">
+          </select>
+        </div>
+
+        <div class="col-sm-5">
+          <!-- allocated canvasser pager -->
+          <div ng-controller="CanvassAssignmentCanvasserController">
+            <div ng-include="'canvasses/pager.element.html'"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-12">
+        <!-- allocated address filter -->
+        <div class="col-sm-5">
+          <div ng-controller="CanvassAssignmentAddressController">
+            <div ng-include="'canvasses/filter.sort.element.html'"></div>
+          </div>
+        </div>
+
+        <div class="col-sm-2"></div>
+
+        <!-- allocated canvasserfilter -->
+        <div class="col-sm-5">
+          <div ng-controller="CanvassAssignmentCanvasserController">
+            <div ng-include="'canvasses/filter.sort.element.html'"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <!-- allocated address list -->
+      <div class="col-sm-5">
+        <div ng-controller="CanvassAssignmentAddressController">
+          <div ng-include="'canvasses/address.element.html'"></div>
+        </div>
+      </div>
+
+      <!-- show/assign/unassign buttons -->
+      <div class="col-sm-2">
+        <div class="btn-group-vertical" role="group">
+          <button type="button" class="btn btn-primary btn-sm" ng-click="updateList('show')" ng-disabled=" (allocatedCanvasser.selCount == 1)">Show&nbsp;<span class="glyphicon glyphicon-eye-open" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" ng-click="updateList('alloc')" ng-disabled="(allocatedAddr.selCount < 1) || (allocatedCanvasser.selCount != 1)">Allocate&nbsp;<span class="glyphicon glyphicon-check" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" ng-click="updateList('unalloc')" ng-disabled="(allocatedAddr.selCount < 1) && (allocatedCanvasser.selCount < 1)">Unallocate&nbsp;<span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- allocated canvasser list -->
+      <div class="col-sm-5">
+        <div ng-controller="CanvassAssignmentCanvasserController">
+          <div ng-include="'canvasses/canvasser.element.html'"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- navigation buttons -->
+    <div class="col-sm-12">
+      <div ng-controller="AssignmentTabNavController">
+        <div ng-include="'canvasses/tab.buttons.html'"></div>
+      </div>
+    </div>
+    <br />
+    <br />
+  </form>
+
+
+
+</div>

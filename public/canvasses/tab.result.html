@@ -1,0 +1,117 @@
+<div role="tabpanel" class="tab-pane fade in active">
+  <form class="form-horizontal" name="resultForm" role="form" ng-submit="processForm()" novalidate>
+
+    <div class="form-group">
+      <div class="col-sm-12">
+        <div class="col-sm-3">
+          <h5>Addresses</h5>
+          <h5>Complete</h5>
+          <h5>Pending</h5>
+          <h5>Canvasses</h5>
+        </div>
+
+        <div class="col-sm-1"></div>
+
+        <div class="col-sm-2">
+          <h5>{{addresses.count}}</h5>
+          <h5>{{canvassComplete}}</h5>
+          <h5>{{canvassPending}}</h5>
+          <h5>{{resultCount}}</h5>
+        </div>
+
+        <div class="col-sm-3">
+          <canvas id="completedPie" class="chart chart-pie"
+            chart-data="[canvassComplete, canvassPending]" chart-labels="canvassLabels" chart-options="chartOptions">
+          </canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="col-sm-12">
+        <h4>Quick Responses</h5>
+      </div>
+      <div class="col-sm-12">
+        <div class="col-sm-3">
+          <h5 ng-repeat="label in quickLabels">{{label}}</h5>
+        </div>
+        <div class="col-sm-1"></div>
+        <div class="col-sm-2">
+          <h5 ng-repeat="cnt in quickData track by $index">{{cnt}}</h5>
+        </div>
+
+        <div class="col-sm-3">
+          <canvas id="quickResponsePie" class="chart chart-pie"
+            chart-data="quickData" chart-labels="quickLabels" chart-options="chartOptions">
+          </canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="col-sm-12">
+        <h4>Support Indicators</h5>
+      </div>
+      <div class="col-sm-12">
+        <div class="col-sm-2">
+          <h5 ng-repeat="label in supportLabels">{{label}}</h5>
+        </div>
+        <div class="col-sm-2">
+          <h5 ng-repeat="cnt in supportData track by $index">{{cnt}}</h5>
+        </div>
+
+        <div class="col-sm-8">
+          <canvas id="supportBar" class="chart chart-bar"
+            chart-data="supportData" chart-labels="supportLabels" chart-options="barChartOptions">
+          </canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="col-sm-12">
+        <h4>Canvass Responses</h5>
+      </div>
+      <div class="list-group">
+        <button type="button" class="list-group-item" ng-repeat="question in questions.list" ng-click="showResultDetail(question)">
+          <div class="row">
+            <div class="col-sm-6">
+              <p>{{question.question}}</p>
+            </div>
+            <div class="col-sm-3">
+              <p>
+                <span class="label label-default">{{getQuestionTypeName(question.type)}}</span>
+              </p>
+            </div>
+<!--  This doesn't work due to ng-scope being applied to class, rather than ng-isolate scope as is applied in individual options below TODO check
+            <div class="col-sm-3">
+              <canvas ng-if="showChart(question)" id="chart{{$index}}" class="chart" ng-class="{'chart-pie': showPieChart(question), 'chart-bar': showBarChart(question), 'chart-polar-area': showPolarAreaChart(question)}"
+                chart-data="question.data" chart-labels="question.labels" chart-options="question.chartOptions">
+              </canvas>
+            </div>
+-->
+            <div class="col-sm-3">
+              <canvas ng-if="showPieChart(question)" id="chart{{$index}}" class="chart chart-pie"
+                chart-data="question.resData.data" chart-labels="question.resData.labels" chart-options="question.chartOptions">
+              </canvas>
+              <canvas ng-if="showBarChart(question)" id="chart{{$index}}" class="chart chart-horizontal-bar"
+                chart-data="question.resData.data" chart-labels="question.resData.labels" chart-options="question.chartOptions">
+              </canvas>
+              <canvas ng-if="showPolarAreaChart(question)" id="chart{{$index}}" class="chart chart-polar-area"
+                chart-data="question.resData.data" chart-labels="question.resData.labels" chart-options="question.chartOptions">
+              </canvas>
+            </div>
+        </div>
+      </button>
+    </div>
+
+    <!-- navigation buttons -->
+    <div class="col-sm-12">
+      <div ng-controller="ResultTabNavController">
+        <div ng-include="'canvasses/tab.buttons.html'"></div>
+      </div>
+    </div>
+    <br />
+    <br />
+  </form>
+</div>

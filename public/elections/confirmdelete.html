@@ -1,0 +1,32 @@
+<div class="ngdialog-message">
+  <div class="">
+    <h3>Confirm Delete</h3>
+  </div>
+  <div class="">&nbsp;</div>
+  <div class="">
+    <div class="list-group">
+      <ul class="list-group-item" ng-repeat="election in ngDialogData.list">
+        <li class="list-group-item">
+          <div class="row">
+            <div class="col-sm-8">
+              <p>{{election.name}}</p>
+            </div>
+            <div class="col-sm-4">
+              <p class="text-right">{{formatDate(election.electionDate)}}</p>
+            </div>
+            <div class="col-sm-8">
+              <p>{{election.system.name}}</p>
+            </div>
+            <div class="col-sm-4">
+              <p class="text-right"><span class="label label-default">Seats: {{election.seats}}</span></p>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </div>
+    <div>
+      <button type="submit" class="btn btn-info btn-sm" ng-click=closeThisDialog(ngDialogData.list)>Delete</button>
+      <button type="button" class="btn btn-default btn-sm" ng-click=closeThisDialog("cancel")>Cancel</button> &nbsp; &nbsp;
+    </div>
+  </div>
+</div>

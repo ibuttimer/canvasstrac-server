@@ -1,0 +1,64 @@
+
+<div class="container" ng-controller="ElectionController">
+  <div class="row row-content">
+    <div class="col-sm-12">
+      <form class="form-inline">
+        <div class="form-group col-sm-2">
+          <h4>Filter by:</h4>
+        </div>
+
+        <div class="form-group col-sm-4">
+          <label for="name" class="control-label col-sm-2">Name&nbsp;&nbsp;</label>
+          <input type="text" class="form-control" id="name" name="name" placeholder="Enter name" ng-model="filterText">
+        </div>
+
+        <div class="form-group col-sm-1">
+          <label for="op" class="sr-only">Filter operation</label>
+          <select id="op" name="op" ng-model="filterOp">
+            <option ng-repeat="op in filterOps" value="{{op}}">{{op}}</option>
+          </select>
+        </div>
+        
+        <div class="form-group col-sm-4">
+          <label for="system" class="control-label col-sm-2">System&nbsp;&nbsp;</label>
+          <select id="system" name="system" ng-model="filterSystem">
+            <option ng-repeat="system in votingSystems" value="{{system._id}}">{{system.name}}</option>
+          </select>
+        </div>
+        <div class="form-group col-sm-1">
+          <button type="reset" class="btn btn-default" ng-click="initFilter()">Clear</button>
+        </div>
+      </form>
+    </div>
+    <div class="col-sm-8">
+      <div class="list-group">
+        <button type="button" class="list-group-item" ng-repeat="election in elections | filterDashElection: filterText : filterOp : filterSystem" ng-class="{active: election.isSelected}" ng-click="toggleSelection(election)">
+          <div class="row">
+            <div class="col-sm-8">
+              <p>{{election.name}}</p>
+            </div>
+            <div class="col-sm-4">
+              <p class="text-right">{{formatDate(election.electionDate)}}</p>
+            </div>
+            <div class="col-sm-8">
+              <p>{{election.system.name}}</p>
+            </div>
+            <div class="col-sm-4">
+              <p class="text-right"><span class="label label-default">Seats: {{election.seats}}</span></p>
+            </div>
+          </div>
+        </button>
+      </div>
+    </div>
+    <div class="col-sm-4">
+      <div class="btn-group-vertical" role="group">
+        <button type="button" class="btn btn-default" ui-sref="{{newState}}">New</button>
+        <button type="button" class="btn btn-default" ng-disabled="selectedCnt != 1" ng-click="viewItem()">View</button>
+        <button type="button" class="btn btn-default" ng-disabled="selectedCnt != 1" ng-click="editItem()">Update</button>
+        <button type="button" class="btn btn-default" ng-disabled="selectedCnt < 1" ng-click="dashDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>  <!-- end of container -->
+
+

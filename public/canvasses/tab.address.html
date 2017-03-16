@@ -1,0 +1,99 @@
+<div role="tabpanel" class="tab-pane fade in active">
+  <form class="form-horizontal" name="addressForm" role="form" ng-submit="processForm()" novalidate>
+
+    <div class="form-group">
+      <div class="col-sm-12">
+        <div class="col-sm-5">
+          <h4>Unassigned</h4>
+          <p>Filter by: {{unassignedAddrFilterStr}}</p>
+          <p>Showing: {{unassignedAddr.filterCount}} of {{dbAddrCount}}</p>
+        </div>
+
+        <div class="col-sm-2"></div>
+
+        <div class="col-sm-5">
+          <h4>Assigned</h4>
+          <p>Filter by: {{assignedAddrFilterStr}}</p>
+          <p>Showing: {{assignedAddr.filterCount}} of {{assignedAddr.count}}</p>
+        </div>
+      </div>
+      <div class="col-sm-12">
+        <div class="col-sm-5">
+          <!-- unassigned pager -->
+          <div ng-controller="CanvassUnassignedAddressController">
+            <div ng-include="'canvasses/pager.element.html'"></div>
+          </div>
+        </div>
+
+        <div class="col-sm-2">
+          <p>Items per page</p>
+          <select id="addrperpage" name="addrperpage" ng-change="setPerPage([assignedAddrPager,unassignedAddrPager],perPage)" ng-model="perPage"
+          ng-options="perPage for perPage in perPageOpt">
+          </select>
+        </div>
+
+        <div class="col-sm-5">
+          <!-- assigned pager -->
+          <div ng-controller="CanvassAssignedAddressController">
+            <div ng-include="'canvasses/pager.element.html'"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-12">
+        <div class="col-sm-5">
+          <!-- unassigned filter -->
+          <div ng-controller="CanvassUnassignedAddressController">
+            <div ng-include="'canvasses/filter.sort.element.html'"></div>
+          </div>
+        </div>
+
+        <div class="col-sm-2"></div>
+
+        <div class="col-sm-5">
+          <!-- assigned filter -->
+          <div ng-controller="CanvassAssignedAddressController">
+            <div ng-include="'canvasses/filter.sort.element.html'"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+    <!-- unassigned list -->
+      <div class="col-sm-5">
+        <div ng-controller="CanvassUnassignedAddressController">
+          <div ng-include="'canvasses/address.element.html'"></div>
+        </div>
+      </div>
+
+      <!-- add/remove buttons -->
+      <div class="col-sm-2">
+        <div class="btn-group-vertical" role="group">
+          <button type="button" class="btn btn-primary btn-sm" ng-click="updateList(unassignedAddr, assignedAddr)" ng-disabled="(unassignedAddr.selCount < 1) || editDisabled">Add&nbsp;<span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span></span>
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" ng-click="updateList(assignedAddr, unassignedAddr)" ng-disabled="(assignedAddr.selCount < 1) ||editDisabled"><span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span>&nbsp;Remove</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- assigned list -->
+      <div class="col-sm-5">
+        <div ng-controller="CanvassAssignedAddressController">
+          <div ng-include="'canvasses/address.element.html'"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- navigation buttons -->
+    <div class="col-sm-12">
+      <div ng-controller="AddressTabNavController">
+        <div ng-include="'canvasses/tab.buttons.html'"></div>
+      </div>
+    </div>
+    <br />
+    <br />
+  </form>
+
+
+
+</div>
