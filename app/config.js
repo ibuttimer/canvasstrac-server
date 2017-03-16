@@ -4,11 +4,14 @@
 var fs = require('fs'),
   // the types of properties to be set
   types = {
-    dbAddr: 'str',
+    // server/management app common settings
     baseURL: 'str',
     forceHttps: 'bool',
     httpPort: 'num',
     httpsPortOffset: 'num',
+    // server-specific settings
+    dbAddr: 'str',
+    mgmtPath: 'str',
     jwtSecretKey: 'str',
     jwtTokenLife: 'num',
     disableAuth: 'bool',
@@ -25,11 +28,12 @@ if (fs.existsSync(path)) {
   cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
 } else{
   cfg = {};
-  cfg.dbAddr = '@@dbAddr';
   cfg.baseURL = '@@baseURL';
   cfg.forceHttps = '@@forceHttps';          // flag to force all traffic through https channel
   cfg.httpPort = '@@httpPort';              // http port
   cfg.httpsPortOffset = '@@httpsPortOffset';// offset of https port from http port
+  cfg.dbAddr = '@@dbAddr';
+  cfg.mgmtPath = '@@mgmtPath';
   cfg.jwtSecretKey = '@@jwtSecretKey';
   cfg.jwtTokenLife = '@@jwtTokenLife';// validity of logged in token
   cfg.disableAuth = '@@disableAuth';  // flag to disable authentication for dev purposes
@@ -72,7 +76,8 @@ function facebookCallback() {
 module.exports = {
   'jwtSecretKey': cfg.jwtSecretKey,
   'mongoAddr': cfg.dbAddr,
-  'mongoUrl' : 'mongodb://' + cfg.dbAddr,
+  'mongoUrl': 'mongodb://' + cfg.dbAddr,
+  'mgmtPath': cfg.mgmtPath,
   'jwtTokenLife': cfg.jwtTokenLife,
   'disableAuth': cfg.disableAuth,
   'forceHttps': cfg.forceHttps,

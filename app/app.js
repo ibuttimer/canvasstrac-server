@@ -18,7 +18,7 @@ var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
 db.once('open', function () {
   // we're connected!
-  console.log("Connected correctly to server");
+  console.log("Connected correctly to database");
 });
 
 var routes = require('./routes/index');
@@ -57,8 +57,8 @@ app.all('*', function (req, res, next) {
 });
 
 // view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+// app.set('views', path.join(__dirname, 'views'));
+// app.set('view engine', 'jade');
 
 // uncomment after placing your favicon in /public
 //app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
@@ -79,32 +79,43 @@ app.use(function(req, res, next) {
   next();
 });
 
-app.use(express.static(path.join(__dirname, '../', 'public')));
+// mount management console app
+var mgmtPath;
+if (config.mgmtPath) {
+  mgmtPath = config.mgmtPath;
+} else {
+  // default location
+  mgmtPath = path.join(__dirname, '../', 'public');
+}
+app.use(express.static(mgmtPath));
+console.log('Mounted management app from ' + mgmtPath);
 
+// route for static pages and views
 app.use('/', routes);
-app.use('/users', userRouter);
-app.use('/roles', roleRouter);
-app.use('/people', personRouter);
-app.use('/candidates', candidateRouter);
-app.use('/votingsystems', votingSystemRouter);
-app.use('/votingdistricts', votingDistrictRouter);
-app.use('/elections', electionRouter);
-app.use('/parties', partyRouter);
-app.use('/addresses', addressRouter);
-app.use('/contactdetails', contactDetailsRouter);
-app.use('/questions', questionRouter);
-app.use('/answers', answerRouter);
-app.use('/surveys', surveyRouter);
-app.use('/canvasses', canvassRouter);
-app.use('/canvassassignment', canvassAssignmentRouter);
-app.use('/canvassresult', canvassResultRouter);
+// routes for data
+app.use('/db/users', userRouter);
+app.use('/db/roles', roleRouter);
+app.use('/db/people', personRouter);
+app.use('/db/candidates', candidateRouter);
+app.use('/db/votingsystems', votingSystemRouter);
+app.use('/db/votingdistricts', votingDistrictRouter);
+app.use('/db/elections', electionRouter);
+app.use('/db/parties', partyRouter);
+app.use('/db/addresses', addressRouter);
+app.use('/db/contactdetails', contactDetailsRouter);
+app.use('/db/questions', questionRouter);
+app.use('/db/answers', answerRouter);
+app.use('/db/surveys', surveyRouter);
+app.use('/db/canvasses', canvassRouter);
+app.use('/db/canvassassignment', canvassAssignmentRouter);
+app.use('/db/canvassresult', canvassResultRouter);
 
 
 
 if (app.get('env') === 'development') {
   // install access test route only in dev mode
   app.use('/test', Verify.accessTestRouter);
-  console.log('\* Mounted test url *\n');
+  console.log('* Mounted test url *\n');
 }
 
 // catch 404 and forward to error handler

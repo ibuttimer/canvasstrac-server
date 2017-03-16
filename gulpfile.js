@@ -34,11 +34,14 @@ gulp.task('replace', function () {
     settings = JSON.parse(fs.readFileSync(basePaths.config + filename, 'utf8')),
     // basic patterns
     patterns = [
-      { match: 'dbAddr', replacement: settings.dbAddr },
+      // server/management app common settings
+      { match: 'baseURL', replacement: settings.baseURL },
       { match: 'forceHttps', replacement: settings.forceHttps },
       { match: 'httpPort', replacement: settings.httpPort },
       { match: 'httpsPortOffset', replacement: settings.httpsPortOffset },
-      { match: 'baseURL', replacement: settings.baseURL },
+      // server-specific settings
+      { match: 'dbAddr', replacement: settings.dbAddr },
+      { match: 'mgmtPath', replacement: settings.mgmtPath },
       { match: 'jwtSecretKey',  replacement: settings.jwtSecretKey },
       { match: 'jwtTokenLife', replacement: settings.jwtTokenLife },
       { match: 'disableAuth', replacement: settings.disableAuth },
