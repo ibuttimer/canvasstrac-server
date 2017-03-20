@@ -41,14 +41,26 @@ var canvassAssignmentRouter = require('./routes/canvassAssignmentRouter').router
 var canvassResultRouter = require('./routes/canvassResultRouter').router;
 
 
-var app = express();
+var app = express(),
+  heroku = (config.baseURL.indexOf('heroku') >= 0);
 
 // Secure traffic only
 app.all('*', function (req, res, next) {
-//  console.log('\nreq start: ', req.secure, req.hostname, req.url, app.get('port'));
+  var secure = req.secure;
+  if (heroku) {
+    /* for apps hosted on Heroku, request.secure will always be false 
+      see https://jaketrent.com/post/https-redirect-node-heroku/
+      https://devcenter.heroku.com/articles/http-routing#routing */
+    secure = req.header('x-forwarded-proto') === 'https';
+  }
 
-  if (config.forceHttps && !req.secure) {
-    var redirect_url = 'https://' + req.hostname + ':' + app.get('secPort') + req.url;
+  if (config.forceHttps && !secure) {
+    var redirect_url = 'https://' + req.hostname;
+    if (heroku) {
+      redirect_url += req.url;
+    } else {
+      redirect_url += ':' + app.get('secPort') + req.url;
+    }
     console.log('redirecting to ', redirect_url);
     res.redirect(redirect_url);
   } else {

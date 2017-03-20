@@ -60,16 +60,23 @@ for (prop in types) {
   } else if (types[prop] === 'bool') {
     cfg[prop] = (cfg[prop] === 'true');
   }
+  console.log('config: ' + prop + ' \'' + cfg[prop] + '\'');
 }
 
 function facebookCallback() {
-  var proto = 'http',
+  var url = 'http',
     port = cfg.httpPort;
   if (cfg.forceHttps) {
-    proto = 'https';
-    port += cfg.httpsPortOffset;
+    url = 'https';
+    if (port >= 0) {
+      port += cfg.httpsPortOffset;
+    }
   }
-  return proto + '://' + cfg.baseURL + ':' + port + '/users/facebook/callback';
+  url += '://' + cfg.baseURL;
+  if (port >= 0) {
+    url += ':' + port;
+  }
+  return url + '/users/facebook/callback';
 }
     
     
@@ -79,6 +86,7 @@ module.exports = {
   'mongoUrl': 'mongodb://' + cfg.dbAddr,
   'mgmtPath': cfg.mgmtPath,
   'jwtTokenLife': cfg.jwtTokenLife,
+  'baseURL': cfg.baseURL,
   'disableAuth': cfg.disableAuth,
   'forceHttps': cfg.forceHttps,
   'httpPort': cfg.httpPort,

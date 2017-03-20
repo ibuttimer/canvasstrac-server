@@ -28,17 +28,17 @@
   window.__env = window.__env || {};
 
   // server/management app common settings
-  window.__env.baseURL = "localhost";
-  window.__env.forceHttps = false;
-  window.__env.httpPort = 4000;
+  window.__env.baseURL = "canvasstrac.herokuapp.com";
+  window.__env.forceHttps = true;
+  window.__env.httpPort = -1;
   window.__env.httpsPortOffset = 443;
 
   // management app settings
-  window.__env.apiKey = "api_key";
+  window.__env.mapsApiKey = "";
 
-  window.__env.DEV_MODE = true;
-  window.__env.DEV_USER = "c2";
-  window.__env.DEV_PASSWORD = "password";
+  window.__env.DEV_MODE = false;
+  window.__env.DEV_USER = "";
+  window.__env.DEV_PASSWORD = "";
 
   window.__env.storeFactory = false;
   window.__env.localStorage = false;
@@ -82,10 +82,12 @@ angular.module('ct.config', [])
       url;
     if (appenv.forceHttps) {
       proto = 'https';
-      port += appenv.httpsPortOffset;
+      if (port >= 0) {
+        port += appenv.httpsPortOffset;
+      }
     }
     url = proto + '://' + appenv.baseURL;
-    if (port) {
+    if (port >= 0) {
       url += ':' + port;
     }
     return url + '/db/';

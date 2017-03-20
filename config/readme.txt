@@ -6,6 +6,7 @@ There is a gulp task 'replace' which reads the contents of the json config file 
 
 WARNING: nice idea but need to investigate further as regards passing the '--env localdev' argument to gulp from the Visual studio build.
 
+NOTE: When hosting the app on heroku, the port is dynamically assigned, so may not be configured via this mechanism, so set to -1 to ignore the config value.
 
 The json config file should have the following format
 {
