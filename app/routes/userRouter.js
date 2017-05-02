@@ -31,6 +31,7 @@ var express = require('express'),
     decodeReq = router_utils.decodeReq,
     processCountReq = router_utils.processCountReq,
     getDocs = router_utils.getDocs,
+  getError = require('../services/errorService').getError,
   utils = require('../misc/utils'),
     find = utils.find,
     cloneObject = utils.cloneObject,
@@ -141,6 +142,9 @@ function deleteUser (id, req, res, next) {
   });
 }
 
+function getTokenLife (req) {
+  return (req.body.src === 'mobile' ? config.jwtMobileTokenLife : config.jwtWebTokenLife);
+}
 
 router.route('/')
 
@@ -159,7 +163,8 @@ router.route('/')
         return res.status(Consts.HTTP_INTERNAL_ERROR).json({err: err});
       }
       if (role === null) {
-        return res.status(Consts.HTTP_INTERNAL_ERROR).json({err: 'Role not found.'});
+        checkError(getError(Consts.APPERR_UNKNOWN_ROLE_NTERNAL), res);
+        return;
       }
 
       createUser(req, res, resultReply);
@@ -175,7 +180,8 @@ router.post('/register', function (req, res) {
       return res.status(Consts.HTTP_INTERNAL_ERROR).json({err: err});
     }
     if (role === null) {
-      return res.status(Consts.HTTP_INTERNAL_ERROR).json({err: 'Role not found.'});
+      checkError(getError(Consts.APPERR_UNKNOWN_ROLE_NTERNAL), res);
+      return;
     }
 
     req.body.role = role._id;
@@ -205,23 +211,53 @@ router.post('/login', function (req, res, next) {
       var token = Verify.getToken({
         "username": user.username,
         "_id": user._id,
-        "role": user.role
-      });
-      
-      res.status(Consts.HTTP_OK).json({
-        message: 'Login successful!',
-        success: true,
-        token: token,
-        id: user._id
+        "role": user.role,
+        "src": req.body.src
+      }, getTokenLife(req));
+
+      Roles.findOne({'_id': user.role}, function (err, role) {
+        if (err) {
+          return res.status(Consts.HTTP_INTERNAL_ERROR).json({err: err});
+        }
+        if (role === null) {
+          checkError(getError(Consts.APPERR_UNKNOWN_ROLE_NTERNAL), res);
+        } else {
+          res.status(Consts.HTTP_OK).json({
+            message: 'Login successful!',
+            success: true,
+            token: token.token,
+            expires: token.expires,
+            votingsys: role.votingsys,
+            roles: role.roles,
+            users: role.users,
+            elections: role.elections,
+            candidates: role.candidates,
+            canvasses: role.canvasses,
+            id: user._id
+          });
+        }
       });
     });
   })(req, res, next);
 });
 
+router.route('/token/:objId')
+
+  .get(Verify.verifySelf, function (req, res, next) {
+    var token = Verify.refreshToken(Verify.extractToken(req), getTokenLife(req));
+    
+    res.status(Consts.HTTP_OK).json({
+      message: 'Token refresh successful!',
+      success: true,
+      token: token.token,
+      expires: token.expires
+    });
+  });
+
 router.get('/logout', function (req, res) {
   req.logout();
   res.status(Consts.HTTP_OK).json({
-    status: 'Bye!'
+    status: 'Logout successful!'
   });
 });
 
@@ -253,7 +289,7 @@ router.get('/facebook/callback', function (req, res, next) {
         status: 'Login successful!',
         success: true,
         token: token
-      });
+      }, getTokenLife(req));
     });
   })(req, res, next);
 });

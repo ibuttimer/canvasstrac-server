@@ -1,7 +1,7 @@
 /*jslint node: true */
 'use strict';
 
-var mongoose = require('mongoose'),
+var mongoose = require('./mongoose_app').mongoose,
   Schema = mongoose.Schema,
   ModelNodeModule = require('./modelNode'),
     ModelNode = ModelNodeModule.ModelNode,

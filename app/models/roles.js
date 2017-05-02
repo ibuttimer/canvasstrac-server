@@ -2,7 +2,7 @@
 'use strict';
 
 // grab the things we need
-var mongoose = require('mongoose'),
+var mongoose = require('./mongoose_app').mongoose,
   Schema = mongoose.Schema,
   ModelNodeModule = require('./modelNode'),
     ModelNode = ModelNodeModule.ModelNode,
@@ -22,6 +22,30 @@ var schema = new Schema({
     type: Number,
     min: 0,
     required: true
+  },
+  votingsys: {  // see Consts.ACCESS_CREATE etc. for values
+    type: Number,
+    min: 0
+  },
+  roles: {    // see Consts.ACCESS_CREATE etc. for values
+    type: Number,
+    min: 0
+  },
+  users: {    // see Consts.ACCESS_CREATE etc. for values
+    type: Number,
+    min: 0
+  },
+  elections: {  // see Consts.ACCESS_CREATE etc. for values
+    type: Number,
+    min: 0
+  },
+  candidates: {  // see Consts.ACCESS_CREATE etc. for values
+    type: Number,
+    min: 0
+  },
+  canvasses: {  // see Consts.ACCESS_CREATE etc. for values
+    type: Number,
+    min: 0
   }
 });
 

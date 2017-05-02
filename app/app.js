@@ -7,7 +7,7 @@ var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
-var mongoose = require('mongoose');
+var mongoose = require('./models/mongoose_app').mongoose;
 var passport = require('passport');
 
 var config = require('./config');
@@ -39,6 +39,7 @@ var surveyRouter = require('./routes/surveyRouter').router;
 var canvassRouter = require('./routes/canvassRouter').router;
 var canvassAssignmentRouter = require('./routes/canvassAssignmentRouter').router;
 var canvassResultRouter = require('./routes/canvassResultRouter').router;
+var messageRouter = require('./routes/messageRouter').router;
 
 
 var app = express(),
@@ -87,7 +88,7 @@ app.use(passport.initialize());
 app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT,DELETE");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, x-access-token");
   next();
 });
 
@@ -121,6 +122,7 @@ app.use('/db/surveys', surveyRouter);
 app.use('/db/canvasses', canvassRouter);
 app.use('/db/canvassassignment', canvassAssignmentRouter);
 app.use('/db/canvassresult', canvassResultRouter);
+app.use('/db/message', messageRouter);
 
 
 
@@ -149,6 +151,10 @@ if (app.get('env') === 'development') {
       error: err
     });
   });
+
+  if (config.disableAuth) {
+    console.log('* Authentication disabled *\n');
+  }
 } else {
   // production mode safety check
   if (config.disableAuth) {

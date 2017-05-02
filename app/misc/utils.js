@@ -2,13 +2,13 @@
 'use strict';
 
 var assert = require('assert');
-var mongoose = require('mongoose');
+var mongoose = require('../models/mongoose_app').mongoose;
 
 var app = require('../app');
 var config = require('../config');
 var Consts = require('../consts');
 
-/*
+/**
   * Test the equality of two objects based on a list of properties
   * @param {object} objA         - first object
   * @param {object} objB         - second object
@@ -49,7 +49,7 @@ function testEquality (objA, objB, properties) {
   return equal;
 }
 
-/*
+/**
   * Check if an object is empty
   * @param {object} object - object to check
   */
@@ -63,7 +63,16 @@ function isEmpty (object) {
   return empty;
 }
 
-/*
+/**
+ * Check if an object is null or undefined
+ * @param   {object}  object object to test
+ * @returns {boolean} true if object is null or undefined
+ */
+function isNullOrUndefined (object) {
+  return ((object === null) || (object === undefined));
+}
+
+/**
   * Find an item in an array or null if not found
   * @param {object} array          - array to search
   * @param {function(object)} test - predicate function to test array object or object
@@ -88,7 +97,7 @@ function find (array, test) {
   return found;
 }
 
-/*
+/**
   * Clone an object, based on a specified list of property names
   * @param {object} object       - object to clone
   * @param {string[]} properties - list of property names or all properties if omitted
@@ -96,8 +105,12 @@ function find (array, test) {
   */
 function cloneObject (object, properties, include) {
   // set defaults for arguments not passed
-  if (!include) { include = true; }
-  if (!properties) { properties = Object.getOwnPropertyNames(object) };
+  if (isNullOrUndefined(include)) {
+    include = true;
+  }
+  if (isNullOrUndefined(properties)) {
+    properties = Object.getOwnPropertyNames(object);
+  }
   
   var newObject = {};
   if (include) {
@@ -313,6 +326,7 @@ function arraySymmetricDifference (left, right, compareFunction) {
 module.exports = {
   testEquality: testEquality,
   isEmpty: isEmpty,
+  isNullOrUndefined: isNullOrUndefined,
   find: find,
   cloneObject: cloneObject,
   arrayIntersection: arrayIntersection,

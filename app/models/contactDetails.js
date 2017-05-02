@@ -2,7 +2,7 @@
 'use strict';
 
 // grab the things we need
-var mongoose = require('mongoose'),
+var mongoose = require('./mongoose_app').mongoose,
   Schema = mongoose.Schema,
   ModelNodeModule = require('./modelNode'),
     ModelNode = ModelNodeModule.ModelNode,

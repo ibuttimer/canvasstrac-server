@@ -30,6 +30,9 @@ var server = http.createServer(app);
 /**
  * Listen on provided port, on all network interfaces.
  */
+if (config.socketTimeout) {
+  server.setTimeout(config.socketTimeout);
+}
 server.listen(port, function() {
    console.log('Server (http) listening on port ', app.get('port'));
 });

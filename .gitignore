@@ -37,6 +37,7 @@ jspm_packages
 .node_repl_history
 
 # App config
+.env
 config/*.json
 !config/env.json
 app/*.json

@@ -33,23 +33,38 @@ gulp.task('replace', function () {
     filename = env + '.json',
     settings = JSON.parse(fs.readFileSync(basePaths.config + filename, 'utf8')),
     // basic patterns
-    patterns = [
-      // server/management app common settings
-      { match: 'baseURL', replacement: settings.baseURL },
-      { match: 'forceHttps', replacement: settings.forceHttps },
-      { match: 'httpPort', replacement: settings.httpPort },
-      { match: 'httpsPortOffset', replacement: settings.httpsPortOffset },
+    patterns = [];
+
+    [ // server/management app common settings
+      'baseURL',
+      'forceHttps',
+      'httpPort',
+      'httpsPortOffset',
+      'socketTimeout',
       // server-specific settings
-      { match: 'dbAddr', replacement: settings.dbAddr },
-      { match: 'mgmtPath', replacement: settings.mgmtPath },
-      { match: 'jwtSecretKey',  replacement: settings.jwtSecretKey },
-      { match: 'jwtTokenLife', replacement: settings.jwtTokenLife },
-      { match: 'disableAuth', replacement: settings.disableAuth },
-      { match: 'fbClientID', replacement: settings.fbClientID },
-      { match: 'fbClientSecret', replacement: settings.fbClientSecret },
-      { match: 'dfltPassword', replacement: settings.dfltPassword },
-      { match: 'testOptions', replacement: settings.testOptions }
-    ];
+      'dbAddr',
+      'mgmtPath',
+      'jwtSecretKey',
+      'jwtWebTokenLife',
+      'jwtMobileTokenLife',
+      'disableAuth',
+      'fbClientID',
+      'fbClientSecret',
+      'feedbackFromEmail',
+      'feedbackToEmail',
+      'dfltPassword',
+      'testOptions',
+      // sparkpost-specific settings
+      'SPARKPOST_API_KEY',
+      'SPARKPOST_API_URL',
+      'SPARKPOST_SANDBOX_DOMAIN',
+      'SPARKPOST_SMTP_HOST',
+      'SPARKPOST_SMTP_PASSWORD',
+      'SPARKPOST_SMTP_PORT',
+      'SPARKPOST_SMTP_USERNAME'
+    ].forEach(function (prop) {
+      patterns.push({ match: prop, replacement: settings[prop] });
+    });
 
   // Replace each placeholder with the correct value for the variable.
   gulp.src(basePaths.config + envfilename)

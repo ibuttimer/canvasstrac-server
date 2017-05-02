@@ -7,6 +7,23 @@ var define = require("node-constants")(exports);
 // a single constant
 //define("PI", 3.14);
 
+var FIRST_APPERR = 1000,               // start of app error range
+  ERROR_RANGE_SIZE = 100,
+  TOKEN_ERR_IDX = 0,
+  ACCESS_ERR_IDX = 1,
+  calcErrorRangeStart = function (idx) {
+    return FIRST_APPERR + (idx * ERROR_RANGE_SIZE);
+  },
+  calcErrorRangeEnd = function (idx) {
+    return calcErrorRangeStart(idx) + ERROR_RANGE_SIZE - 1;
+  },
+  // token related errors
+  FIRST_TOKEN_ERR = calcErrorRangeStart(TOKEN_ERR_IDX),
+  LAST_TOKEN_ERR = calcErrorRangeEnd(TOKEN_ERR_IDX),
+  // access related errors
+  FIRST_ACCESS_ERR = calcErrorRangeStart(ACCESS_ERR_IDX),
+  LAST_ACCESS_ERR = calcErrorRangeEnd(ACCESS_ERR_IDX);
+
 // or multiple
 define({
   // http response codes
@@ -61,6 +78,52 @@ define({
   ROLE_GROUP_LEAD: 80,  // group leader level access
   ROLE_STAFF: 70,       // staff level access
   ROLE_CANVASSER: 60,   // canvasser level access
-  ROLE_NONE: 0          // public level access
+  ROLE_NONE: 0,         // public level access
+
+  // privilege definitions for menu access
+  ACCESS_NONE: 0x00,    // no access
+  ACCESS_CREATE: 0x01,  // create access
+  ACCESS_READ: 0x02,    // read access
+  ACCESS_UPDATE: 0x04,  // update access
+  ACCESS_DELETE: 0x08,  // delete access
+  ACCESS_BIT_COUNT: 4,  // number of access bits per group
+  ACCESS_MASK: 0x0f,    // map of access bits
+  // ** see below for values quick ref **
+
+  ACCESS_ALL: 0x01,     // access all objects group
+  ACCESS_ONE: 0x02,     // access single object group
+  ACCESS_OWN: 0x03,     // access own object group
+  ACCESS_GROUPMASK: 0x07,// map of access group bits
+
+  // app level result codes
+  FIRST_APPERR: FIRST_APPERR,       // start of app error range
+  // token related errors
+  IS_TOKEN_APPERR: function (appCode) {
+    return ((appCode >= FIRST_TOKEN_ERR) && (appCode <= LAST_TOKEN_ERR));
+  },
+  APPERR_SESSION_EXPIRED: FIRST_TOKEN_ERR,        // jwt has expired
+  APPERR_CANT_VERIFY_TOKEN: FIRST_TOKEN_ERR + 1,  // jwt failed verification
+  APPERR_NO_TOKEN: FIRST_TOKEN_ERR + 2,           // no jwt provided
+  // access related errors
+  IS_ACCESS_APPERR: function (appCode) {
+    return ((appCode >= FIRST_ACCESS_ERR) && (appCode <= LAST_ACCESS_ERR));
+  },
+  APPERR_UNKNOWN_ROLE: FIRST_ACCESS_ERR,          // unknown role identifier
+  APPERR_UNKNOWN_ROLE_NTERNAL: FIRST_ACCESS_ERR + 1,// internal error unknown role identifier 
+  APPERR_ROLE_NOPRIVILEGES: FIRST_ACCESS_ERR + 2, // assigned role doesn't have required privileges
+  APPERR_USER_URL: FIRST_ACCESS_ERR + 3           // url doesn't match credentials
+
 });
 
+/* privilege values quick ref
+ Own   One   Global  Hex    Dec
+ crud  crud  crud    0xfff  4095
+ ----  crud  crud    0x0ff  255
+ -ru-  -ru-  -ru-    0x666  1638
+ ----  -ru-  -ru-    0x066  102
+ -ru-  -r--  -r--    0x622  1570
+ -ru-  ----  ----    0x600  1536
+ ----  -r--  -r--    0x022  34
+
+
+*/

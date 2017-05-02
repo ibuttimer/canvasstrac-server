@@ -1,6 +1,7 @@
 /*jslint node: true */
 'use strict';
 
+// grab the things we need
 var mongoose = require('./mongoose_app').mongoose,
   Schema = mongoose.Schema,
   ModelNodeModule = require('./modelNode'),
@@ -9,53 +10,51 @@ var mongoose = require('./mongoose_app').mongoose,
     utilsIsValidModelPath = utilsModule.isValidModelPath,
     getUtilsTemplate = utilsModule.getTemplate,
     getModelPathNames = utilsModule.getModelPathNames,
-  populateSubDocsUtil = require('./model_utils').populateSubDocs,
-  CanvassModule = require('./canvass'),
-    canvassPopulateOptions = CanvassModule.getSubDocPopulateOptions,
-  UserModule = require('./user'),
-    userPopulateOptions = UserModule.getSubDocPopulateOptions,
-    userPopulateProjection = UserModule.getPopulateProjection,
-  AddressModule = require('./addresses'),
-    addressPopulateOptions = AddressModule.getSubDocPopulateOptions;
+  populateSubDocsUtil = require('./model_utils').populateSubDocs;
 
+// create the address schema
 var schema = new Schema({
-  canvass: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Canvass'
+  type: {
+    type: String,
+    required: true,
+    default: ''
   },
-  canvasser: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  name: {
+    type: String,
+    default: ''
   },
-  addresses: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Address'
-  }]
+  email: {
+    type: String,
+    default: ''
+  },
+  comment: {
+    type: String,
+    default: ''
+  },
+  result: {
+    type: String,
+    default: ''
+  }
 }, {
   timestamps: true
 });
 
 // create a model using schema
-var model = mongoose.model('CanvassAssignment', schema);
+var model = mongoose.model('Message', schema);
 
 var modelNode = new ModelNode(model, { populateSubDocs: populateSubDocs });
-modelNode.addChildBranch(UserModule.getModelNodeTree(), 'canvasser');
-modelNode.addChildBranch(AddressModule.getModelNodeTree(), 'addresses');
-
-//modelNode.dumpTree();
 
 var modelTree = modelNode.getTree();
 
-
 /*
- * Generates a canvass assignment template object from the specified source
+ * Generates an address template object from the specified source
  * @param{object} source      - object with properties to extract
  * @param {string[]} exPaths  - array of other paths to exclude
  */
 function getTemplate (source, exPaths) {
   // set defaults for arguments not passed
   if (!exPaths) {
-    // exclude nothing by default
+    // exclude object ref fields by default
     exPaths = [];
   }
   return getUtilsTemplate(source, model, exPaths);
@@ -88,11 +87,7 @@ function isValidModelPath (path, exPaths, checkSub) {
  *  @param {function} populate - function to populate subdocument
  */
 function getSubDocPopulateOptions () {
-  return [
-    { path: 'canvass', model: 'Canvass', populate: canvassPopulateOptions() },
-    { path: 'canvasser', model: 'User', populate: userPopulateOptions(), select: userPopulateProjection() },
-    { path: 'addresses', model: 'Address', populate: addressPopulateOptions() }
-  ];
+  return [];
 }
 
 /**
@@ -116,6 +111,8 @@ function populateSubDocs (docs, next) {
 module.exports = {
   schema: schema,
   model: model,
+  FEEDBACK_MSG: 'feedback',
+  SUPPORT_MSG: 'support',
   getTemplate: getTemplate,
   isValidModelPath: isValidModelPath,
   getSubDocPopulateOptions: getSubDocPopulateOptions,

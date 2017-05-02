@@ -5,17 +5,10 @@ var User = require('../models/user').model,
   Roles = require('../models/roles').model,
   jwt = require('jsonwebtoken'), // used to create, sign and verify tokens
   utils = require('../misc/utils'),
+    cloneObject = utils.cloneObject,
+  getError = require('../services/errorService').getError,
   config = require('../config.js'),
   Consts = require('../consts');
-
-var unauthenticatedErr = new Error('You are not authenticated!');
-unauthenticatedErr.status = Consts.HTTP_UNAUTHORISED;
-var tokenErr = new Error('No token provided!');
-tokenErr.status = Consts.HTTP_FORBIDDEN;
-var unknownRoleErr = new Error('Unknown role. You are not authorized to perform this operation!');
-unknownRoleErr.status = Consts.HTTP_FORBIDDEN;
-var notAuthorisedErr = new Error('You are not authorized to perform this operation!');
-notAuthorisedErr.status = Consts.HTTP_FORBIDDEN;
 
 var express = require('express');
 
@@ -23,7 +16,7 @@ var dev_fake_admin_token = 'dev_fake_admin_token';
 var dev_fake_admin_id = '123456789012345678901234';
 
 
-/*
+/**
  * Verify a JSON web token
  * @param{object} token   - token to verify
  * @param{object} res     - response
@@ -36,9 +29,11 @@ function verifyToken(token, res, next) {
     // verifies secret and checks exp
     jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
       if (err) {
-        // err = new Error('You are not authenticated!');
-        // err.status = Consts.HTTP_UNAUTHORISED;
-        err = unauthenticatedErr;
+        if (err.name === 'TokenExpiredError') {
+          err = getError(Consts.APPERR_SESSION_EXPIRED);
+        } else {
+          err = getError(Consts.APPERR_CANT_VERIFY_TOKEN);
+        }
       } else {
         // if everything is good
 //        console.log(decoded);
@@ -47,13 +42,21 @@ function verifyToken(token, res, next) {
     });
   } else {
     // if there is no token return an error
-    // err = new Error('No token provided!');
-    // err.status = Consts.HTTP_FORBIDDEN;
-    return next(tokenErr);
+    return next(getError(Consts.APPERR_NO_TOKEN));
   }
-};
+}
 
-/*
+/**
+ * Get the token from a request
+ * @param{object} req     - request
+ * @returns token
+ */
+function extractToken(req) {
+    // check header or url parameters or post parameters for token
+  return req.body.token || req.query.token || req.headers['x-access-token'];
+}
+
+/**
  * Verify the credentials for a request
  * @param{object} req     - request
  * @param{object} res     - response
@@ -61,10 +64,9 @@ function verifyToken(token, res, next) {
  */
 function verifyCredentials(req, res, next) {
   
-  if (config.disableAuth == false) {
+  if (!config.disableAuth) {
     // authentication enabled
-    // check header or url parameters or post parameters for token
-    var token = req.body.token || req.query.token || req.headers['x-access-token'];
+    var token = extractToken(req);
     verifyToken(token, res, function (err, decoded) {
       if (err) {
           next(err);
@@ -103,9 +105,9 @@ function verifyCredentials(req, res, next) {
       }
     });
   }
-};
+}
 
-/*
+/**
  * Verify the access level for a request
  * @param{number} minLevel - min access level
  * @param{number} maxLevel - max access level
@@ -115,35 +117,32 @@ function verifyCredentials(req, res, next) {
  */
 function verifyAccessLevel(minLevel, maxLevel, req, res, next) {
   // verify access level AFTER credentials habe been verified
-  Roles.findById(req.credentials.decoded.role, function (err, role) {
-    if (err) {
-      throw err;
-    }
+  if (req.credentials) {
+    Roles.findById(req.credentials.decoded.role, function (err, role) {
+      if (err) {
+        throw err;
+      }
 
-//    console.log('verifyAccessLevel', role, minLevel, maxLevel);
+      // check if user has correct level
+      var notAuthErr = null;
+      if (role === null) {
+        return next(getError(Consts.APPERR_UNKNOWN_ROLE));
+      } else if ((role.level < minLevel) || (role.level > maxLevel)) {
+        return next(getError(Consts.APPERR_ROLE_NOPRIVILEGES));
+      } else {
+        next();
+      }
+      // if (notAuthErr === null) {
+      //   next();
+      // } else {
+      //   notAuthErr.status = Consts.HTTP_FORBIDDEN;
+      //   return next(notAuthErr);
+      // }
+    });
+  }
+}
 
-    // check if user has correct level
-    var notAuthErr = null;
-    if (role === null) {
-      // notAuthErr = new Error('Unknown role. You are not authorized to perform this operation!');
-      return next(unknownRoleErr);
-
-    } else if ((role.level < minLevel) || (role.level > maxLevel)) {
-      // notAuthErr = new Error('You are not authorized to perform this operation!');
-      return next(notAuthorisedErr);
-    } else {
-      next();
-    }
-    // if (notAuthErr === null) {
-    //   next();
-    // } else {
-    //   notAuthErr.status = Consts.HTTP_FORBIDDEN;
-    //   return next(notAuthErr);
-    // }
-  });
-};
-
-/*
+/**
  * Verify the access for a request
  * @param{number} minLevel - min access level
  * @param{number} maxLevel - max access level
@@ -161,12 +160,44 @@ function verifyAccess(minLevel, maxLevel, req, res, next) {
 
     verifyAccessLevel(minLevel, maxLevel, req, res, next);
   });
-};
+}
 
-function getToken(user) {
-  return jwt.sign(user, config.jwtSecretKey, {
-    expiresIn: config.jwtTokenLife
-  });
+/**
+ * Generate a JWT
+ * @param {object} user       Token information
+ * @param {number} tokenLife  Token life (seconds)
+ * @returns Token
+ */
+function getToken (user, tokenLife) {
+  var token = jwt.sign(user, config.jwtSecretKey, {
+    expiresIn: config.jwtWebTokenLife
+  }); 
+  return returnToken(token);
+}
+
+/**
+ * Return a JWT 
+ * @param {object} token      Token to return
+ * @returns Token
+ */
+function returnToken (token) {
+  var decoded = jwt.decode(token); 
+  return {
+    token: token,
+    expires: new Date(decoded.exp * 1000).toUTCString() // exp is in epoch seconds
+  };
+}
+
+/**
+ * Refresh a JWT
+ * @param {object} old        Token to refresh
+ * @param {number} tokenLife  Token life (seconds)
+ * @returns Token
+ */
+function refreshToken (old, tokenLife) {
+  var decoded = jwt.decode(old, {complete: true}),
+    payload = cloneObject(decoded.payload, ['exp', 'iat', 'signature'], false);
+  return getToken(payload, tokenLife);
 }
 
 function verifyAdmin(req, res, next) {
@@ -228,9 +259,7 @@ function verifySelf(req, res, next) {
     if (req.params.objId == req.credentials.decoded._id) {
       next();
     } else {
-      var notAuthErr = new Error('You are not authorized to perform this operation!');
-      notAuthErr.status = Consts.HTTP_FORBIDDEN;
-      return next(notAuthErr);
+      return next(getError(Consts.APPERR_USER_URL));
     }
   });
 }
@@ -354,6 +383,8 @@ router.route('/has/public')
 
 module.exports = {
   getToken: getToken,
+  refreshToken: refreshToken,
+  extractToken: extractToken,
   verifyAdmin: verifyAdmin,
   verifyManager: verifyManager,
   verifyGroupLead: verifyGroupLead,
