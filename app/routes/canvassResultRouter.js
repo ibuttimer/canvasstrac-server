@@ -68,7 +68,7 @@ router.route('/')
       });
   })
 
-  .post(Verify.verifyHasStaffAccess, function (req, res, next) {
+  .post(Verify.verifyHasCanvasserAccess, function (req, res, next) {
 
     var rawAnswers = req.body.answers,
       answers = [];
