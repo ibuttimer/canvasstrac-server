@@ -9,6 +9,11 @@ var express = require('express'),
     getTemplate = Module.getTemplate,
     populateSubDocs = Module.populateSubDocs,
     isValidModelPath = Module.isValidModelPath,
+  AssignmentModule = require('../models/canvassAssignment'),
+    cancelAssignments = AssignmentModule.cancelAssignments,
+  utilsModule = require('../misc/utils'),
+    arrayRelativeComplementBinA = utilsModule.arrayRelativeComplementBinA,
+    objectIdToString = utilsModule.objectIdToString,
   router_utils = require('./router_utils'),
     checkError = router_utils.checkError,
     errorReply = router_utils.errorReply,
@@ -42,7 +47,72 @@ function createCanvass (req, res, next) {
   });
 }
 
+/**
+ * Update a canvass, including updating assignments
+ * @param {string} id Id of canvass to update
+ * @param {object} req http request
+ * @param {object} res hyyp response
+ * @param {function} next function to call next
+ */
 function updateCanvass (id, req, res, next) {
+
+  var canvassers = req.body.canvassers,
+    addresses = req.body.addresses,
+    rmCanvasser,  // removed canvassers
+    rmAddresses,  // removed addresses
+    original,
+    update;
+
+  if (!canvassers && !addresses) {
+    // no assignments to cancel
+    exeUpdateCanvass(id, req, res, next);
+  } else {
+    // check if need tro cancel assignments
+    model.findById(id, function (err, doc) {
+      if (!checkError (err, res)) {
+        // get canvassers in original but not update
+        rmCanvasser = getRemoved(doc.canvassers, canvassers);
+        rmAddresses = getRemoved(doc.addresses, addresses);
+
+        if (rmCanvasser.length || rmAddresses.length) {
+          // canvassers have been removed, so cancel all their assignments
+          cancelAssignments(id, rmCanvasser, rmAddresses, function (err, doc) {
+            if (!checkError (err, res)) {
+              // success
+              exeUpdateCanvass(id, req, res, next);
+            }
+          });
+        } else {
+          // no assignments to cancel
+          exeUpdateCanvass(id, req, res, next);
+        }
+      }
+    });
+  }
+}
+
+function getRemoved (originalObjId, updateStr) {
+  var removed,
+    update = [],
+    original = objectIdToString(originalObjId, function(element) {
+      return element.toLowerCase();
+    });
+
+  updateStr.forEach(function(element) {
+    update.push(element.toLowerCase());
+  });
+  // get entries that are only in original
+  return arrayRelativeComplementBinA(original, update);
+}
+
+/**
+ * Update a canvass
+ * @param {string} id Id of canvass to update
+ * @param {object} req http request
+ * @param {object} res hyyp response
+ * @param {function} next function to call next
+ */
+function exeUpdateCanvass (id, req, res, next) {
 
   var fields = getTemplate(req.body, []);  // exclude nothing
 

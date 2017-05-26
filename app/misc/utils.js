@@ -55,7 +55,7 @@ function testEquality (objA, objB, properties) {
   */
 function isEmpty (object) {
   var empty = true;
-  if (object) {
+  if (!isNullOrUndefined(object)) {
     if (Object.getOwnPropertyNames(object).length > 0) {
       empty = false;
     }
@@ -257,7 +257,9 @@ function processArrays (left, right, compareFunction, action) {
     result = [],
     lidx = 0,
     ridx = 0,
-    processFunction;
+    processFunction,
+    addLeftRemainder = false,
+    addRightRemainder = false;
 
   if (action === 'Intersection') {
     processFunction = function (cmpRes) {
@@ -266,26 +268,56 @@ function processArrays (left, right, compareFunction, action) {
         result.push(lcopy[lidx]);
         ++lidx;
         ++ridx;
-      } else if (cmpRes > 0) {
-        ++ridx;
-      } else {
-        ++lidx;
+      } else if (cmpRes > 0) {  // a > b
+        ++ridx;   // b is smaller value array, so inc index
+      } else {                  // a < b
+        ++lidx;   // a is smaller value array, so inc index
       }
-    }
+    };
   } else if (action === 'SymmetricDifference') {
     processFunction = function (cmpRes) {
       // if not same add to result and increase index of smaller value array
       if (cmpRes === 0) {
         ++lidx;
         ++ridx;
-      } else if (cmpRes > 0) {
-        result.push(lcopy[ridx]);
-        ++ridx;
-      } else {
+      } else if (cmpRes > 0) {    // a > b
+        result.push(rcopy[ridx]);
+        ++ridx;   // b is smaller value array, so inc index
+      } else {                    // a < b
         result.push(lcopy[lidx]);
-        ++lidx;
+        ++lidx;   // a is smaller value array, so inc index
       }
-    }
+    };
+    addLeftRemainder = true;
+    addRightRemainder = true;
+  } else if (action === 'RelativeComplementAinB') {
+    processFunction = function (cmpRes) {
+      // if not same add to result if in B and increase index of smaller value array
+      if (cmpRes === 0) {
+        ++lidx;
+        ++ridx;
+      } else if (cmpRes > 0) {    // a > b
+        result.push(rcopy[ridx]);
+        ++ridx;   // b is smaller value array, so inc index
+      } else {                    // a < b
+        ++lidx;   // a is smaller value array, so inc index
+      }
+    };
+    addRightRemainder = true;
+  } else if (action === 'RelativeComplementBinA') {
+    processFunction = function (cmpRes) {
+      // if not same add to result if in A and increase index of smaller value array
+      if (cmpRes === 0) {
+        ++lidx;
+        ++ridx;
+      } else if (cmpRes > 0) {    // a > b
+        ++ridx;   // b is smaller value array, so inc index
+      } else {                    // a < b
+        result.push(lcopy[lidx]);
+        ++lidx;   // a is smaller value array, so inc index
+      }
+    };
+    addLeftRemainder = true;
   } else {
     throw new Error('Unreckonised action: ' + action);
   }
@@ -295,33 +327,99 @@ function processArrays (left, right, compareFunction, action) {
   while ((lidx < lcopy.length) && (ridx < rcopy.length)) {
     processFunction(compareFunction(lcopy[lidx], rcopy[ridx]));
   }
+
+  if (addLeftRemainder) {
+    while (lidx < lcopy.length) {
+      result.push(lcopy[lidx++]);
+    }
+  }
+  if (addRightRemainder) {
+    while (ridx < rcopy.length) {
+      result.push(rcopy[ridx++]);
+    }
+  }
   return result;
 }
 
 /**
- * Generate an array containing the Intersection between 2 arrays, i.e the elements common to both
- * @param {Object[]} left             - left side array
- * @param {Object[]} right            - right side array
+ * Generate an array containing the Intersection between 2 arrays, 
+ * i.e the elements common to both
+ * @param {Object[]} a                - left side array
+ * @param {Object[]} b                - right side array
  * @param {function} compareFunction  - comparison function to sort arrays
  * @returns {Object[]}  array containing entries common to both arrays  
  */
-function arrayIntersection (left, right, compareFunction) {
-  return processArrays(left, right, compareFunction, 'Intersection');
+function arrayIntersection (a, b, compareFunction) {
+  return processArrays(a, b, compareFunction, 'Intersection');
 }
 
 /**
- * Generate an array containing the Symmetric Difference between 2 arrays, i.e the elements not common to both
- * @param {Object[]} left             - left side array
- * @param {Object[]} right            - right side array
+ * Generate an array containing the Symmetric Difference between 2 arrays, 
+ * i.e the elements not common to both
+ * @param {Object[]} a                - left side array
+ * @param {Object[]} b                - right side array
  * @param {function} compareFunction  - comparison function to sort arrays
  * @returns {Object[]}  array containing entries not common to both arrays  
  */
-function arraySymmetricDifference (left, right, compareFunction) {
-  return processArrays(left, right, compareFunction, 'SymmetricDifference');
+function arraySymmetricDifference (a, b, compareFunction) {
+  return processArrays(a, b, compareFunction, 'SymmetricDifference');
 }
 
+/**
+ * Generate an array containing the Relative Complement of A in B of 2 arrays, 
+ * i.e elements in B but not in A.
+ * @param {Object[]} a                - left side array
+ * @param {Object[]} b                - right side array
+ * @param {function} compareFunction  - comparison function to sort arrays
+ * @returns {Object[]}  array containing Relative Complement of left in right  
+ */
+function arrayRelativeComplementAinB (a, b, compareFunction) {
+  return processArrays(a, b, compareFunction, 'RelativeComplementAinB');
+}
 
+/**
+ * Generate an array containing the Relative Complement of B in A of 2 arrays, 
+ * i.e elements in A but not in B.
+ * @param {Object[]} a                - left side array
+ * @param {Object[]} b                - right side array
+ * @param {function} compareFunction  - comparison function to sort arrays
+ * @returns {Object[]}  array containing Relative Complement of left in right  
+ */
+function arrayRelativeComplementBinA (a, b, compareFunction) {
+  return processArrays(a, b, compareFunction, 'RelativeComplementBinA');
+}
 
+/**
+ * Convert a mongodb ObjectID or array of ObjectIDs to string equivalent(s)
+ * @param {ObjectID|Array} id Id(s) to convert
+ * @param {funcction} func  Function to apply before saving entry to result
+ */
+function objectIdToString (id, func) {
+  var result;
+
+  if (Array.isArray(id)) {
+    result = [];
+    id.forEach(function(element) {
+      result.push(intObjectIdToString(element, func));
+    });
+  } else {
+    result = intObjectIdToString(id, func);
+  }
+  return result;
+}
+
+/**
+ * Convert a single mongodb ObjectID to string equivalent
+ * @param {ObjectID|Array} id Id to convert
+ * @param {funcction} func  Function to apply before saving entry to result
+ */
+function intObjectIdToString (id, func) {
+  var str = id.toString();
+  if (func) {
+    str = func(str);
+  }
+  return str;
+}
 
 module.exports = {
   testEquality: testEquality,
@@ -331,7 +429,10 @@ module.exports = {
   cloneObject: cloneObject,
   arrayIntersection: arrayIntersection,
   arraySymmetricDifference: arraySymmetricDifference,
+  arrayRelativeComplementAinB: arrayRelativeComplementAinB,
+  arrayRelativeComplementBinA: arrayRelativeComplementBinA,
   getModelPathNames: getModelPathNames,
   isValidModelPath: isValidModelPath,
-  getTemplate: getTemplate
+  getTemplate: getTemplate,
+  objectIdToString: objectIdToString
 };

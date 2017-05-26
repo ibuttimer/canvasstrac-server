@@ -9,6 +9,7 @@ var mongoose = require('./mongoose_app').mongoose,
     utilsIsValidModelPath = utilsModule.isValidModelPath,
     getUtilsTemplate = utilsModule.getTemplate,
     getModelPathNames = utilsModule.getModelPathNames,
+    objectIdToString = utilsModule.objectIdToString,
   populateSubDocsUtil = require('./model_utils').populateSubDocs,
   CanvassModule = require('./canvass'),
     canvassPopulateOptions = CanvassModule.getSubDocPopulateOptions,
@@ -112,6 +113,82 @@ function populateSubDocs (docs, next) {
   populateSubDocsUtil(model, docs, getSubDocPopulateOptions(), next);
 }
 
+/**
+ * Cancel assignments
+ * @param {string} canvassId Id of canvass assignments are for
+ * @param {string|array} canvasser Canvasser id(s)
+ * @param {string|array} address Address id(s)
+ * @param {function} next function to call next
+ */
+function cancelAssignments (canvassId, canvasser, address, next) {
+  var canvasserQuery = {
+    canvass: canvassId
+  },
+  addressQuery = {
+    canvass: canvassId
+  },
+  addrArray,
+  error;
+
+  if (Array.isArray(canvasser)) {
+    canvasserQuery.canvasser = { $in: canvasser };
+  } else {
+    canvasserQuery.canvasser = canvasser;
+  }
+  if (Array.isArray(address)) {
+    addressQuery.addresses = { $in: address };
+    addrArray = [];
+    address.forEach(function (addr) {
+      addrArray.push(addr.toLowerCase());
+    });
+  } else {
+    addressQuery.addresses = address;
+    addrArray = [address.toLowerCase()];
+  }
+
+  // for canvassers just remove the canvassassignment entry in the db
+  model.remove(canvasserQuery, function (err, canvasserDoc) {
+    if (err) {
+      next(err, canvasserDoc);
+    } else {
+      // for addresses find the canvassassignment entry & update it
+      model.find(addressQuery, function (err, addrDoc) {
+        if (err) {
+          next(err, addrDoc);
+        } else {
+          // for each canvassassignment entry
+          addrDoc.forEach(function (entry) {
+            // for each entry in the address array
+            addrArray.forEach(function (addr) {
+              var idx = entry.addresses.findIndex(function (caddr) {
+                // objectid === addr
+                return (objectIdToString(caddr, function(element) {
+                          return element.toLowerCase();
+                        }) === addr);
+              });
+              if (idx >= 0) {
+                // found addr in canvassassignment addresses
+                entry.addresses.splice(idx, 1); // remove it
+              }
+            });
+          });
+
+          addrDoc.forEach(function (entry) {
+            if (!error && entry.isModified()) {
+              entry.save(function (err, updatedEntry) {
+                if (err) {
+                  error = err;  // save error
+                }
+              });
+            }
+          });
+
+          next(error);
+        }
+      });
+    }
+  });
+}
 
 module.exports = {
   schema: schema,
@@ -120,5 +197,6 @@ module.exports = {
   isValidModelPath: isValidModelPath,
   getSubDocPopulateOptions: getSubDocPopulateOptions,
   getModelNodeTree: getModelNodeTree,
-  populateSubDocs: populateSubDocs
+  populateSubDocs: populateSubDocs,
+  cancelAssignments: cancelAssignments
 };
