@@ -5,8 +5,26 @@ var express = require('express'),
   Verify = require('./verify'),
   utils = require('../misc/utils'),
     cloneObject = utils.cloneObject,
+    createObject = utils.createObject,
     arrayIntersection = utils.arrayIntersection,
-  Consts = require('../consts');
+  Consts = require('../consts'),
+
+  FIELD_SEL = 'fields', // field selection path
+
+  QUERY_OR = '$or', // performs a logical OR operation on an array of two or more <expressions> and selects the documents that satisfy at least one of the <expressions>
+  QUERY_AND = '$and', // performs a logical AND operation on an array of two or more expressions (e.g. <expression1>, <expression2>, etc.) and selects the documents that satisfy all the expressions
+  QUERY_NOT = '$not', // performs a logical NOT operation on the specified <operator-expression> and selects the documents that do not match the <operator-expression>
+  QUERY_NOR = '$nor', // performs a logical NOR operation on an array of one or more query expression and selects the documents that fail all the query expressions
+
+  OR = '|',   // OR join
+  AND = '+',  // AND join
+  COMMA = ',',  // comma join
+
+  NOT = '!',  // inverse, i.e not equal
+  GT = '>',   // greater than
+  LT = '<',   // less than
+  EQ = '=',    // equal
+  BLANK = '~';// blank
 
 /**
  * Check a database result for an error condition and send response if necessary
@@ -227,22 +245,23 @@ function getDocById (accessCheck, model, id, req, res) {
 }
 
 /**
- * Split a url path string into select and query objects 
- * @param {string} string               - string to split
+ * Split a string of conjoined fields into select and query objects 
+ * @param {string} str                  - string to split
+ * @param {string} splitter             - string use for split
  * @param {function} isValidModelPath   - function to check if valid model path
  * @param {boolean} checkSub            - check sub document model(s) flag
  * @param {Array} fieldErrors           - where to save error info
  * @returns {object}  object comtaining select, query parameter and model node properties
  */
-function splitPathString(path, isValidModelPath, checkSub, fieldErrors) {
-  var fields = path.split(' '),
+function splitFieldString(str, splitter, isValidModelPath, checkSub, fieldErrors) {
+  var fields = str.split(splitter),
     select = '',
     queryParam = [],      // array of field names
     queryModelNodes = {}; // ModelNodes corresponding to field names
   fields.forEach(function (field) {
     var modelNode = isValidModelPath(field, [], checkSub);
     if (modelNode !== false) {
-      // generate a space seperated string 
+      // generate a space separated string 
       if (select.length > 0) {
         select += ' ';
       }
@@ -269,19 +288,28 @@ function splitPathString(path, isValidModelPath, checkSub, fieldErrors) {
 function getQueryParamValue(modelNode, path, raw) {
   var type = modelNode.model.schema.path(path),
     modOp = raw.charAt(0),
+    modOpEx = raw.charAt(1),
     value;
   if (type.instance === 'Number') {
     switch (modOp) {
-      case '!': // inverse, i.e not equal
+      case NOT: // inverse, i.e not equal
         value = {$ne: raw.substring(1)};
         break;
-      case '>': // greater than
-        value = {$gt: raw.substring(1)};
+      case GT: // greater than
+        if (modOpEx === EQ) {  // greater than or equal
+          value = {$gte: raw.substring(2)};
+        } else {
+          value = {$gt: raw.substring(1)};
+        }
         break;
-      case '<': // less than
-        value = {$lt: raw.substring(1)};
+      case LT: // less than
+        if (modOpEx === EQ) {  // less than or equal
+          value = {$lte: raw.substring(2)};
+        } else {
+          value = {$lt: raw.substring(1)};
+        }
         break;
-      default:
+      default:  // equal
         value = raw;
         break;
     }
@@ -290,7 +318,10 @@ function getQueryParamValue(modelNode, path, raw) {
   } else {
     // case insensitive search
     switch (modOp) {
-      case '!': // inverse, i.e not equal
+      case NOT: // inverse, i.e not equal
+        if (modOpEx === BLANK) {  // blank
+          value = new RegExp('\\S+', 'i'); // non blank
+        } else {
         /* http://stackoverflow.com/a/33680443
           * "The regex (?!hede). looks ahead to see if there's no substring "hede" to be seen, 
           * and if that is the case (so something else is seen), then the . (dot) will match 
@@ -300,7 +331,11 @@ function getQueryParamValue(modelNode, path, raw) {
           * repeated zero or more times: ((?!hede).)*. Finally, the start- and end-of-input 
           * are anchored to make sure the entire input is consumed: ^((?!hede).)*$"
           */
-        value = new RegExp('^((?!' + raw.substring(1) + ').)*$', 'i');
+          value = new RegExp('^((?!' + raw.substring(1) + ').)*$', 'i');
+        }
+        break;
+      case BLANK: // blank string
+        value = new RegExp('^\\s*$', 'i');
         break;
       default:
         value = new RegExp(raw, 'i');
@@ -330,6 +365,124 @@ function generateMultiConditionObject (queryVal, queryParam, queryModelNodes) {
   return params;
 }
 
+/**
+ * Decode a request query
+ * @param {Object} query              - query object
+ * @param {function} isValidModelPath - function to test valid model paths
+ * @param {boolean} checkSub          - check sub documents flag
+ */
+function decodeQuery (query, isValidModelPath, checkSub) {
+  // check request for query params to select returned model paths    
+  var select = '',
+    queryParam = {},
+    queryModelNodes = {},
+    fieldErrors = [],
+    altErrors = [],
+    split,
+    splits,
+    fieldNames,
+    prop;
+  for (var path in query) {
+    var orPath = (path.indexOf(OR) > 0),
+      andPath = (path.indexOf(AND) > 0);
+
+    if (orPath && andPath) {
+      altErrors.push('Mixed OR and AND queries are unsupported');
+    } else if (orPath || andPath) {
+      // an OR field string, e.g. 'field1|field2=value', so either field1 or field2 matching the param is acceptable
+      // an AND field string, e.g. 'field1+field2=value', so both field1 & field2 must match the param
+      split = (orPath ? OR : AND);
+      splits = splitFieldString(path, split, isValidModelPath, checkSub, fieldErrors);
+      fieldNames = Object.getOwnPropertyNames(splits.queryModelNodes);
+      // check all the same ModelNode
+      if (fieldNames.find(function (element, index, array) {
+              return (splits.queryModelNodes[array[0]] !== splits.queryModelNodes[element]);
+            }) !== undefined) {
+        // found different ModelNode
+        altErrors.push((orPath ? 'OR' : 'AND') + ' queries restricted to within a single model');
+      } else {
+        // { <$or|$and>: [{....}, {....} ....]}
+        prop = (orPath ? QUERY_OR : QUERY_AND);
+        queryParam[prop] = generateMultiConditionObject(query[path], splits.queryParam, splits.queryModelNodes);
+        queryModelNodes[prop] = splits.queryModelNodes[fieldNames[0]];  // all the same ModelNode
+      }
+    } else if (path === QUERY_NOT) {
+      // performs a logical NOT operation on the specified <operator-expression> and selects the documents that do not match the <operator-expression>
+      altErrors.push('NOT queries not currently supported');
+    } else if ((path === QUERY_OR) || (path === QUERY_AND) || (path === QUERY_NOR)) {
+      // an OR|AND|NOR value string, e.g. '<$or|$and|$nor>=field1=value1,field2=value2'
+      // QUERY_OR performs a logical OR operation on an array of two or more <expressions> and selects the documents that satisfy at least one of the <expressions>
+      // QUERY_AND performs a logical AND operation on an array of two or more expressions (e.g. <expression1>, <expression2>, etc.) and selects the documents that satisfy all the expressions
+      // QUERY_NOR performs a logical NOR operation on an array of one or more query expression and selects the documents that fail all the query expressions
+      var values = query[path].split(COMMA),
+        params = [],
+        decoded;
+
+      values.forEach(function (value) {
+        splits = value.split(EQ);
+        if (splits.length === 2) {  // key & value
+          decoded = decodeQuery(createObject(splits[0], splits[1]), isValidModelPath, checkSub);
+          if (decoded.error) {
+            altErrors.push(decoded.error);
+          } else {
+            fieldNames = Object.getOwnPropertyNames(decoded.result.queryParam);
+            if (fieldNames.length > 1) {
+              altErrors.push('Multiple values not supported in ' + path + ' query array element');
+            } else {
+              params.push(createObject(fieldNames[0], decoded.result.queryParam[fieldNames[0]]));
+            }
+          }
+        }
+        else {
+          altErrors.push('Invalid value in ' + path + ' query element: ' + value);
+        }
+      }); 
+        // { <$or|$and|$nor>: [{....}, {....} ....]}
+      queryParam[path] = params;
+      // queryModelNodes[path] = splits.queryModelNodes[fieldNames[0]];  // all the same ModelNode
+
+
+    } else if (path === FIELD_SEL) {
+      /* 'fields=a+b+c' is how field selection is specified where a, b & c are field names
+        * NOTE: currently only works on top level document */
+      var splits = splitFieldString(query[path], ' ', isValidModelPath, checkSub, fieldErrors);
+      select = splits.select;
+    } else {
+      var modelNode = isValidModelPath(path, [], checkSub);
+      if (modelNode !== false) {
+        // requesting single field value
+        queryParam[path] = getQueryParamValue(modelNode, path, query[path]);
+        queryModelNodes[path] = modelNode;
+      } else {
+        fieldErrors.push(path);
+      }
+    }
+  }
+
+  var error, 
+    result;
+  if ((fieldErrors.length > 0) || (altErrors.length > 0)) {
+    error = '';
+    if (fieldErrors.length > 0) {
+      error += 'Unknown field name(s): ' + fieldErrors;
+    }
+    altErrors.forEach(function (err) {
+      if (error) {
+        error += '\n';
+      }
+      error += err; 
+    });
+  } else {
+    result = {};
+    result.queryParam = queryParam;   // query object with fields as property names & property value as query value 
+    result.queryModelNodes = queryModelNodes; // ModelNodes corresponding to fields
+    result.select = select;
+  }
+  return {
+    error: error,
+    result: result
+  };
+}
 
 /**
  * Decode a request
@@ -339,68 +492,12 @@ function generateMultiConditionObject (queryVal, queryParam, queryModelNodes) {
  * @param {boolean} checkSub          - check sub documents flag
  */
 function decodeReq (req, res, isValidModelPath, checkSub) {
-  // check request for query params to select returned model paths    
-  var select = '',
-    queryParam = {},
-    queryModelNodes = {},
-    fieldErrors = [],
-    altErrors = [];
-  for (var path in req.query) {
-    if (path.indexOf(' ') > 0) {
-      // an OR field string, e.g. 'field1+field2', so either field1 or field2 matching the param is acceptable
-      var splitPath = splitPathString(path, isValidModelPath, checkSub, fieldErrors),
-        i,
-        fieldNames = Object.getOwnPropertyNames(splitPath.queryModelNodes);
-      // check all the same ModelNode
-      for (i = 1; i < fieldNames.length; ++i) {
-        if (splitPath.queryModelNodes[fieldNames[i-1]] !== splitPath.queryModelNodes[fieldNames[i]]) {
-          break;
-        }
-      }
-      if (i < fieldNames.length) {
-        altErrors.push('OR queries restricted to within a single model');
-      } else {
-        // { $or: [{....}, {....} ....]}
-        queryParam.$or = generateMultiConditionObject(req.query[path], splitPath.queryParam, splitPath.queryModelNodes);
-        queryModelNodes.$or = splitPath.queryModelNodes[fieldNames[0]];  // all the same ModelNode
-      }
-    } else if (path === 'fields') {
-      /* 'fields=a+b+c' is how field selection is specified where a, b & c are field names
-        * NOTE: currently only works on top level document */
-      var splitPath = splitPathString(req.query[path], isValidModelPath, checkSub, fieldErrors);
-      select = splitPath.select;
-    } else {
-      var modelNode = isValidModelPath(path, [], checkSub);
-      if (modelNode !== false) {
-        // requesting single field value
-        queryParam[path] = getQueryParamValue(modelNode, path, req.query[path]);
-        queryModelNodes[path] = modelNode;
-      } else {
-        fieldErrors.push(path);
-      }
-    }
+  // check request for query params to select returned model paths
+  var decoded = decodeQuery(req.query, isValidModelPath, checkSub);
+  if (decoded.error) {
+    errorReply(res, Consts.HTTP_BAD_REQUEST, decoded.error);
   }
-
-  var result;
-  if ((fieldErrors.length > 0) || (altErrors.length > 0)) {
-    var msg = '';
-    if (fieldErrors.length > 0) {
-      msg += 'Unknown field name(s): ' + fieldErrors;
-    }
-    altErrors.forEach(function (err) {
-      if (msg) {
-        msg += '\n';
-      }
-      msg += err; 
-    });
-    errorReply(res, Consts.HTTP_BAD_REQUEST, msg);
-  } else {
-    result = {};
-    result.queryParam = queryParam;   // query object with fields as property names & property value as query value 
-    result.queryModelNodes = queryModelNodes; // ModelNodes corresponding to fields
-    result.select = select;
-  }
-  return result;
+  return decoded.result;
 }
 
 /**

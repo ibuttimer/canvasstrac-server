@@ -131,6 +131,39 @@ function cloneObject (object, properties, include) {
   return newObject;
 }
 
+/**
+  * Convert an object to an array
+  * @param {*} array - object to convert to an array
+  */
+function toArray (array) {
+  return (Array.isArray(array) ? array : [array]);
+}
+
+/**
+  * Create an object, with the specified list of propertys & values
+  * @param {string[]} properties  - list of property names
+  * @param {Array} values         - list of property values
+  */
+function createObject (properties, values) {
+  var newObject = {},
+    value,
+    propArray,
+    valArray;
+  if (properties) {
+    propArray = toArray(properties);
+    valArray = toArray(values);
+    for (var i = 0; i < propArray.length; ++i) {
+      if (i < valArray.length) {
+        value = valArray[i];
+      } else {
+        value = undefined;
+      }
+      newObject[propArray[i]] = value;
+    }
+  }
+  return newObject;
+}
+
 /*
   * Get a list of the names of paths in a Mongoose schema
   * @param {object} model        - mongoose model object to get paths from
@@ -427,6 +460,8 @@ module.exports = {
   isNullOrUndefined: isNullOrUndefined,
   find: find,
   cloneObject: cloneObject,
+  createObject: createObject,
+  toArray: toArray,
   arrayIntersection: arrayIntersection,
   arraySymmetricDifference: arraySymmetricDifference,
   arrayRelativeComplementAinB: arrayRelativeComplementAinB,
