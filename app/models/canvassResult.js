@@ -23,7 +23,7 @@ var mongoose = require('./mongoose_app').mongoose,
 var schema = new Schema({
   available: {
     type: Boolean,
-    default: false
+    default: true
   },
   dontCanvass: {
     type: Boolean,
