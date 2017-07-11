@@ -7,9 +7,11 @@ var SparkPost = require('sparkpost'),
 var sparky,
   sandbox = false;
 
-if (config.feedbackToEmail) {
+if (config.feedbackToEmail && config.feedbackFromEmail) {
   // setup feedback email
   sparky = new SparkPost(); // uses process.env.SPARKPOST_API_KEY
+} else {
+  console.log('SparkPost not configured');
 }
 
 function available () {

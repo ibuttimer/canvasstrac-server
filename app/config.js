@@ -65,7 +65,7 @@ for (prop in types) {
   }
 
   if (prop.indexOf('SPARKPOST') === 0) {
-    // sparkpost specific, the pluging uses environment variables
+    // sparkpost specific, the plugin uses environment variables
     if (!process.env[prop]) {
       process.env[prop] = cfg[prop];
     }

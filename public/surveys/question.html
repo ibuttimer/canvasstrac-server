@@ -3,18 +3,21 @@
     <div class="">
       <h3>{{getTitle()}}</h3>
     </div>
+    <div class="row" ng-if="debug.show">
+      <p><code>{{ngDialogData.question._id}}</code></p>
+    </div>
     <div class="">&nbsp;</div>
     <div class="">
       <form role="form" name="questionForm" novalidate>
-        <div class="form-group col-sm-12" ng-class="{ 'has-error' : questionForm.type.$error.required && !questionForm.type.$pristine }">
+        <div class="form-group col-sm-12" ng-class="{ 'has-error has-feedback' : questionForm.type.$error.required && !questionForm.type.$pristine }">
           <label for="type" class="col-sm-3 control-label">Type</label>
           <div class="col-sm-9">
 <!--
-            <select id="type" name="type" ng-model="ngDialogData.question.type" ng-disabled="editDisabled" ng-change="selectedItemChanged('qtype', ngDialogData.question)" required>
+            <select class="form-control" id="type" name="type" ng-model="ngDialogData.question.type" ng-disabled="editDisabled" ng-change="selectedItemChanged('qtype', ngDialogData.question)" required>
               <option ng-repeat="type in questionTypes" value="{{type.type}}">{{type.name}}</option>
             </select>
 -->
-            <select id="type" name="type" ng-model="ngDialogData.question.type" ng-disabled="editDisabled" ng-change="selectedItemChanged('qtype', ngDialogData.question)" 
+            <select class="form-control" id="type" name="type" ng-model="ngDialogData.question.type" ng-disabled="editDisabled" ng-change="selectedItemChanged('qtype', ngDialogData.question)"
                     
             ng-options="type.name for type in questionTypes track by type.type"
                     
@@ -28,7 +31,7 @@
           </div>
         </div>
 
-        <div class="form-group col-sm-12" ng-class="{ 'has-error' : questionForm.question.$error.required && !questionForm.question.$pristine }">
+        <div class="form-group col-sm-12" ng-class="{ 'has-error has-feedback' : questionForm.question.$error.required && !questionForm.question.$pristine }">
           <label for="question" class="col-sm-3 control-label">Question</label>
           <div class="col-sm-9">
             <textarea class="form-control" rows="3" id="question" name="question" placeholder="Enter question" ng-model="ngDialogData.question.question" ng-disabled="editDisabled" required>
@@ -38,16 +41,16 @@
           </div>
         </div>
 
-        <div class="form-group col-sm-12" ng-class="{ 'has-error' : questionForm.numoptions.$error.required && !questionForm.numoptions.$pristine }" ng-show="showNumOptions">
+        <div class="form-group col-sm-12" ng-class="{ 'has-error has-feedback' : questionForm.numoptions.$error.required && !questionForm.numoptions.$pristine }" ng-show="showNumOptions">
           <label for="numoptions" class="col-sm-4 control-label">Number of  Options</label>
-          <select id="numoptions" name="numoptions" ng-model="ngDialogData.question.numoptions" ng-disabled="editDisabled" ng-change="selectedItemChanged('numopts', ngDialogData.question)" 
+          <select class="form-control" id="numoptions" name="numoptions" ng-model="ngDialogData.question.numoptions" ng-disabled="editDisabled" ng-change="selectedItemChanged('numopts', ngDialogData.question)"
                   ng-options="n for n in ngDialogData.question.type.range track by n"
                   required>
           </select>
           
         </div>
 
-        <div class="form-group col-sm-12" ng-class="{ 'has-error' : questionForm.options.$error.required && !questionForm.options.$pristine }" ng-show="showNumOptions">
+        <div class="form-group col-sm-12" ng-class="{ 'has-error has-feedback' : questionForm.options.$error.required && !questionForm.options.$pristine }" ng-show="showNumOptions">
           <label for="options" class="col-sm-3 control-label">Options</label>
         
           <div class="col-sm-9" ng-repeat="opt in ngDialogData.question.options track by $index" ng-class="{ 'col-sm-push-3' : $index > 0 }">

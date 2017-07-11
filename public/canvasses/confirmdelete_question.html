@@ -7,14 +7,7 @@
     <div class="list-group">
       <ul class="list-group-item" ng-repeat="question in ngDialogData.list">
         <li class="list-group-item">
-          <div class="row">
-            <div class="col-sm-9">
-              <p>{{question.question}}</p>
-            </div>
-            <div class="col-sm-3">
-              <p class="text-right"><span class="label label-default">{{getQuestionTypeName(question.type)}}</span></p>
-            </div>
-          </div>
+          <div ng-include="'canvasses/question.element.html'"></div>
         </li>
       </ul>
     </div>

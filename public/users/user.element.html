@@ -1,0 +1,16 @@
+<div class="row  col-sm-12">
+  <div class="col-sm-8">
+    <p>{{user.person.firstname}} {{user.person.lastname}}</p>
+  </div>
+  <div class="col-sm-4" ng-if="debug.show">
+    <p><code>{{user._id}}</code></p>
+  </div>
+</div>
+<div class="row col-sm-12">
+  <div class="col-sm-8">
+    <p>{{user.role.name}}</p>
+  </div>
+  <div class="col-sm-4" ng-if="debug.show">
+    <p><code>{{user.role._id}}</code></p>
+  </div>
+</div>

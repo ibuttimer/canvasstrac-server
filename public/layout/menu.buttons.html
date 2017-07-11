@@ -1,3 +1,6 @@
 <h4>{{menu.header}}</h4>
-<button type="button" ng-repeat="entry in menu.items" class="btn btn-default" ui-sref="{{entry.sref}}">{{entry.name}}
-</button>
+<div class="btn-group" role="group">
+  <button type="button" ng-repeat="entry in menu.items" class="{{entry.class}}" ui-sref="{{entry.sref}}">
+    <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
+  </button>
+</div>

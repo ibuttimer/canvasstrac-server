@@ -1,62 +1,79 @@
 
 <div class="container" ng-controller="CanvassDashController">
   <div class="row row-content">
-    <div class="col-sm-12">
+    <div class="col-xs-12">
+      <div class="col-xs-4">
+        <h2>Canvass Dashboard</h2>
+      </div>
+    </div>
+
+    <div class="col-sm-12 filter-box">
       <form class="form-inline">
         <div class="form-group col-sm-2">
           <h4>Filter by:</h4>
         </div>
 
         <div class="form-group col-sm-4">
-          <label for="name" class="control-label col-sm-2">Name&nbsp;&nbsp;</label>
-          <input type="text" class="form-control" id="name" name="name" placeholder="Enter name" ng-model="filterText">
+          <label for="name" class="control-label col-sm-3 filter-label">Name</label>
+          <input type="text" class="form-control col-sm-9" id="name" name="name" placeholder="Enter name" ng-model="filterText">
         </div>
 
         <div class="form-group col-sm-1">
           <label for="op" class="sr-only">Filter operation</label>
-          <select id="op" name="op" ng-model="filterOp">
-            <option ng-repeat="op in filterOps" value="{{op}}">{{op}}</option>
+          <select class="form-control" id="op" name="op" ng-model="filterOp" data-toggle="tooltip" title="Select filter operation" ng-options="op for op in filterOps">
           </select>
         </div>
         
         <div class="form-group col-sm-4">
-          <label for="election" class="control-label col-sm-2">Election&nbsp;&nbsp;</label>
-          <select id="election" name="election" ng-model="filterElection">
-            <option ng-repeat="election in elections" value="{{election._id}}">{{election.name}}</option>
+          <label for="election" class="control-label col-sm-3 filter-label">Election</label>
+          <select class="form-control col-sm-9" id="election" name="election" ng-model="filterElection" data-toggle="tooltip" title="Select election"
+            ng-options="election._id as election.name for election in elections">
+              <option value="">Select election</option>
           </select>
         </div>
         <div class="form-group col-sm-1">
-          <button type="reset" class="btn btn-default" ng-click="initFilter()">Clear</button>
+          <button type="reset" class="btn btn-default" ng-click="initFilter()" data-toggle="tooltip" title="Clear filter">Clear</button>
         </div>
       </form>
     </div>
-    <div class="col-sm-8">
+    <div class="col-sm-10">
       <div class="list-group">
         <button type="button" class="list-group-item" ng-repeat="canvass in canvasses | filterDashCanvass: filterText : filterOp : filterElection" ng-class="{active: canvass.isSelected}" ng-click="toggleCanvassSel(canvass)">
           <div class="row">
-            <div class="col-sm-8">
-              <p>{{canvass.name}}</p>
+            <div class="col-sm-12">
+              <div class="col-sm-4">
+                <p>{{canvass.name}}</p>
+              </div>
+              <div class="col-sm-4">
+                <div ng-if="debug.show">
+                  <p><code>{{canvass._id}}</code></p>
+                </div>
+              </div>
+              <div class="col-sm-4">
+                <p class="text-right">{{formatDate(canvass.startDate)}}</p>
+              </div>
             </div>
-            <div class="col-sm-4">
-              <p class="text-right">{{formatDate(canvass.startDate)}}</p>
-            </div>
-            <div class="col-sm-8">
-              <p>{{canvass.election.name}}</p>
-            </div>
-            <div class="col-sm-4">
-              <p class="text-right">{{formatDate(canvass.endDate)}}</p>
+          </div>
+          <div class="row">
+            <div class="col-sm-12">
+              <div class="col-sm-4">
+                <p>{{canvass.election.name}}</p>
+              </div>
+              <div class="col-sm-4">
+                <div ng-if="debug.show">
+                  <p><code>{{canvass.election._id}}</code></p>
+                </div>
+              </div>
+              <div class="col-sm-4">
+                <p class="text-right">{{formatDate(canvass.endDate)}}</p>
+              </div>
             </div>
           </div>
         </button>
       </div>
     </div>
-    <div class="col-sm-4">
-      <div class="btn-group-vertical" role="group">
-        <button type="button" class="btn btn-default" ui-sref="{{newState}}">New</button>
-        <button type="button" class="btn btn-default" ng-disabled="selectedCnt != 1" ng-click="viewItem()">View</button>
-        <button type="button" class="btn btn-default" ng-disabled="selectedCnt != 1" ng-click="editItem()">Update</button>
-        <button type="button" class="btn btn-default" ng-disabled="selectedCnt < 1" ng-click="dashDelete()">Delete</button>
-      </div>
+    <div class="col-sm-2" ng-controller="StateButtonsController">
+      <div ng-include="'views/state_buttons.html'"></div>
     </div>
   </div>
 </div>  <!-- end of container -->

@@ -1,0 +1,7 @@
+<div ng-class="{'btn-group': btnhorz, 'btn-group-vertical': btnvert}" role="group">
+  <button type="button" class="{{stateBtn.class}}"
+          ng-repeat="stateBtn in stateButtons" ng-if="showButton(stateBtn.state)"
+          ng-click="changeState(stateBtn.state)" ng-disabled="disableButton(stateBtn.state)" data-toggle="tooltip" title="{{stateBtn.tip}}">
+    <span class="{{stateBtn.icon}}" aria-hidden="true"></span>&nbsp;{{stateBtn.txt}}
+  </button>
+</div>

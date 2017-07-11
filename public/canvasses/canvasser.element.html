@@ -1,15 +1,22 @@
 <div class="list-group">
   <button type="button" class="list-group-item" ng-repeat="user in pager.pageItems" ng-class="{active: user.isSelected}" ng-click="toggleItemSel(list,user)">
     <div class="row">
-      <div class="col-sm-12">
-        <p>{{user.person.firstname}} <b>{{user.person.lastname}}</b>
-          <span ng-if="showBadge" class="text-right label" ng-class="user.labelClass">{{user.addresses.length}}</span>
-        </p>
-        <p>{{user.person.address.addrLine1}} {{user.person.address.addrLine2}} {{user.person.address.addrLine3}}
-        </p>
-        <p>{{user.person.address.town}} {{user.person.address.city}} {{user.person.address.county}}</p>
-        <p class="text-right">{{user.person.address.postcode}}</p>
+      <div class="col-sm-10">
+        <p>{{user.person.firstname}} <b>{{user.person.lastname}}</b></p>
       </div>
+      <div class="col-sm-2">
+        <span ng-if="showBadge" class="text-right label" ng-class="user.labelClass"
+              data-toggle="tooltip" title="Allocation: {{addressCountStr(user.addresses.length)}}">
+          <i class="fa fa-map-marker" aria-hidden="true"></i>&nbsp;{{user.addresses.length}}
+        </span>
+      </div>
+    </div>
+
+    <cnvtrc-addr-widget info="user.person.address" badge="showBadge" debug="debug"></cnvtrc-addr-widget>
+
+    <div class="row" ng-if="debug.show">
+      <p><code>user: {{user._id}}</code></p>
+      <p><code>person: {{user.person._id}}</code></p>
     </div>
   </button>
 </div>

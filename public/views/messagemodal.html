@@ -1,12 +1,12 @@
 <div class="ngdialog-message">
   <div class="">
-    <h3>{{title}}</h3>
+    <h3>{{ngDialogData.title}}</h3>
   </div>
   <div class="">&nbsp;</div>
   <div class="">
-    <p>{{message}}</p>
+    <p>{{ngDialogData.message}}</p>
   </div>
   <div class="ngdialog-buttons">
-    <button type="button" class="ngdialog-button ngdialog-button-primary" ng-click=confirm("OK")>OK</button>
+    <button type="button" class="ngdialog-button ngdialog-button-primary" ng-click="confirm('OK')">OK</button>
   </div>
 </div>

@@ -6,14 +6,14 @@
   <div class="">
     <form role="form" name="registerForm" ng-submit="doRegister()" novalidate>
       
-      <div class="form-group" ng-class="{ 'has-error' : registerForm.username.$error.required && !registerForm.username.$pristine }">
+      <div class="form-group" ng-class="{ 'has-error has-feedback' : registerForm.username.$error.required && !registerForm.username.$pristine }">
         <label class="sr-only" for="username">Username</label>
         <input type="text" class="form-control input-sm" id="username" name="username" placeholder="Username" ng-model="registration.username" required>
         <span ng-show="registerForm.username.$error.required && !registerForm.username.$pristine" 
         class="help-block">Your username is required.</span>
       </div>
       
-      <div class="form-group" ng-class="{ 'has-error' : registerForm.password.$error.required && !registerForm.password.$pristine }">
+      <div class="form-group" ng-class="{ 'has-error has-feedback' : registerForm.password.$error.required && !registerForm.password.$pristine }">
         <label class="sr-only" for="password">Password</label>
         <input type="password" class="form-control input-sm" id="password" name="password" placeholder="Password" ng-model="registration.password" required>
         <span ng-show="registerForm.password.$error.required && !registerForm.password.$pristine" 

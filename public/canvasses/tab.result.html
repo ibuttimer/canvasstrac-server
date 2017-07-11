@@ -29,7 +29,7 @@
 
     <div class="form-group">
       <div class="col-sm-12">
-        <h4>Quick Responses</h5>
+        <h4>Quick Responses</h4>
       </div>
       <div class="col-sm-12">
         <div class="col-sm-3">
@@ -50,7 +50,7 @@
 
     <div class="form-group">
       <div class="col-sm-12">
-        <h4>Support Indicators</h5>
+        <h4>Support Indicators</h4>
       </div>
       <div class="col-sm-12">
         <div class="col-sm-2">
@@ -70,7 +70,7 @@
 
     <div class="form-group">
       <div class="col-sm-12">
-        <h4>Canvass Responses</h5>
+        <h4>Canvass Responses</h4>
       </div>
       <div class="list-group">
         <button type="button" class="list-group-item" ng-repeat="question in questions.list" ng-click="showResultDetail(question)">
@@ -101,8 +101,9 @@
                 chart-data="question.resData.data" chart-labels="question.resData.labels" chart-options="question.chartOptions">
               </canvas>
             </div>
-        </div>
-      </button>
+          </div>
+        </button>
+      </div>
     </div>
 
     <!-- navigation buttons -->
@@ -111,7 +112,7 @@
         <div ng-include="'canvasses/tab.buttons.html'"></div>
       </div>
     </div>
-    <br />
-    <br />
+    <br>
+    <br>
   </form>
 </div>

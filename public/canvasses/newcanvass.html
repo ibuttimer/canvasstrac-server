@@ -5,49 +5,47 @@
       <div class="col-xs-4">
         <h2>{{getTitle()}}</h2>
       </div>
-      <div class="col-xs-8">
-        <div class="btn-group" role="group">
-          <button type="button" class="btn btn-default" ng-if="showButton(newState)" ui-sref="{{newState}}">New</button>
-          <button type="button" class="btn btn-default" ng-if="showButton(viewState)" ng-click="changeState(viewState)">View</button>
-          <button type="button" class="btn btn-default" ng-if="showButton(editState)" ng-click="changeState(editState)">Update</button>
-          <button type="button" class="btn btn-default" ng-if="showButton(delState)" ng-click="changeState(delState)">Delete</button>
-        </div>
+      <div class="col-xs-8" ng-controller="StateButtonsController">
+        <div ng-include="'views/state_buttons.html'"></div>
       </div>
+    </div>
+    <div class="col-xs-12" ng-if="debug.show">
+      <p><code>canvass: {{canvass._id}}   survey: {{canvass.survey}}   election: {{canvass.election}}</code></p>
     </div>
     <div class="col-xs-12">
       <uib-tabset active="activeTab">
         <!-- Canvass tab -->
-        <uib-tab index="tabs.CANVASS_TAB" heading="1. Canvass" role="presentation">
+        <uib-tab index="tabs.CANVASS_TAB" heading="1. Canvass" deselect="deselectTab($event, $selectedIndex)" role="presentation">
           <div ng-controller="CanvassCanvassController">
             <div ng-include="'canvasses/tab.canvass.html'"></div>
           </div>
         </uib-tab>
         <!-- Survey tab -->
-        <uib-tab index="tabs.SURVEY_TAB" heading="2. Survey" role="presentation">
+        <uib-tab index="tabs.SURVEY_TAB" heading="2. Survey" deselect="deselectTab($event, $selectedIndex)" role="presentation">
           <div ng-controller="CanvassSurveyController">
             <div ng-include="'canvasses/tab.survey.html'"></div>
           </div>
         </uib-tab>
         <!-- Addresses tab -->
-        <uib-tab index="tabs.ADDRESS_TAB" heading="3. Addresses" role="presentation">
+        <uib-tab index="tabs.ADDRESS_TAB" heading="3. Addresses" deselect="deselectTab($event, $selectedIndex)" role="presentation">
           <div ng-controller="CanvassAddressController">
             <div ng-include="'canvasses/tab.address.html'"></div>
           </div>
         </uib-tab>
         <!-- Canvasser tab -->
-        <uib-tab index="tabs.CANVASSER_TAB" heading="4. Canvassers" role="presentation">
+        <uib-tab index="tabs.CANVASSER_TAB" heading="4. Canvassers" deselect="deselectTab($event, $selectedIndex)" role="presentation">
           <div ng-controller="CanvassCanvasserController">
             <div ng-include="'canvasses/tab.canvassers.html'"></div>
           </div>
         </uib-tab>
         <!-- Assignments tab -->
-        <uib-tab index="tabs.ASSIGNMENT_TAB" heading="5. Assignments" role="presentation">
+        <uib-tab index="tabs.ASSIGNMENT_TAB" heading="5. Assignments" deselect="deselectTab($event, $selectedIndex)" role="presentation">
           <div ng-controller="CanvassAssignmentController">
             <div ng-include="'canvasses/tab.assignment.html'"></div>
           </div>
         </uib-tab>
         <!-- Resultss tab -->
-        <uib-tab index="tabs.RESULT_TAB" heading="6. Results" role="presentation" ng-if="showTab(tabs.RESULT_TAB)">
+        <uib-tab index="tabs.RESULT_TAB" heading="6. Results" deselect="deselectTab($event, $selectedIndex)" role="presentation" ng-if="showTab(tabs.RESULT_TAB)">
           <div ng-controller="CanvassResultController">
             <div ng-include="'canvasses/tab.result.html'"></div>
           </div>

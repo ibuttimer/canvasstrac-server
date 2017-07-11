@@ -1,7 +1,7 @@
 <div role="tabpanel" class="tab-pane fade in active">
   <form class="form-horizontal" name="surveyForm" role="form" ng-submit="processForm()" novalidate>
 
-    <div class="form-group" ng-class="{ 'has-error' : surveyForm.name.$error.required && !surveyForm.name.$pristine }">
+    <div class="form-group" ng-class="{ 'has-error has-feedback' : surveyForm.name.$error.required && !surveyForm.name.$pristine }">
       <label for="name" class="col-sm-2 control-label">Name</label>
       <div class="col-sm-10">
         <input type="text" class="form-control" id="name" name="name" placeholder="Enter survey name"
@@ -11,7 +11,7 @@
       </div>
     </div>
 
-    <div class="form-group" ng-class="{ 'has-error' : surveyForm.description.$error.required && !surveyForm.description.$pristine }">
+    <div class="form-group" ng-class="{ 'has-error has-feedback' : surveyForm.description.$error.required && !surveyForm.description.$pristine }">
       <label for="description" class="col-sm-2 control-label">Description</label>
       <div class="col-sm-10">
         <textarea class="form-control" rows="4" id="description" name="description" placeholder="Enter description" ng-model="survey.description" ng-disabled="editDisabled" ng-change="onSurveyChange()" required>
@@ -22,29 +22,28 @@
     </div>
 
     <div class="form-group">
-      <div class="col-sm-8">
-        <div class="list-group">
-          <button type="button" class="list-group-item" ng-repeat="question in questions.list" ng-class="{active: question.isSelected}" ng-click="toggleQuestionSel(question)">
-            <div class="row">
-              <div class="col-sm-9">
-                <p>{{question.question}}</p>
-              </div>
-              <div class="col-sm-3">
-                <p class="text-right"><span class="label label-default">{{getQuestionTypeName(question.type)}}</span></p>
-              </div>
-            </div>
-          </button>
+      <label class="col-sm-2 control-label">Questions</label>
+<!--      <div class="col-sm-10 question-list-box">-->
+      <div class="col-sm-10">
+        <div class="col-sm-10">
+          <div class="list-group" ng-if="questions.list.length > 0">
+            <button type="button" class="list-group-item" ng-repeat="question in questions.list" ng-class="{active: question.isSelected}" ng-click="toggleQuestionSel(question)">
+              <div ng-include="'canvasses/question.element.html'"></div>
+            </button>
+          </div>
+          <div ng-if="questions.list.length === 0">
+            <p>No questions configured.</p>
+          </div>
         </div>
-      </div>
-      <div class="col-sm-4">
-        <div class="btn-group-vertical" role="group">
-          <button type="button" class="btn btn-success" ng-disabled="editDisabled || surveyForm.$invalid" ng-click="openQuestion('new')">New</button>
-          <button type="button" class="btn btn-warning" ng-disabled="selQuestionCnt != 1" ng-click="openQuestion('view')">View</button>
-          <button type="button" class="btn btn-warning" ng-disabled="(selQuestionCnt != 1) || editDisabled" ng-click="openQuestion('edit')">Update</button>
-          <button type="button" class="btn btn-danger" ng-disabled="(selQuestionCnt < 1) || editDisabled" ng-click="questionDelete()">Delete</button>
-          <br/><br/>
-          <button type="button" class="btn btn-default" ng-click="questionSelClear()">Clear</button>
-          <button type="button" class="btn btn-default" ng-disabled="editDisabled" ng-click="questionSelAll()">All</button>
+        <!-- buttons for questions -->
+        <div class="col-sm-2">
+          <div class="btn-group-vertical" role="group">
+            <button type="button" class="{{quesBtn.class}}"
+                    ng-repeat="quesBtn in quesButtons" ng-if="showQuesButton(quesBtn,surveyForm)"
+                    ng-click="exeQuesButton(quesBtn)" ng-disabled="disableQuesButton(quesBtn,surveyForm)" data-toggle="tooltip" title="{{quesBtn.tip}}">
+              <span class="{{quesBtn.icon}}" aria-hidden="true"></span>&nbsp;{{quesBtn.txt}}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -56,7 +55,7 @@
         <div ng-include="'canvasses/tab.buttons.html'"></div>
       </div>
     </div>
-    <br />
-    <br />
+    <br>
+    <br>
   </form>
 </div>

@@ -1,0 +1,31 @@
+<div class="ngdialog-message">
+  <div class="">
+    <h3>Inactivity Timeout</h3>
+  </div>
+  <div class="">&nbsp;</div>
+  <div class="">
+    <p align=center>You are about to be logged out, due to inactivity.</p>
+    <p align=center ng-if="secTimer">
+      <!-- seconds timer -->
+      <timer interval="timerInterval" countdown="timerDuration" finish-callback="finished()">{{countdown}}</timer>
+    </p>
+    <p align=center ng-if="minTimer">
+      <!-- minutes timer -->
+      <timer interval="timerInterval" countdown="timerDuration" finish-callback="finished()" max-time-unit="'minute'">{{minutes}}:{{sseconds}} minute{{minutesS}}</timer>
+    </p>
+    <p align=center ng-if="hrTimer">
+      <!-- hours timer -->
+      <timer interval="timerInterval" countdown="timerDuration" finish-callback="finished()">{{hhours}}:{{mminutes}}:{{sseconds}} hour{{hhoursS}}</timer>
+    </p>
+    <p align=center ng-if="dayTimer">
+      <!-- days timer -->
+      <timer interval="timerInterval" countdown="timerDuration" finish-callback="finished()">{{days}} day{{daysS}} {{hhours}}:{{mminutes}}:{{sseconds}} hour{{hhoursS}}</timer>
+    </p>
+    <p align=center>Do you wish to stay logged in?</p>
+  </div>
+  <div class="ngdialog-buttons">
+    <button type="button" class="ngdialog-button ngdialog-button-primary" ng-click="closeThisDialog('OK')">Yes</button>
+    <button type="button" class="ngdialog-button ngdialog-button-secondary" ng-click="closeThisDialog('cancel')">No</button>
+
+  </div>
+</div>

@@ -32,28 +32,48 @@
   window.__env.forceHttps = true;
   window.__env.httpPort = -1;
   window.__env.httpsPortOffset = 443;
+  window.__env.socketTimeout = 120000;
+
+  window.__env.disableAuth = false;
 
   // management app settings
-  window.__env.mapsApiKey = "";
+  window.__env.mapsApiKey = "api_key";
+
+  window.__env.autoLogout = "2000";
+  window.__env.autoLogoutCount = "10";
+  window.__env.tokenRefresh = "1000";
+  window.__env.reloadMargin = "60";
 
   window.__env.DEV_MODE = false;
-  window.__env.DEV_USER = "";
-  window.__env.DEV_PASSWORD = "";
+  window.__env.DEV_USER1 = "ac";
+  window.__env.DEV_PASSWORD1 = "password";
+  window.__env.DEV_USER2 = "";
+  window.__env.DEV_PASSWORD2 = "";
+  window.__env.DEV_USER3 = "";
+  window.__env.DEV_PASSWORD3 = "";
 
-  window.__env.storeFactory = false;
-  window.__env.localStorage = false;
-  window.__env.surveyFactory = true;
-  window.__env.canvassFactory = true;
-  window.__env.electionFactory = true;
-  window.__env.CanvassController = true;
-  window.__env.CanvassActionController = true;
-  window.__env.SurveyController = true;
-  window.__env.navService = true;
+  /* TODO debug flags really need some work */
+  // client common flags
+  window.__env.dbgstoreFactory = false;
+  window.__env.dbglocalStore = false;
+  window.__env.dbgsurveyFactory = true;
+  window.__env.dbgcanvassFactory = true;
+  window.__env.dbgelectionFactory = true;
+
+  //  mgmt client app flags
+  window.__env.dbgCanvassController = true;
+  window.__env.dbgCanvassActionController = true;
+  window.__env.dbgSurveyController = true;
+  window.__env.dbgHeaderController = false;
+  window.__env.dbgElectionController = false;
+  window.__env.dbgCanvassController = true;
+  window.__env.dbgCanvassAddressController = false;
 
 }(this));
 
 /*jslint node: true */
 /*global angular */
+/*global window */
 'use strict';
 
  /**************************************************************************
@@ -71,6 +91,19 @@ if(window){
   if (!appenv.baseURL) {
     throw Error('Missing configuration: baseURL');
   }
+  // ensure numbers where required
+  [ 'httpPort',
+    'httpsPortOffset',
+    'socketTimeout',
+    'autoLogout',
+    'autoLogoutCount',
+    'tokenRefresh',
+    'reloadMargin'
+  ].forEach(function (prop) {
+    if (typeof appenv[prop] === 'string') {
+      appenv[prop] = parseInt(appenv[prop]);
+    }
+  });
 }
 
 angular.module('ct.config', [])
@@ -92,11 +125,11 @@ angular.module('ct.config', [])
     }
     return url + '/db/';
   })())
-  .constant('mapsApiKey', appenv.mapsApiKey)
   .constant('STATES', (function () {
     var cfgState = 'app.cfg',
       campaignState = 'app.campaign',
       makeStates = function (path, base, substate) {
+        // e.g. app.cfg.user-view
         var state = path + '.' + base;
         if (substate) {
           state += '-' + substate;
@@ -104,12 +137,19 @@ angular.module('ct.config', [])
         return state;
       },
       makeSubStatePropName = function (state, substate) {
+        // e.g. VOTINGSYS_NEW
         return state + '_' + substate;
       },
       substates = [
-        'NEW', 'VIEW', 'EDIT', 'NEW', 'DEL'
+        'NEW', 'VIEW', 'EDIT', 'DEL'
       ],
+      makeStdStateName = function (name) {
+        // e.g. dashState
+        return name.toLowerCase() + 'State';
+      },
       stateConstant = {
+        STD_STATE_NAMES: [],
+
         APP: 'app',
         ABOUTUS: 'app.aboutus',
 
@@ -117,7 +157,8 @@ angular.module('ct.config', [])
         CAMPAIGN: campaignState,
 
         LOGIN: 'app.login',
-        CONTACTUS: 'app.contactus'
+        CONTACTUS: 'app.contactus',
+        SUPPORT: 'app.support'
       },
       disabledStates = [
         // add entries to disbale a state and any substates
@@ -129,7 +170,7 @@ angular.module('ct.config', [])
         { property: 'ROLES', path: cfgState, base: 'role', disabled: true },
         { property: 'USERS', path: cfgState, base: 'user' },
         { property: 'ELECTION', path: campaignState, base: 'election' },
-        { property: 'CANDIDATE', path: campaignState, base: 'candidate' },
+        { property: 'CANDIDATE', path: campaignState, base: 'candidate', disabled: true },
         { property: 'CANVASS', path: campaignState, base: 'canvass' }
       ].forEach(function (state) {
         stateConstant[state.property] = makeStates(state.path, state.base);
@@ -162,40 +203,61 @@ angular.module('ct.config', [])
     };
 
     /* add function to set scope variables giving
-      scope.dashState, $scope.newState, $scope.viewState etc. */
-    stateConstant.SET_SCOPE_VARS = function (scope, base) {
-      scope.dashState = stateConstant[base];
+      scope.dashState, scope.newState, scope.viewState etc. */
+    stateConstant.SET_SCOPE_VARS = function (base, scope) {
+      if (!scope) {
+        scope = {};
+      }
+      scope[makeStdStateName('dash')] = stateConstant[base];
       substates.forEach(function (substate) {
         // make properties like 'newState' etc.
-        var name = substate.toLowerCase();
-        scope[name + 'State'] = stateConstant[makeSubStatePropName(base, substate)];
+        scope[makeStdStateName(substate)] = stateConstant[makeSubStatePropName(base, substate)];
       });
+      return scope;
     };
+
+    // list of properties added by SET_SCOPE_VARS
+    stateConstant.STD_STATE_NAMES.push(makeStdStateName('dash'));
+    substates.forEach(function (substate) {
+      stateConstant.STD_STATE_NAMES.push(makeStdStateName(substate));
+    });
 
     return stateConstant;
   })())
   .constant('CONFIG', (function () {
     return {
       DEV_MODE: appenv.DEV_MODE,  // flag to enable dev mode hack/shortcuts etc.
-      DEV_USER: appenv.DEV_USER,
-      DEV_PASSWORD: appenv.DEV_PASSWORD
+      DEV_USER1: appenv.DEV_USER1,
+      DEV_PASSWORD1: appenv.DEV_PASSWORD1,
+      DEV_USER2: appenv.DEV_USER2,
+      DEV_PASSWORD2: appenv.DEV_PASSWORD2,
+      DEV_USER3: appenv.DEV_USER3,
+      DEV_PASSWORD3: appenv.DEV_PASSWORD3,
+      NOAUTH: appenv.disableAuth,
+      MAPSAPIKEY: appenv.mapsApiKey,
+      AUTOLOGOUT: appenv.autoLogout,
+      AUTOLOGOUTCOUNT: appenv.autoLogoutCount,
+      TOKENREFRESH: appenv.tokenRefresh,
+      RELOADMARGIN: appenv.reloadMargin
     };
   })())
   .constant('DBG', (function () {
-    return {
-      // debug enable flags
-      storeFactory: appenv.storeFactory,
-      localStorage: appenv.localStorage,
-      surveyFactory: appenv.surveyFactory,
-      canvassFactory: appenv.canvassFactory,
-      electionFactory: appenv.electionFactory,
-      CanvassController: appenv.CanvassController,
-      CanvassActionController: appenv.CanvassActionController,
-      SurveyController: appenv.SurveyController,
-      navService: appenv.navService,
 
+    var dbgObj = {
       isEnabled: function (mod) {
         return this[mod];
+      },
+      loggerFunc: function (level, mod) {
+        if (this[mod]) {
+          var args = Array.prototype.slice.call(arguments, 2);
+          console[level].apply(console, args.concat(' '));
+        }
+      },
+      log: function (mod) {
+        if (this[mod]) {
+          var args = Array.prototype.slice.call(arguments, 1);
+          console.log.apply(console, args.concat(' '));
+        }
       },
       debug: function (mod) {
         if (this[mod]) {
@@ -221,8 +283,16 @@ angular.module('ct.config', [])
           console.error.apply(console, args.concat(' '));
         }
       }
-
     };
+
+    // add debug enable flags
+    Object.getOwnPropertyNames(appenv).forEach(function (prop) {
+      if (prop.indexOf('dbg') === 0) {
+        dbgObj[prop] = appenv[prop];
+      }
+    });
+
+    return dbgObj;
   })())
   .constant('RES', (function () {
     return {
@@ -236,11 +306,14 @@ angular.module('ct.config', [])
       SURVEY_QUESTIONS: 'surveyQuestions',        // survey questions object name
 
       ASSIGNED_ADDR: 'assignedAddr',              // all addresses assigned to canvass
+      BACKUP_ASSIGNED_ADDR: 'backupAssignedAddr', // backup of all addresses assigned to canvass
       UNASSIGNED_ADDR: 'unassignedAddr',          // addresses not assigned to canvass
       ASSIGNED_CANVASSER: 'assignedCanvasser',    // all canvassers assigned to canvass
+      BACKUP_ASSIGNED_CANVASSER: 'backupAssignedCanvasser', // backup all canvassers assigned to canvass
       UNASSIGNED_CANVASSER: 'unassignedCanvasser',// canvassers not assigned to canvass
       ALLOCATED_ADDR: 'allocatedAddr',            // addresses allocated to canvassers in canvass
-      ALLOCATED_CANVASSER: 'allocatedCanvasser',  // canvassers with allocated allocated addresses in canvass
+      ALLOCATED_CANVASSER: 'allocatedCanvasser',  // canvassers with allocated addresses in canvass
+      ALLOCATION_UNDOS: 'allocationUndos',        // undo objects for allocations
       getPagerName: function (base) {
           // eg assignedAddrPager
         return base + 'Pager';
@@ -274,18 +347,21 @@ angular.module('NgDialogUtil', ['ngDialog'])
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-NgDialogFactory.$inject = ['$rootScope', 'ngDialog'];
+NgDialogFactory.$inject = ['authFactory', 'ngDialog', '$state', 'STATES', 'RSPCODE'];
 
-function NgDialogFactory ($rootScope, ngDialog) {
+function NgDialogFactory (authFactory, ngDialog, $state, STATES, RSPCODE) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     open: open,
     openAndHandle: openAndHandle,
     close: close,
+    closeAll: closeAll,
     error: error,
     message: message,
+    errormessage: errormessage,
     isNgDialogCancel: isNgDialogCancel,
+    yesNoDialog: yesNoDialog
   };
   
   return factory;
@@ -329,11 +405,10 @@ function NgDialogFactory ($rootScope, ngDialog) {
     });
     return dialog;
   }
-  
-  
+
   /**
    * Wrapper for ngDialog close function
-   * @param {string}   id    id of dialog to close
+   * @param {string}   id    id of dialog to close. If id is not specified it will close all currently active modals.
    * @param {[[Type]]} value optional value to resolve the dialog promise with
    * @see https://github.com/likeastore/ngDialog#closeid-value
    */
@@ -342,31 +417,85 @@ function NgDialogFactory ($rootScope, ngDialog) {
   }
   
   /**
-   * Display an error dialog
+   * Wrapper for ngDialog closeAll function
+   * @param {[[Type]]} value optional value to resolve the dialog promise with
+   * @see https://github.com/likeastore/ngDialog#closeallvalue
+   */
+  function closeAll (value) {
+    ngDialog.closeAll (value);
+  }
+
+  /**
+   * Display an error dialog from a server response
    * @param {object} response http response
    * @param {string} title    Dialog title
    */
-  function error(response, title) {
+  function error (response, title) {
+    var authErr = false,
+      options = {
+        template: 'views/errormodal.html',
+        className: 'ngdialog-theme-default'
+      },
+      msg;
 
     // response is message
-    $rootScope.errortitle = title;
-    $rootScope.errormessage = '';
     if (response) {
+      if (!title) {
+        switch (response.status) {
+          case RSPCODE.HTTP_FORBIDDEN:
+            title = 'Access denied';
+            break;
+          default:
+            if (response.status <= 0) {
+              title = 'Aborted';
+            } else {
+              title = 'Error ' + response.status + ': ' + response.statusText;
+            }
+            break;
+        }
+      }
+
       if (response.data) {
         if (response.data.err) {
-          $rootScope.errormessage = response.data.err.message;
+          msg = response.data.err.message;
         } else if (response.data.message) {
-          $rootScope.errormessage = response.data.message;
+          msg = response.data.message;
         }
       } else if (response.status <= 0) {
         // status codes less than -1 are normalized to zero. -1 usually means the request was aborted
-        $rootScope.errormessage = 'Request aborted';
+        msg = 'Request aborted';
       }
+
+      authErr = authFactory.checkForAuthError(response);
     }
-    if (!$rootScope.errormessage) {
-      $rootScope.errormessage = 'Unknown error';
+    if (!msg) {
+      msg = 'Unknown error';
     }
-    ngDialog.openConfirm({ template: 'views/errormodal.html', scope: $rootScope });
+
+    options.data = {
+      title: title,
+      message: msg
+    };
+
+    if (authErr) {
+      ngDialog.openConfirm(options)
+        .then( function (value) {
+	          gotoHome();
+            return value;
+	         }, function (reason) {
+	          gotoHome();
+	          return reason;
+	        });
+    } else {
+      ngDialog.openConfirm(options);
+    }
+  }
+
+  /**
+   * Got to the home screen
+   */
+  function gotoHome () {
+    $state.go(STATES.APP);
   }
 
   /**
@@ -374,12 +503,27 @@ function NgDialogFactory ($rootScope, ngDialog) {
    * @param {string} title   Dialog title
    * @param {string} message message to display
    */
-  function message(title, message) {
+  function message (title, message) {
 
     // response is message
-    $rootScope.title = title;
-    $rootScope.message = message;
-    ngDialog.openConfirm({ template: 'views/messagemodal.html', scope: $rootScope });
+    ngDialog.openConfirm({
+      template: 'views/messagemodal.html',
+      className: 'ngdialog-theme-default',
+      data: { title: title, message: message }
+    });
+  }
+
+  /**
+   * Display an error message dialog
+   * @param {string} title   Dialog title
+   * @param {string} message message to display
+   */
+  function errormessage (title, message) {
+    ngDialog.openConfirm({
+      template: 'views/errormodal.html',
+      className: 'ngdialog-theme-default',
+      data: { title: title, message: message }
+    });
   }
 
   /**
@@ -388,10 +532,28 @@ function NgDialogFactory ($rootScope, ngDialog) {
    * @returns {boolean} true if reasonwas cancel, false otherwise
    */
   function isNgDialogCancel (data) {
-    return ((data === 'cancel') || (data === '$closeButton'));
+    return ((data === undefined) ||   // ngDialog.close
+            (data === 'cancel') || (data === '$closeButton') || (data === '$escape') || (data === '$document'));
   }
   
+  /**
+   * Display a message dialog with yes/no buttons
+   * @param {string} title   Dialog title
+   * @param {string} message message to display
+   * @param {function} process Function to process result
+   * @param {function} cancel  Function to handle a dialog cancel
+   * @returns {object} dialog properties
+   * @see https://github.com/likeastore/ngDialog#returns
+   */
+  function yesNoDialog (title, message, process, cancel) {
 
+    var options = {
+      template: 'views/yesno.modal.html',
+      className: 'ngdialog-theme-default',
+      data: { title: title, message: message }
+    };
+    return openAndHandle(options, process, cancel);
+  }
   
 }
 
@@ -399,7 +561,7 @@ function NgDialogFactory ($rootScope, ngDialog) {
 /*global angular */
 'use strict';
 
-angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCordova'])
+angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCordova', 'ngCookies'])
 
   .constant('geocodeURL', 'https://maps.googleapis.com/maps/api/geocode/json')
   .constant('PLATFORM', (function () {
@@ -451,6 +613,117 @@ angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCordova'])
       BUBBLE: 'chart-bubble'
     };
   })())
+  .constant('RSPCODE', (function () {
+    return {
+      // http response codes
+      // Informational 1xx
+      HTTP_CONTINUE: 100,           // The client SHOULD continue with its request
+      HTTP_SWITCHING_PROTOCOL: 101, // The server will switch protocols to those defined by the response
+      // Successful 2xx
+      HTTP_OK: 200,                 // Request has succeeded
+      HTTP_CREATED: 201,            // Request has been fulfilled and resulted in a new resource being created
+      HTTP_ACCEPTED: 202,           // Request has been accepted for processing, but the processing has not been completed
+      HTTP_NON_AUTH_INFO: 203,      // The returned metainformation in the entity-header is not the definitive set as available from the origin server, but is gathered from a local or a third-party copy.
+      HTTP_NO_CONTENT: 204,         // The server has fulfilled the request but does not need to return an entity-body
+      HTTP_RESET_CONTENT: 205,      // The server has fulfilled the request and the user agent SHOULD reset the document view which caused the request to be sent.
+      HTTP_PARTIAL_CONENT: 206,     // The server has fulfilled the partial GET request for the resource.ses.
+      // Redirection 3xx
+      HTTP_MULTIPLE_CHOICES: 300,   // The requested resource corresponds to any one of a set of representations
+      HTTP_MOVED_PERMANEMTLY: 301,  // The requested resource has been assigned a new permanent URI and any future references to this resource SHOULD use one of the returned URIs.
+      HTTP_FOUND: 302,              // The requested resource resides temporarily under a different URI
+      HTTP_SEE_OTHER: 303,          // The response to the request can be found under a different URI and SHOULD be retrieved using a GET method on that resource.
+      HTTP_NOT_MODIFIED: 304,       // If the client has performed a conditional GET request and access is allowed, but the document has not been modified, the server SHOULD respond with this status code.
+      HTTP_USE_PROXY: 305,          // The requested resource MUST be accessed through the proxy given by the Location field.
+      HTTP_TEMPORARY_REDIRECT: 307, // The requested resource resides temporarily under a different URI.
+      // Client Error 4xx
+      HTTP_BAD_REQUEST: 400,        // The request could not be understood by the server due to malformed syntax. 
+      HTTP_UNAUTHORISED: 401,       // The request requires user authentication.
+      HTTP_FORBIDDEN: 403,          // The server understood the request, but is refusing to fulfill it. 
+      HTTP_NOT_FOUND: 404,          // The server has not found anything matching the Request-URI.
+      HTTP_NOT_ALLOWED: 405,        // The method specified in the Request-Line is not allowed for the resource identified by the Request-URI.
+      HTTP_NOT_ACCEPTABLE: 406,     // The resource identified by the request is only capable of generating response entities which have content characteristics not acceptable according to the accept headers sent in the request.
+      HTTP_PROXY_AUTH_REQUIRED: 407,// The client must first authenticate itself with the proxy.
+      HTTP_TIMEOUT: 408,            // The client did not produce a request within the time that the server was prepared to wait. The client MAY repeat the request without modifications at any later time.
+      HTTP_CONFLICT: 409,           // The request could not be completed due to a conflict with the current state of the resource.
+      HTTP_GONE: 410,               // The requested resource is no longer available at the server and no forwarding address is known.
+      HTTP_LENGTH_REQUIRED: 411,    // The server refuses to accept the request without a defined Content- Length.
+      HTTP_PRECON_FAILED: 412,      // The precondition given in one or more of the request-header fields evaluated to false when it was tested on the server.
+      HTTP_ENTITY_TOO_LARGE: 413,   // The server is refusing to process a request because the request entity is larger than the server is willing or able to process.
+      HTTP_URI_TOO_LONG: 414,       // The server is refusing to service the request because the Request-URI is longer than the server is willing to interpret
+      HTTP_MEDIA_TYPE: 415,         // The server is refusing to service the request because the entity of the request is in a format not supported by the requested resource for the requested method.
+      HTTP_RANGE: 416,              // None of the range-specifier values in this field overlap the current extent of the selected resource, and the request did not include an If-Range request-header field. (For byte-ranges, this means that the first- byte-pos of all of the byte-range-spec values were greater than the current length of the selected resource.)
+      HTTP_EXPECTATION_FAILED: 417, // The expectation given in an Expect request-header field could not be met by this server, or, if the server is a proxy, the server has unambiguous evidence that the request could not be met by the next-hop server.
+      // Server Error 5xx
+      HTTP_INTERNAL_ERROR: 500,     // The server encountered an unexpected condition which prevented it from fulfilling the request.
+      HTTP_NOT_IMPLEMENTED: 501,    // The server does not support the functionality required to fulfill the request.
+      HTTP_BAD_GATEWAY: 502,        // The server, while acting as a gateway or proxy, received an invalid response from the upstream server it accessed in attempting to fulfill the request.
+      HTTP_UNAVAILABLE: 503,        // The server is currently unable to handle the request due to a temporary overloading or maintenance of the server.
+      HTTP_GATEWAY_TIMEOUT: 504,    // The server, while acting as a gateway or proxy, did not receive a timely response from the upstream server specified by the URI.
+      HTTP_VERSION: 505,            // The server does not support, or refuses to support, the HTTP protocol version that was used in the request message.
+    };
+  })())
+  .constant('APPCODE', (function () {
+    var FIRST_APPERR = 1000,               // start of app error range
+      ERROR_RANGE_SIZE = 100,
+      TOKEN_ERR_IDX = 0,
+      ACCESS_ERR_IDX = 1,
+      calcErrorRangeStart = function (idx) {
+        return FIRST_APPERR + (idx * ERROR_RANGE_SIZE);
+      },
+      calcErrorRangeEnd = function (idx) {
+        return calcErrorRangeStart(idx) + ERROR_RANGE_SIZE - 1;
+      },
+      // token related errors
+      FIRST_TOKEN_ERR = calcErrorRangeStart(TOKEN_ERR_IDX),
+      LAST_TOKEN_ERR = calcErrorRangeEnd(TOKEN_ERR_IDX),
+      // access related errors
+      FIRST_ACCESS_ERR = calcErrorRangeStart(ACCESS_ERR_IDX),
+      LAST_ACCESS_ERR = calcErrorRangeEnd(ACCESS_ERR_IDX);
+
+    return {
+      // app level result codes
+      FIRST_APPERR: FIRST_APPERR,       // start of app error range
+      // token related errors
+      IS_TOKEN_APPERR: function (appCode) {
+        return ((appCode >= FIRST_TOKEN_ERR) && (appCode <= LAST_TOKEN_ERR));
+      },
+      APPERR_SESSION_EXPIRED: FIRST_TOKEN_ERR,        // jwt has expired
+      APPERR_CANT_VERIFY_TOKEN: FIRST_TOKEN_ERR + 1,  // jwt failed verification
+      APPERR_NO_TOKEN: FIRST_TOKEN_ERR + 2,           // no jwt provided
+      // access related errors
+      IS_ACCESS_APPERR: function (appCode) {
+        return ((appCode >= FIRST_ACCESS_ERR) && (appCode <= LAST_ACCESS_ERR));
+      },
+      APPERR_UNKNOWN_ROLE: FIRST_ACCESS_ERR,          // unknown role identifier
+      APPERR_ROLE_NOPRIVILEGES: FIRST_ACCESS_ERR + 1, // assigned role doesn't have required privileges
+      APPERR_USER_URL: FIRST_ACCESS_ERR + 2           // url doesn't match credentials
+    };
+  })())
+  .constant('ACCESS', (function () {
+    return {
+      // privilege definitions for menu access
+      ACCESS_NONE: 0x00,    // no access
+      ACCESS_CREATE: 0x01,  // create access
+      ACCESS_READ: 0x02,    // read access
+      ACCESS_UPDATE: 0x04,  // update access
+      ACCESS_DELETE: 0x08,  // delete access
+      ACCESS_BIT_COUNT: 4,  // number of access bits per group
+      ACCESS_MASK: 0x0f,    // map of access bits
+
+      ACCESS_ALL: 0x01,     // access all objects group
+      ACCESS_ONE: 0x02,     // access single object group
+      ACCESS_OWN: 0x03,     // access own object group
+      ACCESS_GROUPMASK: 0x07,// map of access group bits
+      
+      // menu access properties in login response
+      VOTINGSYS: 'votingsys',
+      ROLES: 'roles',
+      USERS: 'users',
+      ELECTIONS: 'elections',
+      CANDIDATES: 'candidates',
+      CANVASSES: 'canvasses'
+    };
+  })())
   .config(function () {
     // no config for the moment
   });
@@ -465,7 +738,7 @@ angular.module('ct.clientCommon')
   .factory('storeFactory', storeFactory)
 
   // browser local storage
-  .factory('localStorage', localStorage);
+  .factory('localStore', localStore);
 
 
 /* Manually Identify Dependencies
@@ -739,12 +1012,13 @@ function storeFactory(consoleService) {
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-localStorage.$inject = ['$window'];
+localStore.$inject = ['$window'];
 
-function localStorage ($window) {
+function localStore ($window) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
+    isAvailable: isAvailable,
     store: store,
     remove: remove,
     get: get,
@@ -756,11 +1030,23 @@ function localStorage ($window) {
 
   /* function implementation
     -------------------------- */
+  
+  function isAvailable () {
+    try {
+      var x = '__storage_test__';
+      $window.localStorage.setItem(x, x);
+      $window.localStorage.removeItem(x);
+      return true;
+    }
+    catch(e) {
+      return false;
+    }
+  }
 
   function store(key, value) {
     try{
       if($window.Storage){
-        $window.localStorage[key] = value;
+        $window.localStorage.setItem(key, value);
         return true;
       } else {
         return false;
@@ -770,10 +1056,10 @@ function localStorage ($window) {
     }
   }
 
-  function remove(key, value) {
+  function remove(key) {
     try{
       if($window.Storage){
-        delete $window.localStorage[key];
+        $window.localStorage.removeItem(key);
         return true;
       } else {
         return false;
@@ -786,7 +1072,7 @@ function localStorage ($window) {
   function get(key, defaultValue) {
     try{
       if($window.Storage){
-        return $window.localStorage[key] || defaultValue;
+        return ($window.localStorage.getItem(key) || defaultValue);
       } else {
         return defaultValue;
       }
@@ -829,12 +1115,34 @@ function miscUtilFactory () {
     copyAndAddProperties: copyAndAddProperties,
     removeProperties: removeProperties,
     isEmpty: isEmpty,
+    isObject: isObject,
     isNullOrUndefined: isNullOrUndefined,
+    readSafe: readSafe,
     toArray: toArray,
     findArrayIndex: findArrayIndex,
-    arrayPolyfill: arrayPolyfill
+    arrayPolyfill: arrayPolyfill,
+
+    listForEach: listForEach,
+    listFind: listFind,
+
+    initSelected: initSelected,
+    selectAll: selectAll,
+    setSelected: setSelected,
+    getSelectedList: getSelectedList,
+    countSelected: countSelected,
+    toggleSelection: toggleSelection,
+    findSelected: findSelected,
+    findUnselected: findUnselected,
+    addSelectionCmds: addSelectionCmds,
+    SET_SEL: 's',
+    CLR_SEL: 'c',
+    TOGGLE_SEL: 't',
+    
+    toInteger: toInteger,
+    call: call,
+    arrayToMap: arrayToMap
   };
-  
+
   return factory;
 
   /* function implementation
@@ -900,16 +1208,25 @@ function miscUtilFactory () {
    * @param   {object}  object object to test
    * @returns {boolean} true if object is empty
    */
-  function isEmpty (object) {
+  function isEmpty(object) {
     var empty = true;
-    if (object) {
+    if (!isNullOrUndefined(object)) {
       if (Object.getOwnPropertyNames(object).length > 0) {
         empty = false;
       }
-    } 
+    }
     return empty;
   }
-  
+
+  /**
+   * Check if argument is an object
+   * @param   {object}  object object to test
+   * @returns {boolean} true if object is empty
+   */
+  function isObject(object) {
+    return (angular.isObject(object) && !angular.isArray(object));
+  }
+
   /**
    * Check if an object is null or undefined
    * @param   {object}  object object to test
@@ -933,6 +1250,22 @@ function miscUtilFactory () {
     }
     return array;
   }
+  
+  /**
+   * Read a property from a multi-layered object without a read error if a layer is undefined
+   * @param   {object}   object Object to read from
+   * @param   {Array}    path   property name on path to required value
+   * @returns property value or undefined if can't read it
+   */
+  function readSafe (object, path) {
+    var read = object;
+    if (object && angular.isArray(path)) {
+      for (var i = 0, ll = path.length; (i < ll) && !isNullOrUndefined(read); ++i) {
+        read = read[path[i]];
+      }
+    }
+    return read;
+  }
 
   /**
    * Find the index of an entry in an array using the callback function to test each of the entries 
@@ -949,12 +1282,8 @@ function miscUtilFactory () {
       throw new TypeError('predicate must be a function');
     }
     // If argument start was passed let n be ToInteger(start); else let n be 0.
-    var n = +start || 0;
-    if (Math.abs(n) === Infinity) {
-      n = 0;
-    }
-
-    var length = array.length >>> 0;
+    var n = toInteger(start),
+      length = array.length >>> 0;
 
     for (var i = n; i < length; i++) {
       if (predicate(array[i], i, array)) {
@@ -1105,7 +1434,260 @@ function miscUtilFactory () {
     }
   }
 
+
+  /**
+   * Initialise the 'selected' property of all objects in an array
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to initialise
+   * @param {function} callback Optional function to call with each element
+   */
+  function initSelected(list, callback) {
+    return setSelected(list, factory.CLR_SEL, callback);
+  }
   
+  /**
+   * Set the 'selected' property of all objects in an array
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to set
+   * @param {function} callback Optional function to call with each element
+   */
+  function selectAll(list, callback) {
+    return setSelected(list, factory.SET_SEL, callback);
+  }
+
+  /**
+   * Set the 'selected' state of all the entries in the array
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to set
+   * @param {boolean}  set      Value to set; one of factory.SET_SEL, factory.CLR_SEL or factory.TOGGLE_SEL
+   * @param {function} callback Optional function to call with each element
+   */
+  function setSelected(list, set, callback) {
+    var selCount = 0;
+    if (list) {
+      var forceSet = (set === factory.SET_SEL),
+        forceClr = (set === factory.CLR_SEL),
+        toggle = (set === factory.TOGGLE_SEL);
+      if (forceSet || forceClr || toggle) {
+
+        listForEach(list, function (entry) {
+          if (forceSet || (toggle && !entry.isSelected)) {
+            entry.isSelected = true;
+          } else if (entry.isSelected) {
+            delete entry.isSelected;
+          }
+          if (entry.isSelected) {
+            ++selCount;
+          }
+          if (callback) {
+            callback(entry);
+          }
+        });
+      }
+    }
+    return selCount;
+  }
+
+  /**
+   * Return an array of 'selected' entries 
+   * @param {Array|ResourceList} list ResourceList or Array of objects to extract selected items from
+   * @param {function}           func Function to apply to each selected entry
+   * @returns {Array}              Array of selected items
+   */
+  function getSelectedList(list, func) {
+    var selectedList = [];
+
+    listForEach(list, function (entry) {
+      if (entry.isSelected) {
+        if (func) {
+          selectedList.push(func(entry));
+        } else {
+          selectedList.push(entry);
+        }
+      }
+    });
+
+    return selectedList;
+  }
+
+  /**
+   * Process each entry in the list
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to count selected items from
+   * @param {function} func   Function to process entry with
+   */
+  function listForEach (list, func) {
+    if (list.isResourceList) {
+      // process as ResourceList
+      list.forEachInList(function (entry) {
+        func(entry);
+      });
+    } else {
+      // process as array
+      angular.forEach(list, function (entry) {
+        func(entry);
+      });
+    }
+  }
+
+  
+  /**
+   * Return number of 'selected' entries
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to count selected items from
+   * @returns {number} Number of selected items
+   */
+  function countSelected(list) {
+    var count = 0;
+
+    listForEach(list, function (entry) {
+      if (entry.isSelected) {
+        ++count;
+      }
+    });
+    return count;
+  }
+
+  /**
+   * Find the first selected entry in the list
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to search
+   * @param {number}   start     offset to start from
+   */
+  function findSelected(list, start) {
+    return listFind(list, function (entry) {
+      return entry.isSelected;
+    }, start);
+  }
+
+
+  /**
+   * Find the first unselected entry in the list
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to search
+   * @param {number}   start     offset to start from
+   */
+  function findUnselected(list, start) {
+    return listFind(list, function (entry) {
+      return !entry.isSelected;
+    }, start);
+  }
+
+
+  /**
+   * Find an entry in the list
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to count selected items from
+   * @param {function} func   function to test entries in list
+   * @param {number}   start     offset to start from
+   */
+  function listFind(list, func, start) {
+    var item;
+    if (list.isResourceList) {
+      // process as ResourceList
+      item = list.findInList(function (entry) {
+        return func(entry);
+      }, start);
+    } else {
+      // process as array
+      // If argument start was passed let n be ToInteger(start); else let n be 0.
+      var n = toInteger(start),
+        length = list.length >>> 0,
+        value;
+
+      for (var i = n; i < length; i++) {
+        value = list[i];
+        if (func(value)) {
+          item = value;
+          break;
+        }
+      }
+    }
+    return item;
+  }
+
+
+  /**
+   * Toggle an object's 'selected' state
+   * @param   {object} entry Object to toggle state of
+   * @param   {number} count Current selected count
+   * @returns {number} Updated selected count
+   */
+  function toggleSelection (entry, count) {
+    if (count === undefined) {
+      count = 0;
+    }
+    if (!entry.isSelected) {
+      entry.isSelected = true;
+      count += 1;
+    } else {
+      entry.isSelected = false;
+      count -= 1;
+    }
+    return count;
+  }
+  
+  /**
+   * Convenience methos to add selection commands to a scope
+   * @param {object} scope Scope to add commands to
+   */
+  function addSelectionCmds (scope) {
+    scope.SET_SEL = factory.SET_SEL;
+    scope.CLR_SEL = factory.CLR_SEL;
+    scope.TOGGLE_SEL = factory.TOGGLE_SEL;
+  }
+
+  /**
+   * Get the toInteger value 
+   * @param   {number} value Value to convert
+   * @returns {number} integer value
+   */
+  function toInteger (value) {
+    // If argument value was passed let n be ToInteger(value); else let n be 0.
+    var n = +value /* unary plus */ || 0;
+    if (Math.abs(n) === Infinity) {
+      n = 0;
+    }
+    return n;
+  }
+
+  /**
+   * Safely call a function
+   * @param {function} func Numction to call
+   */
+  function call(func) {
+    if (typeof func === 'function') {
+      var args;
+      if (arguments.length > 1) {
+        args = Array.prototype.slice.call(arguments, 1);
+      }
+      func.apply(null, args);
+    }
+  }
+
+  /**
+   * Create an object with propertry names being the value of the specified property,
+   * and values being the corresponding array object
+   * @param {array} array Array to convert
+   * @param {string} prop Name of property to use as key
+   * @return {object} object mapping property values to array objects
+   */
+  function arrayToMap(array, prop) {
+    var map = {},
+      forEach;
+
+    if (array.isResourceList) {
+      forEach = 'forEachInList';  // resource list forEach function
+    } else {
+      forEach = 'forEach';     // Array forEachfunction
+    }
+    array[forEach](function (entry) {
+      if (entry.hasOwnProperty(prop)) {
+        if (map.hasOwnProperty(entry[prop])) {
+          throw new Error('Map already has property ' + entry[prop]);
+        } else {
+          map[entry[prop]] = entry;
+        }
+      } else {
+        throw new Error('Entry missing property ' + prop);
+      }
+    });
+    return map;
+  }
+
+
 }
 
 /*jslint node: true */
@@ -1174,8 +1756,19 @@ angular.module('ct.clientCommon')
       DISPLAY_PROP: 'display',  // property for display string
       MODEL_PROP: 'model',      // property for field(s) used in db model
       TYPE_PROP: 'type',        // property for type of field
+      TRANSFORM_PROP: 'filterTransform',  // property for value transform
+      TEST_PROP: 'filterTest',  // property for value filter test
+      REF_SCHEMA_PROP: 'refSchema',  // schema for ObjectId reference object
+      REF_FIELD_PROP: 'refField',  // link field id for ObjectId reference object
+
       PATH_PROP: 'path',        // property for path to field
       ID_PROP: 'id',            // property for id used to identify schema
+
+      // ModelProp field properties
+      MODELNAME_PROP: 'modelName',
+      MODELPATH_PROP: 'modelPath',
+      FACTORY_PROP: 'factory',
+      DEFAULT_PROP: 'dfltValue',
       
       FIELD_TYPES: {
         UNKNOWN: typeUnknown,
@@ -1234,7 +1827,10 @@ angular.module('ct.clientCommon')
           return isType(mType, typeObjIdArray);
         }
       },
-      
+
+      TRANSFORM_LWRCASE_STR: 'transformLowerCaseStr',
+      TEST_IDXOF_STR: 'testIndexOfStr',
+
       // stamdard mongo datge fields
       ID: {
         field: 'ID', modelName: '_id', dfltValue: undefined, type: typeObjId
@@ -1319,9 +1915,22 @@ angular.module('ct.clientCommon')
 	"new" operator; as such, we could use the "this" reference to define object
 	properties and methods. But this implementation returns a public API.
 */
-  .provider('schema', ['$injector', 'SCHEMA_CONST', function ProvideSchema($injector, SCHEMA_CONST) {
+  .provider('schema', ['$injector', 'SCHEMA_CONST' , 'RESOURCE_CONST', function ProvideSchema($injector, SCHEMA_CONST, RESOURCE_CONST) {
 
-    var modelPropProperties = ['id', 'modelName', 'modelPath', 'factory', 'dfltValue', 'type'];
+    var modelPropProperties = ['id', 'modelName', 'modelPath', 'factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'],
+      // TODO big overlap between schema fields & ModelProp object, fix
+//      modelPropSchemaProperties = ['factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'],
+      schemaFieldArgs = [
+        // same arder as Schema.prototype.addField() arguments!
+        SCHEMA_CONST.DIALOG_PROP,
+        SCHEMA_CONST.DISPLAY_PROP,
+        SCHEMA_CONST.MODEL_PROP,
+        SCHEMA_CONST.TYPE_PROP,
+        SCHEMA_CONST.TRANSFORM_PROP,
+        SCHEMA_CONST.TEST_PROP,
+        SCHEMA_CONST.REF_SCHEMA_PROP,
+        SCHEMA_CONST.REF_FIELD_PROP
+      ];
 
     /**
      * Create a Schema object
@@ -1350,6 +1959,185 @@ angular.module('ct.clientCommon')
         }
       });
       return $injector.instantiate(ModelProp, vals);
+    }
+
+    /**
+     * Add extra properties to the default string ModelProp arguments
+     * @param {object} args      ModelProp arguments object
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object} ModelProp arguments object
+     */
+    function addXtraArgs (args, xtra) {
+      if (args && xtra) {
+        for (var prop in xtra) {
+          args[prop] = xtra[prop];
+        }
+      }
+      return args;
+    }
+
+    /**
+     * Return an object with the default ModelProp arguments
+     * @param {string}        modelName Name of model field
+     * @param {*}             dfltValue Default value
+     * @param {string|object} factory   StandardFactory/name of same for object
+     * @param {string}        resource  Factory resource for the object
+     * @param {string}        type      Type; one of SCHEMA_CONST.FIELD_TYPES
+     * @returns {object}        ModelProp arguments object
+     */
+    function getBaseModelPropArgs (modelName, dfltValue, factory, resource, type) {
+      return {
+        modelName: modelName,
+        dfltValue: dfltValue,
+        factory: factory,
+        resource: resource,
+        type: type
+      };
+    }
+
+    /**
+     * Return an object with the default string ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object} ModelProp arguments object
+     */
+    function getStringModelPropArgs (modelName, xtra) {
+      var args = getBaseModelPropArgs(modelName, '', undefined, undefined, SCHEMA_CONST.FIELD_TYPES.STRING);
+      args.filterTransform = SCHEMA_CONST.TRANSFORM_LWRCASE_STR;
+      args.filterTest = SCHEMA_CONST.TEST_IDXOF_STR;
+      return addXtraArgs(args, xtra);
+    }
+
+    /**
+     * Return an object with the default number ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {number} dfltValue Default value
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object} ModelProp arguments object
+     */
+    function getNumberModelPropArgs (modelName, dfltValue, xtra) {
+      return addXtraArgs(
+              getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.NUMBER),
+              xtra
+            );
+    }
+
+    /**
+     * Return an object with the default date ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {number} dfltValue Default value
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object} ModelProp arguments object
+     */
+    function getDateModelPropArgs (modelName, dfltValue, xtra) {
+      return addXtraArgs(
+              getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.DATE),
+              xtra
+            );
+    }
+    
+    /**
+     * Return an object with the default boolean ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {number} dfltValue Default value
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object} ModelProp arguments object
+     */
+    function getBooleanModelPropArgs (modelName, dfltValue, xtra) {
+      return addXtraArgs(
+              getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.BOOLEAN),
+              xtra
+            );
+    }
+    
+
+    /**
+     * Return an object with the default ObjectId ModelProp arguments
+     * @param {string}        modelName Name of model field
+     * @param {string|object} factory   StandardFactory/name of same for object
+     * @param {string}        resource  Factory resource for the object
+     * @param {object}        schema    Schema for object referenced
+     * @param {number}        field     Field id of reference link field
+     * @param {object}        xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getObjectIdModelPropArgs (modelName, factory, resource, schema, field, xtra) {
+      var args = getBaseModelPropArgs(modelName, undefined, factory, resource, SCHEMA_CONST.FIELD_TYPES.OBJECTID);
+      args.refSchema = schema;
+      args.refField = field;
+      return addXtraArgs(args, xtra);
+    }
+
+    /**
+     * Return an object with the default array ModelProp arguments
+     * @param {string}        modelName Name of model field
+     * @param {string|object} factory   StandardFactory/name of same for object
+     * @param {string}        resource  Factory resource for the object
+     * @param {object}        xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getArrayModelPropArgs (modelName, type, factory, resource, xtra) {
+      return addXtraArgs(
+              getBaseModelPropArgs(modelName, [], factory, resource, type),
+              xtra
+            );
+    }
+
+    /**
+     * Return an object with the default string array ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getStringArrayModelPropArgs (modelName, xtra) {
+      return getArrayModelPropArgs(modelName, SCHEMA_CONST.FIELD_TYPES.STRING_ARRAY, undefined, undefined, xtra);
+    }
+
+    /**
+     * Return an object with the default number array ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getNumberArrayModelPropArgs (modelName, xtra) {
+      return getArrayModelPropArgs(modelName, SCHEMA_CONST.FIELD_TYPES.NUMBER_ARRAY, undefined, undefined, xtra);
+    }
+
+    /**
+     * Return an object with the default date array ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getDateArrayModelPropArgs (modelName, xtra) {
+      return getArrayModelPropArgs(modelName, SCHEMA_CONST.FIELD_TYPES.DATE_ARRAY, undefined, undefined, xtra);
+    }
+
+    /**
+     * Return an object with the default boolean array ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getBooleanArrayModelPropArgs (modelName, xtra) {
+      return getArrayModelPropArgs(modelName, SCHEMA_CONST.FIELD_TYPES.BOOLEAN_ARRAY, undefined, undefined, xtra);
+    }
+
+    /**
+     * Return an object with the default ObjectId array ModelProp arguments
+     * @param {string}        modelName Name of model field
+     * @param {string|object} factory   StandardFactory/name of same for object
+     * @param {string}        resource  Factory resource for the object
+     * @param {object}        schema    Schema for object referenced
+     * @param {number}        field     Field id of reference link field
+     * @param {object}        xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getObjectIdArrayModelPropArgs (modelName, factory, resource, schema, field, xtra) {
+      var args = getArrayModelPropArgs(modelName, SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY, factory, resource, xtra);
+      args.refSchema = schema;
+      args.refField = field;
+      return args;
     }
 
     /**
@@ -1460,72 +2248,207 @@ angular.module('ct.clientCommon')
 
     }
 
-    
-    function ModelProp (id, modelName, modelPath, factory, dfltValue, type) {
-      this.id = id;
-      this.modelName = modelName;
-      this.modelPath = modelPath;
-      this.factory = factory;
-      this.dfltValue = dfltValue;
-      this.type = type;
+    /**
+     * Transform a string to lower case
+     * @param   {string} str String to transform
+     * @returns {string} lowercase string
+     */
+    function transformLowerCaseStr (str) {
+      return str.toLowerCase();
     }
     
-    ModelProp.$inject = ['id', 'modelName', 'modelPath', 'factory', 'dfltValue', 'type'];
+    /**
+     * Test that a string existins within another
+     * @param   {string}   value  String to test
+     * @param   {string}   filter [[Description]]
+     * @returns {[[Type]]} [[Description]]
+     */
+    function testIndexOfStr (value, filter) {
+      return (value.indexOf(filter) >= 0);
+    }
 
+    /**
+     * Wrapper for toString to prevent toString calls on undefined
+     * @param {object} value   Object to call toString() on
+     * @returns {string} string representation
+     */
+    function propertyToString (value) {
+      var str;
+      if (value === undefined) {
+        str = 'undefined';
+      } else if (value === null) {
+        str = 'null';
+      } else if (Array.isArray(value)) {
+        str = '[' + value.toString() + ']';
+      } else if (typeof value === 'function') {
+        str = value.name;
+      } else {
+        str = value.toString();
+      }
+      return str;
+    }
 
-    ModelProp.prototype.matches = function (args) {
+    /**
+     * Return a string representing the enumerable properties of this object
+     * @param {object} obj  Object to return string representation of
+     * @returns {string} string representation
+     */
+    function propertyString (obj) {
+      var str = '';
+      for (var property in obj) {
+        if (str) {
+          str += ', ';
+        }
+        str += property + ': ' + propertyToString(obj[property]);
+      }
+      return str;
+    }
+
+    /**
+     * Test if an object matches the specified arguments
+     * @param {object}  obj Object to test
+     * @param {object}  args Match criteria. Criteria are of the form:
+     *                    { <property name>: <test>, ... }
+     *                    where if <test> is 
+     *                    - a function; the value is passed to the predicate function
+     *                    - otherwise equivalence is tested using angular.equals()
+     * @returns {boolean} true if matches
+     */
+    function matches (obj, args) {
       var hits = 0,
         target = 0,
         tested = false;
       for (var prop in args) {
         tested = true;
         ++target;
-        if (this.hasOwnProperty(prop)) {
+        if (obj.hasOwnProperty(prop)) {
           if (typeof args[prop] === 'function') {
-            if (args[prop](this[prop])) {
+            if (args[prop](obj[prop])) {
               ++hits;
             }
-          } else if (args[prop] === this[prop]) {
+          } else if (angular.equals(args[prop], obj[prop])) {
             ++hits;
           }
         }
       }
       return (tested && (hits === target));
+    }
+    
+    /**
+     * Construct a ModelProp object representing a field in a database document
+     * @param {number}        id              Property id
+     * @param {string}        modelName       Name of model field
+     * @param {Array}         modelPath       Path to values within object
+     * @param {string|object} factory         StandardFactory/name of same for object
+     * @param {*}             dfltValue       Default value
+     * @param {string}        type            Value type; SCHEMA_CONST.FIELD_TYPES.STRING etc.
+     * @param {function}      filterTransform Function to transform value before a filter test
+     * @param {function}      filterTest      Function to perform a filter test
+     * @param {function}      refSchema       schema for ObjectId reference object
+     * @param {function}      refField        link field id for ObjectId reference object
+     */
+    function ModelProp (id, modelName, modelPath, factory, dfltValue, type, filterTransform, filterTest, refSchema, refField) {
+      this.id = id;
+      this.modelName = modelName;
+      this.modelPath = modelPath;
+      this.factory = factory;
+      this.dfltValue = dfltValue;
+      this.type = type;
+      if (filterTransform === SCHEMA_CONST.TRANSFORM_LWRCASE_STR) {
+        this.filterTransform = transformLowerCaseStr;
+      } else {
+        this.filterTransform = filterTransform;
+      }
+      if (filterTest === SCHEMA_CONST.TEST_IDXOF_STR) {
+        this.filterTest = testIndexOfStr;
+      } else {
+        this.filterTest = filterTransform;
+      }
+      this.refSchema = refSchema;
+      this.refField = refField;
+    }
+
+    ModelProp.$inject = ['id', 'modelName', 'modelPath', 'factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'];
+
+    /**
+     * Test if this object matches the specified arguments
+     * @param   {object}  args Match criteria. Criteria are of the form:
+     *                      { <property name>: <test>, ... }
+     *                      where if <test> is 
+     *                      - a function the value is passed to the predicate function
+     *                      - otherwise equivalence is tested using angular.equals()
+     * @returns {boolean} true if matches
+     */
+    ModelProp.prototype.matches = function (args) {
+      return matches(this, args);
     };
 
+    
+    ModelProp.prototype.toString = function () {
+      return 'ModelProp { ' + propertyString(this) + '}';
+    };
 
+    /**
+     * Schema object constructor
+     * @param {string} name       Schema name
+     * @param {Array}  modelProps Model properties array
+     * @param {object}  ids       ids for schema fields
+     * @param {string} tag        id tag
+     */
     function Schema (SCHEMA_CONST, RESOURCE_CONST, name, modelProps, ids, tag) {
-
-      this.SCHEMA_CONST = SCHEMA_CONST;
-      this.RESOURCE_CONST = RESOURCE_CONST;
-      this.fields = [];
+      if (!Array.isArray(modelProps)) {
+        throw new TypeError('Invalid type for argument: modelProps');
+      }
       this.name = name;
       this.modelProps = modelProps;
       this.ids = ids;
       this.tag = tag;
+      this.fields = [];
     }
 
     Schema.$inject = ['SCHEMA_CONST', 'RESOURCE_CONST', 'name', 'modelProps', 'ids', 'tag'];
     
     /**
-     * Add a new entry to the Schema
-     * @param   {string}       dialog  String used in dialogs
-     * @param   {string}       display String displayed in dialogs
-     * @param   {Array|object} model   Field(s) from dm model
-     * @param   {string}       type    field type
-     * @param   {Object}       args    Additional optinal arguments:
-     *    @param   {Array|object} path    Field(s) providing path to field
-     *    @param   {function}     cb      Function to call for each option
-     * @returns {number}       index of added entry
+     * Identify this object as a Schema
      */
-    Schema.prototype.addField = function (dialog, display, model, type, args) {
+    Schema.prototype.isSchema = true;
+
+    /**
+     * Add a new entry to the Schema
+     * @param   {string}       dialog          String used in dialogs
+     * @param   {string}       display         String displayed in dialogs
+     * @param   {Array|object} model           Field(s) from db model
+     * @param   {string}       type            field type
+     * @param {function}     filterTransform Function to transform value before a filter test
+     * @param {function}     filterTest      Function to perform a filter test
+     * @param {object}       refSchema       schema for ObjectId reference object
+     * @param {number}       refField        link field id for ObjectId reference object
+     * @param   {Object}       args            Additional optinal arguments:
+     *    @param   {Array|object} path            Field(s) providing path to field
+     *    @param   {function}     cb              Function to call for each option
+     * @returns {number}       index of added entry
+     * 
+     * NOTE update schemaFieldArgs variable on any changes to arguments
+     */
+    Schema.prototype.addField = function (dialog, display, model, type, filterTransform, filterTest, refSchema, refField, args) {
       var modelArray,
         pathArray,
-        field;
+        field = {};
       if (!Array.isArray(model)) {
         modelArray = [model];
       } else {
         modelArray = model;
+      }
+      if (typeof filterTransform === 'object') {
+        if (filterTransform.isSchema) {
+          args = refSchema;
+          refField = filterTest;
+          refSchema = filterTransform;
+        } else {
+          args = filterTransform;
+        }
+        filterTest = undefined;
+        filterTransform = undefined;
       }
       if (args && args.path) {
         if (!Array.isArray(args.path)) {
@@ -1534,14 +2457,18 @@ angular.module('ct.clientCommon')
           pathArray = args.path;
         }
       }
-      field = {
-        dialog: dialog,
-        display: display,
-        model: modelArray,
-        type: type,
-        path: pathArray,
-        id: this.tag
-      };
+      
+      // TODO big overlap between schema fields & ModelProp object, fix
+      
+      for (var i = 0, 
+            len = (schemaFieldArgs.length < arguments.length ?
+                   schemaFieldArgs.length : arguments.length); i < len; ++i) {
+        field[schemaFieldArgs[i]] = arguments[i];
+      }
+
+      field[SCHEMA_CONST.ID_PROP] = this.tag;
+      field[SCHEMA_CONST.PATH_PROP] = pathArray;
+
       if (args && args.cb) {
         args.cb(field);
       }
@@ -1554,7 +2481,29 @@ angular.module('ct.clientCommon')
      * @param   {string}       dialog  String used in dialogs
      * @param   {string}       display String displayed in dialogs
      * @param   {Array|number} id      Schema id index or array of, e.g. 'ADDRSCHEMA.IDs.ADDR1'
-     * @param   {Object}       args    Additional optinal arguments:
+     * @param   {Object}       args    Additional optional arguments:
+     *    @param   {Array|object} path    Field(s) providing path to field
+     *    @param   {function}     cb      Function to call for each option
+     * @returns {number}       index of added entry
+     */
+    Schema.prototype.addFieldFromField = function (field, args) {
+      var addArgs = [];  // arguments for Schema.prototype.addField()
+
+      schemaFieldArgs.forEach(function (prop) {
+        addArgs.push(field[prop]);
+      });
+
+      addArgs.push(args);
+
+      return this.addField.apply(this, addArgs);
+    };
+
+    /**
+     * Add a new entry to the Schema
+     * @param   {string}       dialog  String used in dialogs
+     * @param   {string}       display String displayed in dialogs
+     * @param   {Array|number} id      Schema id index or array of, e.g. 'ADDRSCHEMA.IDs.ADDR1'
+     * @param   {Object}       args    Additional optional arguments:
      *    @param   {Array|object} path    Field(s) providing path to field
      *    @param   {function}     cb      Function to call for each option
      * @returns {number}       index of added entry
@@ -1562,7 +2511,16 @@ angular.module('ct.clientCommon')
     Schema.prototype.addFieldFromModelProp = function (dialog, display, id, args) {
       var idArray,
         modelArray = [],
-        type = this.SCHEMA_CONST.FIELD_TYPES.UNKNOWN,
+        addArgs = [dialog, display, modelArray],  // arguments for Schema.prototype.addField()
+        init = 0,
+        array = [
+          // NOTE: order must match arguments for Schema.prototype.addField()
+          { bit: 0x01, value: undefined, prop: SCHEMA_CONST.TYPE_PROP, missing: true },
+          { bit: 0x02, value: undefined, prop: SCHEMA_CONST.TRANSFORM_PROP },
+          { bit: 0x04, value: undefined, prop: SCHEMA_CONST.TEST_PROP },
+          { bit: 0x08, value: undefined, prop: SCHEMA_CONST.REF_SCHEMA_PROP },
+          { bit: 0x10, value: undefined, prop: SCHEMA_CONST.REF_FIELD_PROP }
+        ],
         modelProp;
 
       if (!Array.isArray(id)) {
@@ -1578,19 +2536,27 @@ angular.module('ct.clientCommon')
           throw new Error('Missing modelName');
         }
 
-        if (type === this.SCHEMA_CONST.FIELD_TYPES.UNKNOWN) {
-          type = modelProp.type;  // first time init
-        }
-        if (modelProp.type !== type) {
-          throw new Error('Type mismatch in multi-model');
-        } else {
-          if (!type) {
-            throw new Error('Missing type');
+        array.forEach(function (entry) {
+          if ((init & entry.bit) === 0) {
+            entry.value = modelProp[entry.prop];  // first time init
+            init |= entry.bit;
+            
+            addArgs.push(entry.value);  // add to addField arguments
           }
-        }
+              
+          if (modelProp[entry.prop] !== entry.value) {
+            throw new Error('Type mismatch in multi-model ' + entry.prop);
+          } else {
+            if (entry.missing && !entry.value) {
+              throw new Error('Missing ' + entry.prop);
+            }
+          }
+        });
       }, this);
 
-      return this.addField(dialog, display, modelArray, type, args);
+      addArgs.push(args);
+
+      return this.addField.apply(this, addArgs);
     };
 
     /**
@@ -1614,19 +2580,103 @@ angular.module('ct.clientCommon')
     };
 
     /**
-     * Callback the specified function for each field in the schema, providing the field details as the callback arguments
-     * @param {function} callback Function to callback taking the arguments:
-     *    @param {number}   schema field index
-     *    @param {object}   schema field details @see Schema.addField for details
+     * Return a schema link object. 
+     * @param   {number} id    Field id
+     * @returns {object} schema link
      */
-    Schema.prototype.forEachField = function (callback) {
-      if (typeof callback === 'function') {
-        for (var i = 0; i < this.fields.length; ++i) {
-          callback(i, this.fields[i]);
-        }
-      }
+    Schema.prototype.getSchemaLink = function (id) {
+      return {
+        schema: this,
+        schemaId: id
+      };
     };
 
+    /**
+     * Process a forEach callback
+     * @param {Array}    array    Array to traverse
+     * @param {function} callback Function to callback taking the arguments:
+     *    @param {object}   field    field object
+     *    @param {number}   index    field index
+     *    @param {array}    array    field array
+     * @param {object}   thisArg  The value of 'this' provided for the call to the callback function
+     */
+    function forEachCallback (array, callback, thisArg) {
+      if (typeof callback === 'function') {
+        var loop = true;
+        for (var i = 0, ll = array.length; loop && (i < ll); ++i) {
+          loop = callback.call(thisArg, array[i], i, array);
+          if (loop === undefined) {
+            loop = true;
+          }
+        }
+      }
+    }
+
+    /**
+     * Callback the specified function for each field in the schema, providing the field details as the callback arguments
+     * @param {function} callback Function to callback taking the arguments:
+     *    @param {object}   field    field object
+     *    @param {number}   index    field index
+     *    @param {array}    array    field array
+     * @param {object}   thisArg  The value of 'this' provided for the call to the callback function
+     */
+    Schema.prototype.forEachField = function (callback, thisArg) {
+      forEachCallback(this.fields, callback, thisArg);
+    };
+
+    /**
+     * Process a list of ids callback
+     * @param {Array}    ids        Array of schema ids
+     * @param {object}   thisForGet Schema object for get function
+     * @param {function} getFunc    Function to get element in Schema object
+     * @param {function} callback   Function to callback taking the arguments:
+     *    @param {object}   field      field object
+     *    @param {number}   index      field index
+     *    @param {array}    array      field array
+     * @param {object}   thisArg    The value of 'this' provided for the call to the callback function
+     */
+    function forCalback (array, thisForGet, getFunc, ids, callback, thisArg) {
+      if (typeof callback === 'function') {
+        var loop = true;
+        for (var i = 0, ll = ids.length; loop && (i < ll); ++i) {
+          loop = callback.call(thisArg, getFunc.call(thisForGet, ids[i]), ids[i], array);
+          if (loop === undefined) {
+            loop = true;
+          }
+        }
+      }
+    }
+    
+    /**
+     * Callback the specified function for each field in the schema id array, providing the field details as the callback arguments
+     * @param {Array}    ids      Array of schema ids
+     * @param {function} callback Function to callback taking the arguments:
+     *    @param {object}   field    field object
+     *    @param {number}   index    field index
+     *    @param {array}    array    field array
+     * @param {object}   thisArg  The value of 'this' provided for the call to the callback function
+     */
+    Schema.prototype.forFields = function (ids, callback, thisArg) {
+      forCalback(this.fields, this, this.getField, ids, callback, thisArg);
+    };
+
+    /**
+     * Return a list of fields in this schema that match the specified criteria
+     * @param {object} args Criteria to match, 
+     *                      @see ModelProp.prototype.matches() for details
+     * @return {array}  Array of matching modelProp objects
+     */
+    Schema.prototype.getFieldList = function (args) {
+      var result = [];
+      this.fields.forEach(function (field) {
+        if (field.matches(args)) {
+          result.push(field);
+        }
+      });
+      return result;
+    };
+
+    
     /**
      * Return an object representing this schema as a string
      */
@@ -1657,10 +2707,31 @@ angular.module('ct.clientCommon')
     };
 
     /**
-     * Return the default value for a field in this schema
-     * @param {number} id       Schema id index, e.g. 'ADDRSCHEMA.IDs.ADDR1'
-     * @param {string} property Name of property to return 
-     * @return {object} modelProp object or property of modelProp object
+     * Return an initialised filter object for this schema
+     */
+    Schema.prototype.getFilter = function (filterVal) {
+      var obj = {},
+        value,
+        dialog;
+      this.fields.forEach(function (field) {
+        dialog = field[SCHEMA_CONST.DIALOG_PROP];
+        if (typeof filterVal === 'function') {
+          value = filterVal(dialog);
+        } else if (typeof filterVal === 'object') {
+          value = filterVal[dialog];
+        } else {
+          value = filterVal;
+        }
+        obj[dialog] = value;
+      });
+      return obj;
+    };
+
+    /**
+     * Return a list of fields in this schema that match the specified criteria
+     * @param {object} args Criteria to match, 
+     *                      @see ModelProp.prototype.matches() for details
+     * @return {array}  Array of matching modelProp objects
      */
     Schema.prototype.getModelPropList = function (args) {
       var result = [];
@@ -1694,6 +2765,32 @@ angular.module('ct.clientCommon')
     };
 
     /**
+     * Callback the specified function for each ModelProp in the schema, providing the ModelProp details as the callback arguments
+     * @param {function} callback     Function to callback taking the arguments:
+     *    @param {object}   modelProp ModelProp object
+     *    @param {number}   index     ModelProp index
+     *    @param {array}    array     ModelProp array
+     * @param {object}   thisArg      The value of 'this' provided for the call to the callback function
+     */
+    Schema.prototype.forEachModelProp = function (callback, thisArg) {
+      forEachCallback(this.modelProps, callback, thisArg);
+    };
+
+    /**
+     * Callback the specified function for each ModelProp in the schema id array, providing the ModelProp details as the callback arguments
+     * @param {Array}    ids      Array of schema ids
+     * @param {function} callback Function to callback taking the arguments:
+     *    @param {object}   modelProp ModelProp object
+     *    @param {number}   index     ModelProp index
+     *    @param {array}    array     ModelProp array
+     * @param {object}   thisArg  The value of 'this' provided for the call to the callback function
+     */
+    Schema.prototype.forModelProps = function (ids, callback, thisArg) {
+      forCalback(this.modelProps, this, this.getModelProp, ids, callback, thisArg);
+    };
+
+
+    /**
      * Return the default value for a field in this schema
      * @param {number} Schema id index, e.g. 'ADDRSCHEMA.IDs.ADDR1'
      * @return {object} default value of field
@@ -1718,10 +2815,10 @@ angular.module('ct.clientCommon')
      */
     Schema.prototype.getStorageType = function (id) {
       var type;
-      if (this.SCHEMA_CONST.FIELD_TYPES.IS_ARRAY(this.getType(id))) {
-        type = this.RESOURCE_CONST.STORE_LIST;
+      if (SCHEMA_CONST.FIELD_TYPES.IS_ARRAY(this.getType(id))) {
+        type = RESOURCE_CONST.STORE_LIST;
       } else {
-        type = this.RESOURCE_CONST.STORE_OBJ;
+        type = RESOURCE_CONST.STORE_OBJ;
       }
       return type;
     };
@@ -1886,7 +2983,7 @@ angular.module('ct.clientCommon')
                     if (Array.isArray(read)) {
                       for (var ridx = 0; ridx < read.length; ++ridx) {
                         readArgs.obj = read[ridx];   // inplace update
-                        console.log('factory.readRspObject', ridx, readArgs.objId[0]);
+//                        console.log('factory.readRspObject', ridx, readArgs.objId[0]);
                         factory.readRspObject(read[ridx], readArgs);
                       }
                     } else {
@@ -1912,7 +3009,7 @@ angular.module('ct.clientCommon')
         }, this);
       }
 
-      console.log('readProperty', args, obj);
+//      console.log('readProperty', args, obj);
 
       return obj;
     };
@@ -1945,6 +3042,17 @@ angular.module('ct.clientCommon')
       makeSortList: makeSortList,
       makeSubDocSortList: makeSubDocSortList,
 
+      getStringModelPropArgs: getStringModelPropArgs,
+      getNumberModelPropArgs: getNumberModelPropArgs,
+      getDateModelPropArgs: getDateModelPropArgs,
+      getBooleanModelPropArgs: getBooleanModelPropArgs,
+      getObjectIdModelPropArgs: getObjectIdModelPropArgs,
+      getStringArrayModelPropArgs: getStringArrayModelPropArgs,
+      getNumberArrayModelPropArgs: getNumberArrayModelPropArgs,
+      getDateArrayModelPropArgs: getDateArrayModelPropArgs,
+      getBooleanArrayModelPropArgs: getBooleanArrayModelPropArgs,
+      getObjectIdArrayModelPropArgs: getObjectIdArrayModelPropArgs,
+      
       // The provider must include a $get() method that will be our 
       // factory function for creating the service. This $get() method 
       // will be invoked using $injector.invoke() and can therefore use
@@ -2086,13 +3194,45 @@ function compareFactory ($injector, consoleService, miscUtilFactory, SCHEMA_CONS
   }
 
   /**
-   * Compare dates
-   * @param {boolean}  a   First date to compare
-   * @param {boolean}  b   Second date to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   * Convert to date
+   * @param {string} value Date string to convert
+   * @returns {object}  Date object
    */
-  function compareDate (a, b) {
-    return basicCompare(a, b);
+  function toDate (value) {
+    if (!angular.isDate(value)) {
+      value = new Date(value);
+    }
+    return value;
+  }
+
+  /**
+   * Compare dates
+   * @param {object|string} a     First date/date string to compare
+   * @param {object|string} b     Second date/date string to compare
+   * @param {string}        order '+' ascending sort (default) i.e. older dates first
+   *                              or '-' descending sort i.e. newer dates first
+   * @returns {number}        < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareDate (a, b, order) {
+    var timeA = toDate(a).getTime(),
+      timeB = toDate(b).getTime(),
+      result;
+    if (isFinite(timeA) && isFinite(timeB)) {
+      result = timeA - timeB; // default, ascending result
+      if (order === '-') {
+        result = -result;
+      }
+    } else {
+      // valid time before invalid
+      if (timeA === timeB) {
+        result = 0;
+      } else if (isFinite(timeA)) {
+        result = -1;
+      } else {
+        result = 1;
+      }
+    }
+    return result;
   }
 
   /**
@@ -2306,21 +3446,175 @@ function compareFactory ($injector, consoleService, miscUtilFactory, SCHEMA_CONS
 
 angular.module('ct.clientCommon')
 
+  .filter('filterBlank', ['SCHEMA_CONST', function (SCHEMA_CONST) {
+
+    function filterBlankFilter (input, schema) {
+      
+      // filter out blank entries
+      var out = [];
+
+      angular.forEach(input, function (obj) {
+        
+        schema.forEachField(function(fieldProp) {
+          var empty = true,
+            model = fieldProp[SCHEMA_CONST.MODEL_PROP];
+          for (var j = 0; empty && (j < model.length); ++j) {
+            var objVal = obj[model[j]];
+            if (objVal) {
+              empty = false;
+            }
+          }
+          if (!empty) {
+            out.push(obj);
+          }
+          return empty;
+        });
+      });
+
+      return out;
+    }
+
+    return filterBlankFilter;
+  }])
+
+  .filter('filterMisc', [function () {
+
+    function filterMiscFilter (input, filter) {
+
+      // filter out blank entries
+      var out = [];
+
+      angular.forEach(input, function (obj) {
+        if (filter(obj)) {
+          out.push(obj);
+        }
+      });
+
+      return out;
+    }
+
+    return filterMiscFilter;
+  }])
+
+  .filter('filterSchema', ['miscUtilFactory', 'SCHEMA_CONST', 'RESOURCE_CONST', function (miscUtilFactory, SCHEMA_CONST, RESOURCE_CONST) {
+
+    function filterSchemaFilter (input, schema, filterBy, type) {
+
+    var out = [];
+
+    if (!miscUtilFactory.isEmpty(filterBy)) {
+      var testCnt = 0,  // num of fields to test as speced by filter
+        testedCnt,      // num of fields tested
+        matchCnt,       // num of fields matching filter
+        continueNext;   // continue to process schema fields flag
+      schema.forEachField(function(schemaField) {
+        if (filterBy[schemaField[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
+          ++testCnt;
+        }
+      });
+      angular.forEach(input, function (element) {
+        matchCnt = 0;
+        testedCnt = 0;
+        continueNext = true;
+        schema.forEachField(function(schemaField) {
+          var filterVal = filterBy[schemaField[SCHEMA_CONST.DIALOG_PROP]],  // filter uses dialog properties
+            filterTransform = schemaField[SCHEMA_CONST.TRANSFORM_PROP],
+            filterTest = schemaField[SCHEMA_CONST.TEST_PROP],
+            refSchema = schemaField[SCHEMA_CONST.REF_SCHEMA_PROP],
+            refField = schemaField[SCHEMA_CONST.REF_FIELD_PROP],
+            addToOut = false;
+
+          if (filterVal) {
+            var elementObj = miscUtilFactory.readSafe(element, schemaField[SCHEMA_CONST.PATH_PROP]);
+            if (elementObj) {
+              if (filterTransform) {
+                // transform filter value
+                filterVal = filterTransform(filterVal);
+              }
+
+              // apply OR logic to multiple model fields
+              var match = false,
+                model = schemaField[SCHEMA_CONST.MODEL_PROP];
+              for (var j = 0; !match && (j < model.length); ++j) {
+                var elementVal = elementObj[model[j]];
+
+                if (refSchema && (refField >= 0)) {
+                  // read actual value to compare from embedded doc
+                  var modelName = refSchema.SCHEMA.getModelName(refField);
+                  if (modelName) {
+                    elementVal = elementVal[modelName];
+                  }
+                }
+
+                if (elementVal) {
+                  if (filterTransform) {
+                    // transform filter value
+                    elementVal = filterTransform(elementVal);
+                  }
+                  if (filterTest) {
+                    match = filterTest(elementVal, filterVal);
+                  } else {
+                    match = (elementVal === filterVal);
+                  }
+                }
+              }
+
+              ++testedCnt;
+              
+              if (match) {
+                ++matchCnt;
+                if (type === RESOURCE_CONST.QUERY_AND) {
+                  // logical AND, need to match all filter criteria
+                  addToOut = (matchCnt === testCnt);
+                } else if (type === RESOURCE_CONST.QUERY_OR) {
+                  // logical OR, need to match at least 1 filter criteria
+                  addToOut = (matchCnt > 0);
+                }
+              } else {
+                if (type === RESOURCE_CONST.QUERY_AND) {
+                  // logical AND, need to match all filter criteria
+                  continueNext = false; // doesn't match at least one field, found result so finish
+                } else if (type === RESOURCE_CONST.QUERY_NOR) {
+                  // logical NOR, must match none of the filter criteria
+                  addToOut = (testedCnt === testCnt);
+                }
+              }
+
+              if (addToOut) {
+                out.push(element);
+                continueNext = false; // found result so finish
+              }
+            }
+          }
+          return continueNext;
+        });
+      });
+    } else {
+      out = input;
+    }
+    return out;
+    }
+
+    return filterSchemaFilter;
+  }])
+
   .factory('filterFactory', filterFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-filterFactory.$inject = ['$filter', '$injector', 'consoleService', 'SCHEMA_CONST'];
+filterFactory.$inject = ['$filter', '$injector', 'miscUtilFactory', 'consoleService', 'SCHEMA_CONST', 'RESOURCE_CONST'];
 
-function filterFactory ($filter, $injector, consoleService, SCHEMA_CONST) {
+function filterFactory ($filter, $injector, miscUtilFactory, consoleService, SCHEMA_CONST, RESOURCE_CONST) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     NAME: 'filterFactory',
     newResourceFilter: newResourceFilter,
-    getFilteredList: getFilteredList
+    getFilteredArray: getFilteredArray,
+    getFilteredList: getFilteredList,
+    filterArray: filterArray
   };
   
 //  return factory;
@@ -2330,80 +3624,203 @@ function filterFactory ($filter, $injector, consoleService, SCHEMA_CONST) {
 
   /**
    * Create a new ResourceFilter object
-   * @param   {object} schema Schema object for which filter will be used
-   * @param   {object} base   Base object to filter by
+   * @param   {object} schema  Schema object for which filter will be used
+   * @param   {object} base    Base object to filter by
+   * @param   {object} options Additional options
    * @returns {object} new ResourceFilter object
    */
-  function newResourceFilter (schema, base) {
-    return $injector.instantiate(ResourceFilter, {schema: schema, base: base});
+  function newResourceFilter (schema, base, options) {
+    return $injector.instantiate(ResourceFilter, {
+      schema: schema, base: base, options: options
+    });
+  }
+
+  /**
+   * Filter an array
+   * @param {string}   filterName Name of filter to apply
+   * @param {Array}    list       Array object to filter
+   * @param {boolean}  allowBlank Allow blanks flag
+   * @param {object}   schema     Schema object to use
+   * @param {object}   filterBy   Filter object to use (not ResourceFilter)
+   * @param {strimg}   type        Filter type; RESOURCE_CONST.QUERY_OR etc.
+   * @param {function} xtraFilter Function to provide additional filtering
+   * @returns {Array}    filtered list
+   */
+  function getFilteredArray (filterName, list, allowBlank, schema, filterBy, type, xtraFilter) {
+    var output = list;
+
+    if (!allowBlank) {
+      // remove blanks if necessary
+      if (schema) {
+        output = $filter('filterBlank')(output, schema);
+      } else {
+        output = $filter('filterMisc')(output, function (obj) {
+          return !miscUtilFactory.isEmpty(obj);
+        });
+      }
+    }
+    // apply filter
+    if (output.length) {
+      output = $filter(filterName)(output, schema, filterBy, type);
+    }
+    if (output.length && xtraFilter) {
+      // apply extra filter if necessary
+      output = $filter('filterMisc')(output, xtraFilter);
+    }
+    return output;
   }
 
   /**
    * Generate a filtered list
    * @param {string}   filterName Name of filter to apply
    * @param {object}   reslist    ResourceList object to filter
-   * @param {object}   filter     filter to apply
+   * @param {object}   filterBy   Filter object to use (not ResourceFilter)
    * @param {function} xtraFilter Function to provide additional filtering
    * @returns {Array}    filtered list
    */
-  function getFilteredList (filterName, reslist, filter, xtraFilter) {
-    var output = $filter(filterName)(reslist.list, reslist.filter.schema, filter);
-    if (output && xtraFilter) {
-      var input = output;
-      output = [];
-      input.forEach(function (element) {
-        if (xtraFilter(element)) {
-          output.push(element);
-        }
-      });
-    }
-    return output;
+  function getFilteredList (filterName, reslist, filterBy, xtraFilter) {
+    return getFilteredArray(filterName, reslist.list, reslist.filter.allowBlank, reslist.filter.schema, filterBy, reslist.filter.type, xtraFilter);
   }
+  
+  /**
+   * Filter an array
+   * @param {Array}    array           Array to filter
+   * @param {function} compareFunction Function that defines the sort order. If omitted, the array is sorted according to each character's Unicode code point value, according to the string conversion of each element.
+   * @param {function} expression      The predicate to be used for selecting items from array.
+   * @param {function} comparator       Comparator which is used in determining if values retrieved using expression (when it is not a function) should be considered a match
+   * @see https://docs.angularjs.org/api/ng/filter/filter
+   * @returns {Array}    New array with filtered values
+   */
+  function filterArray (array, compareFunction , expression, comparator) {
+    var list = array;
+    if (angular.isArray(array)) {
+      // sort list
+      list = array.slice().sort(compareFunction);
 
+      // filter list so only have newest results for each address
+      list = $filter('filter')(list, expression, comparator);
+    }
+    return list;
+  }
+  
   /**
    * Filter for a ResourceList object
-   * @param   {object} schema Schema object for which filter will be used
-   * @param   {object} base   Base object to filter by
+   * @param {object} schema  Schema object for which filter will be used
+   * @param {object} base    Base object to filter by
+   * @param {object} options Additional options
    */
-  function ResourceFilter (SCHEMA_CONST, schema, base) {
+  function ResourceFilter (schema, base, options) {
+    var noOpts = miscUtilFactory.isNullOrUndefined(options);
+    
     this.schema = schema; // keep a ref to field array
     this.filterBy = {};
+    this.lastFilter = undefined;  // last filter used
+    [
+      { name: 'allowBlank', dflt: true },
+      { name: 'customFunction', dflt: undefined },
+      { name: 'type', dflt: RESOURCE_CONST.QUERY_AND },
+      { name: 'dispTransform', dflt: undefined },
+      { name: 'hiddenFilters', dflt: undefined }
+    ].forEach(function (property) {
+      this[property.name] = property.dflt;
+      if (!noOpts) {
+        if (!miscUtilFactory.isNullOrUndefined(options[property.name])) {
+          this[property.name] = options[property.name];
+        }
+      }
+    }, this);
 
     if (base) {
       // filter utilises dialog fields
-      var newfilterBy = {};
-      this.schema.forEachField(function (idx, fieldProp) {
+      this.schema.forEachField(function (fieldProp) {
         var filterVal = base[fieldProp[SCHEMA_CONST.DIALOG_PROP]];
         if (filterVal) {
-          newfilterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]] = filterVal;
+          this.filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]] = filterVal;
         }
-      });
-      this.filterBy = newfilterBy;
+      }, this);
     }
   }
 
-  ResourceFilter.$inject = ['SCHEMA_CONST', 'schema', 'base'];
+  ResourceFilter.$inject = ['schema', 'base', 'options'];
+
+  /**
+   * Identify this object as a ResourceFilter
+   */
+  ResourceFilter.prototype.isResourceFilter = true;
+
+  /**
+   * Return the filter values object
+   * @returns {object} filter values
+   */
+  ResourceFilter.prototype.getFilterValue = function (name) {
+    if (!name) {
+      return this.filterBy;
+    }
+    return this.filterBy[name];
+  };
+
+  /**
+   * Adds a value to the filter values object
+   * @param {string} name  Name of value to add
+   * @param {*}      value Value to add
+   * @returns {object} filter values
+   */
+  ResourceFilter.prototype.addFilterValue = function (name, value) {
+    this.filterBy[name] = value;
+    return this.filterBy;
+  };
+
+  /**
+   * Removes a value from the filter values object
+   * @param {string} name  Name of value to remove
+   * @returns {object} filter values
+   */
+  ResourceFilter.prototype.delFilterValue = function (name) {
+    delete this.filterBy[name];
+    return this.filterBy;
+  };
 
   /**
    * toString method for a filter for a ResourceList object
-   * @param   {string} prefix Prefix dtring
-   * @returns {string} string representation
+   * @param   {string}   prefix        Prefix dtring
+   * @param {function} dispTransform  Function to transform display values
+   * @returns {string}   string representation
    */
-  ResourceFilter.prototype.toString = function (prefix) {
+  ResourceFilter.prototype.toString = function (prefix, dispTransform) {
     var str,
-      filterBy = this.filterBy;
+      hiddenFilters,
+      filterBy = (this.lastFilter ? this.lastFilter : this.filterBy);
+    if (typeof prefix === 'function') {
+      dispTransform = prefix;
+      prefix = undefined;
+    }
     if (!prefix) {
       str = '';
     } else {
       str = prefix;
     }
-    this.schema.forEachField(function (idx, fieldProp) {
-      var filterVal = filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]];
-      if (filterVal) {
+    if (!dispTransform) {
+      dispTransform = this.dispTransform;
+    }
+    if (this.hiddenFilters && (this.hiddenFilters.length > 0)) {
+      hiddenFilters = this.hiddenFilters;
+    } else {
+      hiddenFilters = [];
+    }
+    this.schema.forEachField(function (fieldProp) {
+      var dialog = fieldProp[SCHEMA_CONST.DIALOG_PROP],
+        idx = hiddenFilters.findIndex(function (hide) {
+          return (hide === dialog);
+        }),
+        filterVal = filterBy[dialog];
+      if ((idx < 0) && filterVal) {
         if (str.length > 0) {
-          str += '\n';
+          str += ', ';
         }
-        str += fieldProp[SCHEMA_CONST.MODEL_PROP] + ': ' + filterVal;
+        if (dispTransform) {
+          filterVal = dispTransform(dialog, filterVal);
+        }
+        str += fieldProp[SCHEMA_CONST.DISPLAY_PROP] + ': ' + filterVal;
       }
     });
     if (str.length === 0) {
@@ -2426,80 +3843,265 @@ function filterFactory ($filter, $injector, consoleService, SCHEMA_CONST) {
 
 angular.module('ct.clientCommon')
 
-  .constant('RESOURCE_CONST', (function () {
-    var model = ['path', 'type', 'storage', 'factory'],   // related to ModelProp
-      schemaModel = ['schema', 'schemaId'].concat(model), // related to Schema & ModelProp
-      basicStore = ['objId', 'flags', 'storage', 'next'],
-      stdArgs = schemaModel.concat(basicStore, ['subObj', 'customArgs']),
-      processRead = 0x01,   // process argument during read
-      processStore = 0x02,  // process argument during store
-      toProcess = function (processArg, toCheck) {
-        var process = true;
-        if (processArg && toCheck) {
-          process = ((processArg & toCheck) !== 0);
-        }
-        return process;
-      };
-    return {
-      STORE_LIST: 'list',
-      STORE_OBJ: 'obj',
-
-      PROCESS_READ: processRead,
-      PROCESS_STORE: processStore,
-      PROCESS_READ_STORE: (processRead | processStore),
-      PROCESS_FOR_READ: function (toCheck) {
-        return toProcess(processRead, toCheck);
-      },
-      PROCESS_FOR_STORE: function (toCheck) {
-        return toProcess(processStore, toCheck);
-      },
-
-      MODEL_ARGS: model,
-      SCHEMA_MODEL_ARGS: schemaModel,
-      BASIC_STORE_ARGS: basicStore,
-      STD_ARGS: stdArgs
-    };
-  })())
-
-  .factory('resourceFactory', resourceFactory);
+  .factory('queryFactory', queryFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-resourceFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'miscUtilFactory', 'pagerFactory', 'compareFactory',
-  'consoleService', 'SCHEMA_CONST', 'RESOURCE_CONST'];
+queryFactory.$inject = ['miscUtilFactory', 'SCHEMA_CONST', 'RESOURCE_CONST'];
 
-function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, miscUtilFactory, pagerFactory, compareFactory,
-  consoleService, SCHEMA_CONST, RESOURCE_CONST) {
+function queryFactory (miscUtilFactory, SCHEMA_CONST, RESOURCE_CONST) {
 
-  // jic no native implementation is available
-  miscUtilFactory.arrayPolyfill();
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-    NAME: 'resourceFactory',
-    getResources: getResources,
-    getCount: getCount,
-    createResources: createResources,
-    getStoreResource: getStoreResource,
-    storeServerRsp: storeServerRsp,
-    storeSubDoc: storeSubDoc,
-    standardiseArgs: standardiseArgs,
-    getStandardArgsObject: getStandardArgsObject,
-    checkStandardArgsObjectArgs: checkStandardArgsObjectArgs,
-    findInStandardArgs: findInStandardArgs,
-    findAllInStandardArgs: findAllInStandardArgs,
-    addResourcesToArgs: addResourcesToArgs,
-    standardiseModelArgs: standardiseModelArgs,
-    getObjectInfo: getObjectInfo,
-    removeSchemaPathTypeArgs: removeSchemaPathTypeArgs,
-    copyBasicStorageArgs: copyBasicStorageArgs,
-    removeBasicStorageArgs: removeBasicStorageArgs,
-    getServerRsp: getServerRsp,
+    NAME: 'queryFactory',
+    getQueryParam: getQueryParam,
+    buildSchemaQuery: buildSchemaQuery,
+    buildModelPropQuery: buildModelPropQuery,
+    buildMultiValModelPropQuery: buildMultiValModelPropQuery,
+    multiValToObject: multiValToObject
+  };
+  
+  // need to return factory as end so that object prototype functions are added
+
+  /* function implementation
+    -------------------------- */
+
+  /**
+   * Create a query param string
+   * @param   {string}   op    Query operation: one of RESOURCE_CONST.QUERY_*
+   * @param   {string}   value Param value
+   * @returns {[[Type]]} [[Description]]
+   */
+  function getQueryParam (op, value) {
+    var query = value;
+    switch (op) {
+      case RESOURCE_CONST.QUERY_NE:  // inverse i.e. not equal
+      case RESOURCE_CONST.QUERY_GT:  // greater than
+      case RESOURCE_CONST.QUERY_LT:  // less than
+      case RESOURCE_CONST.QUERY_GTE: // greater than or equal
+      case RESOURCE_CONST.QUERY_LTE: // less than or equal
+        if (!miscUtilFactory.isNullOrUndefined(value)) {
+          query = op + value;
+        }
+        break;
+      case RESOURCE_CONST.QUERY_BLANK: // blank
+      case RESOURCE_CONST.QUERY_NBLANK:// not blank
+        query = op;
+        break;
+    }
+    return query;
+  }
+  
+  /**
+   * Generate a query object, with a multifield path e.g.'field1|field2=value'.
+   * @param {function}        processFunc    Function to build query
+   * @param {function|array}  forEachElement Element callback function or array of elements
+   * @param {object}          thisArg        Optional, value to use as this when executing callback.
+   * @returns {object}          query object
+   */
+  function processBuildQuery (processFunc, forEachElement, thisArg) {
+    if (Array.isArray(forEachElement)) {
+      // process as array
+      forEachElement.forEach(processFunc, thisArg);
+    } else {
+      // process as function
+      forEachElement(processFunc, thisArg);
+    }
+  }
+
+  /**
+   * Generate a query object, with a multifield path e.g.'field1|field2=value'.
+   * @param {function}        processFunc    Function to build query
+   * @param {function|array}  forEachElement Element callback function or array of elements
+   * @param {object|function} filter         object to filter by or function to call get return values
+   * @param {string}          multiJoin      Join for multi fields
+   * @param {object}          thisArg        Optional, value to use as this when executing callback.
+   * @returns {object}          query object
+   */
+  function processBuildQueryArgs (filter, multiJoin, thisArg) {
+    var filterFunc,
+      func;
+    if (typeof filter === 'string') {
+      thisArg = multiJoin;
+      multiJoin = filter;
+      filter = undefined;
+    }
+    if (typeof multiJoin !== 'string') {
+      if (!miscUtilFactory.isNullOrUndefined(multiJoin)) {
+        thisArg = multiJoin;
+      }
+      multiJoin = undefined;
+    }
+    if (!multiJoin) {
+      multiJoin = RESOURCE_CONST.QUERY_OR_JOIN;
+    }
+    if (!miscUtilFactory.isNullOrUndefined(filter)) {
+      if (typeof filter === 'function') {
+        filterFunc = filter;  // get value from function
+      } else if (typeof filter === 'object') {
+        func = function (prop) {
+          return this[prop];
+        };
+        filterFunc = func.bind(filter); // get value from filter object
+      } else {
+        func = function () {
+          return this;
+        };
+        filterFunc = func.bind(filter); // value the filter
+      }
+    }
+    return {
+      filter: filterFunc,
+      multiJoin: multiJoin,
+      thisArg: thisArg
+    };
+  }
+
+  /**
+   * Generate a query object, with a multifield path e.g.'field1|field2=value'.
+   * @param {function}        forEachSchemaField Schema field callback function 
+   * @param {object|function} filter             object to filter by or function to call get return values
+   * @param {string}          multiJoin          Join for multi fields        
+   * @param {object}          thisArg        Optional, value to use as this when executing callback.
+   * @returns {object}          query object
+   */
+  function buildSchemaQuery (forEachSchemaField, filter, multiJoin, thisArg) {
+    var query = {},
+      args = processBuildQueryArgs(filter, multiJoin, thisArg);
     
-    registerStandardFactory: registerStandardFactory,
-    
+    if (args.filter) {
+      // using the dialog fields to build an object based on the model fields
+      processBuildQuery(function (fieldProp) {
+          var filterVal = args.filter(fieldProp[SCHEMA_CONST.DIALOG_PROP]);
+
+          if (!miscUtilFactory.isNullOrUndefined(filterVal)) {
+            var models = fieldProp[SCHEMA_CONST.MODEL_PROP],
+              field = models.join(args.multiJoin);
+            query[field] = filterVal;
+          }
+        }, forEachSchemaField, args.thisArg);
+    }
+    return query;
+  }
+
+  /**
+   * Generate a query object, e.g.'field=value'.
+   * @param {function|array}  forEachModelPropField ModelProp callback function or array of ModelProps
+   * @param {object|function} filter                object to filter by or function to call get return values
+   * @param {object}          thisArg        Optional, value to use as this when executing callback.
+   * @returns {object}          query object
+   */
+  function processBuildModelPropQuery (valSetFunc, forEachModelPropField, filter, thisArg) {
+    var args = processBuildQueryArgs(filter, undefined, thisArg);
+    if (args.filter) {
+      // using the ModelProps to build an object based on the model fields
+      processBuildQuery(function (modelProp) {
+          var modelName = modelProp.modelName,
+            filterVal = args.filter(modelName);
+
+          if (!miscUtilFactory.isNullOrUndefined(filterVal)) {
+            valSetFunc(modelName, filterVal);
+          }
+        }, forEachModelPropField, thisArg);
+    }
+  }
+
+  
+  /**
+   * Generate a query object, e.g.'field=value'.
+   * @param {function|array}  forEachModelPropField ModelProp callback function or array of ModelProps
+   * @param {object|function} filter                object to filter by or function to call get return values
+   * @param {object}          thisArg        Optional, value to use as this when executing callback.
+   * @returns {object}          query object
+   */
+  function buildModelPropQuery (forEachModelPropField, filter, thisArg) {
+    var query = {};
+      // using the ModelProps to build an object based on the model fields
+    processBuildModelPropQuery(function (modelName, filterVal) {
+        query[modelName] = filterVal;
+      }, forEachModelPropField, filter, thisArg);
+    return query;
+  }
+
+  
+  /**
+   * Generate a query OR/AND/NOR object, with a multifield value e.g.'$or=field1=value1,field2=value2'.
+   * @param {function}        forEachSchemaField Schema field callback function 
+   * @param {object|function} filter             object to filter by or function to call get return values
+   * @param {object}          thisArg        Optional, value to use as this when executing callback.
+   * @returns {object}          query object
+   */
+  function buildMultiValModelPropQuery (key, forEachModelPropField, filter, thisArg) {
+    var query = {};
+      // using the ModelProps to build an object based on the model fields
+    processBuildModelPropQuery(function (modelName, filterVal) {
+      if (query[key]) {
+        query[key] += RESOURCE_CONST.QUERY_COMMA_JOIN;
+      } else {
+        query[key] = '';
+      }
+      query[key] += modelName + RESOURCE_CONST.QUERY_EQ + filterVal;
+      }, forEachModelPropField, filter, thisArg);
+    return query;
+  }
+
+  /**
+   * Convert a multi-value string to an object
+   * @param   {string} multiVal   String to convert
+   * @param   {string} multiJoin  Join character for values
+   * @param   {string} keyvalJoin Join character to key/value pairs
+   * @returns {object} Object with key/value properties
+   */
+  function multiValToObject (multiVal, multiJoin, keyvalJoin) {
+    var obj = {},
+      values = multiVal.split(multiJoin);
+    if (values.length) {
+      values.forEach(function (value) {
+        var keyVal = value.split(keyvalJoin);
+        switch (keyVal.length) {
+          case 1:
+            obj[keyVal[0]] = undefined;
+            /* fall through */
+          case 0:
+            break;
+          default:
+            obj[keyVal[0]] = keyVal.slice(1).join(keyvalJoin);
+            break;
+        }
+      });
+    }
+    return obj;
+  }
+
+  // need the return here so that object prototype functions are added
+  return factory;
+}
+
+
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('ct.clientCommon')
+
+  .factory('resourceListFactory', resourceListFactory);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+resourceListFactory.$inject = ['$filter', '$injector', 'storeFactory', 'miscUtilFactory', 'pagerFactory', 'compareFactory', 'SCHEMA_CONST'];
+
+function resourceListFactory ($filter, $injector, storeFactory, miscUtilFactory, pagerFactory, compareFactory, SCHEMA_CONST) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  var factory = {
+    NAME: 'resourceListFactory',
     newResourceList: newResourceList,
     duplicateList: duplicateList,
     delResourceList: delResourceList,
@@ -2514,642 +4116,13 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     getSortFunction: getSortFunction,
     sortResourceList: sortResourceList,
     isDescendingSortOrder: isDescendingSortOrder,
-    buildQuery: buildQuery
-  },
-  standardFactories = {},
-  modelArgsMap = {};
-
-  RESOURCE_CONST.MODEL_ARGS.forEach(function (prop) {
-    switch (prop) {
-      case 'path':
-        modelArgsMap[prop] = 'getModelName'; // Schema object function to get value
-        break;
-      case 'type':
-        modelArgsMap[prop] = 'getType'; // Schema object function to get value
-        break;
-      case 'storage':
-        modelArgsMap[prop] = 'getStorageType'; // Schema object function to get value
-        break;
-      case 'factory':
-        modelArgsMap[prop] = 'getModelFactory'; // Schema object function to get value
-        break;
-    }
-  });
-
+  };
+  
 
   // need to return factory as end so that object prototype functions are added
-//  return factory;
 
   /* function implementation
     -------------------------- */
-
-  /**
-   * Get basic REST resource 
-   * @param   {string} url url relative to baseUrl
-   * @returns {object} REST resource
-   */
-  function getResources (url) {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update method
-    */
-    return $resource(baseURL + url + '/:id', {id:'@id'}, {'update': {method: 'PUT'}});
-  }
-
-  /**
-   * Get basic count resource
-   * @param   {string} url url relative to baseUrl
-   * @returns {object} REST resource
-   */
-  function getCount (url) {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-    */
-    return $resource(baseURL + url + '/count', null, null);
-  }
-
-  /**
-   * Registger a standard factory
-   * @param   {string}   name         Name of the new factory
-   * @param   {object}   args         Optional srguments:
-   * @param   {function} storeId      Function to generate store ids for objects created by the factory
-   * @param   {object}   schema       Schema associated with the factory
-   * @param   {object}   addInterface Object ro add standard factory interface to
-   * @returns {object}   new factory 
-   */
-  function registerStandardFactory (name, args) {
-    var factory = standardFactories[name];
-    if (!factory) {
-      factory = $injector.instantiate(StandardFactory, {
-        name: name,
-        storeId: args.storeId,
-        schema: args.schema
-      });
-      standardFactories[name] = factory;
-
-      if (args.addInterface) {
-        for (var prop in Object.getPrototypeOf(factory)) {
-          args.addInterface[prop] = factory[prop].bind(factory);
-        }
-      }
-    }
-    return factory;
-  }
-
-
-  /**
-   * Create resources
-   * @param   {object} options   Options specifying ids & types
-   * @param   {object} resources Object to add the new resources to
-   * @returns {object} Object updateed with the new resources
-   */
-  function createResources (options, resources) {
-    var srcId,
-      result,
-      args = standardiseArgs(options);
-    if (!resources) {
-      resources = {};
-    }
-    args.objId.forEach(function (id) {
-      switch (args.storage) {
-        case RESOURCE_CONST.STORE_OBJ:
-          if (!srcId) {
-            result = args.factory.newObj(id, storeFactory.CREATE_INIT);
-          } else {
-            result = args.factory.duplicateObj(id, srcId, storeFactory.OVERWRITE);
-          }
-          break;
-        case RESOURCE_CONST.STORE_LIST:
-          if (!srcId) {
-            result = args.factory.newList(id, {
-              title: id,
-              flags: storeFactory.CREATE_INIT
-            });
-          } else {
-            result = args.factory.duplicateList(id, srcId, storeFactory.OVERWRITE);
-          }
-          break;
-        default:
-          result = undefined;
-      }
-      if (result) {
-        resources[id] = result;
-      }
-      if (!srcId) {
-        srcId = id;
-      }
-    });
-
-    if (args.subObj) {
-      args.subObj.forEach(function (subObj) {
-        createResources(subObj, resources);
-      });
-    }
-
-    return resources;
-  }
-
-  /**
-   * Get a store object
-   * @param {object}       options   process arguments object with following properties:
-   *  @param {string}       objId    id of object to get
-   *  @param {number}       flags    storefactory flags
-   * @return {object}       ResourceList or object
-   */
-  function getStoreResource (options) {
-    var result,
-      args = standardiseArgs(options);
-    if (args.storage === RESOURCE_CONST.STORE_LIST) {
-      result = args.factory.getList(args.objId, args.flags);
-    } else if (args.storage === RESOURCE_CONST.STORE_OBJ) {
-      result = args.factory.getObj(args.objId, args.flags);
-    }
-    return result;
-  }
-
-  /**
-   * Store a response from the server
-   * @param {object}       response Server response
-   * @param {object}       args     process arguments object with following properties:
-   *  @param {string|Array} objId    id/array of ids of object to save response data to
-   *  @param {string}       storage  save as list or object flag; STORE_LIST, STORE_OBJ, default depends on response
-   *  @param {string}       path     path within response object to object to store
-   *  @param {string}       type     object type, @see SCHEMA_CONST.FIELD_TYPES
-   *  @param {object}       schema   Schema to use to retrieve object path & type
-   *  @param {number}       schemaId Schema id to use to retrieve object path & type
-   *  @param {number}       flags    storefactory flags
-   *  @param {object|string} factory  factory (or factory name) to handle saving of objects/lists
-   *  @param {function}     next     function to call after processing
-   *  @param {Object|array} subObj   additional set(s) of arguments for sub objects
-   * @return {object}       ResourceList or object
-   */
-  function storeServerRsp (response, args) {
-
-    if (!RESOURCE_CONST.PROCESS_FOR_STORE(args.processArg)) {
-      // arg only processed during read, so ignore
-      return undefined;
-    } // else process for store
-
-    var stdArgs = standardiseArgs(args, args.parent),
-      factory = stdArgs.factory,
-      idArray = stdArgs.objId,
-      resp,
-      asList, i,
-      toSave = getObjectInfo(response, stdArgs).object;
-
-    // store sub objects first
-    if (args.subObj) {
-      miscUtilFactory.toArray(args.subObj).forEach(function (subObj) {
-        storeSubDoc(response, subObj, stdArgs);
-      });
-    }
-
-    resp = toSave;  // default result is raw object
-
-    if (idArray.length) {
-      if (stdArgs.storage === RESOURCE_CONST.STORE_LIST) {
-        asList = true;
-      } else if (stdArgs.storage === RESOURCE_CONST.STORE_OBJ) {
-        asList = false;
-      } else {
-        asList = Array.isArray(toSave);
-      }
-
-      if (asList) {
-        // process a query response
-        if (toSave) {
-          resp = factory.setList(idArray[0], toSave, stdArgs.flags);
-        } else {
-          resp = factory.initList(idArray[0], stdArgs.flags);
-        }
-      } else {
-        // process a get response
-        if (toSave) {
-          resp = factory.setObj(idArray[0], toSave, stdArgs.flags);
-        } else {
-          resp = factory.initObj(idArray[0], stdArgs.flags);
-        }
-      }
-      // if multiple objId's secondary ids are set to copies
-      for (i = 1; i < idArray.length; ++i) {
-        if (asList) {
-          factory.duplicateList(idArray[i], idArray[0], storeFactory.EXISTING, {
-            list: true  // just duplicate list
-          });
-        } else {
-          factory.duplicateObj(idArray[i], idArray[0], storeFactory.OVERWRITE);
-        }
-      }
-    }
-
-    if (stdArgs.next) {
-      stdArgs.next(resp);
-    }
-    return resp;
-  }
-
-
-  /**
-   * Get the object to save based on the provided path
-   * @param {object} response Response object
-   * @param {string} path     Path to required object
-   * @return {object} object to save
-   */
-  function getObjectInfo (response, args) {
-    var paths = [],
-      object = response,
-      parent, property;
-
-    if (args.path) {
-      paths.push(args.path);
-    }
-    for (parent = args.parent; parent && parent.path; parent = parent.parent) {
-      paths.unshift(parent.path);
-    }
-    
-    // drill down to get item to save
-    paths.forEach(function (path) {
-      if (object) {
-        parent = object;
-        property = path;
-        object = parent[property];
-      }
-    });
-    return { object: object,    // object to save
-              parent: parent,   // parent object
-              property: property }; // parent object property
-  }
-
-  /**
-   * Process a populated sub document array, by copying the data to a new factory object and 
-   * transforming the original to ObjectIds.
-   * @param {Array}         array   Populated array received from host
-   * @param {Array|string}  ids     Factory id/array of ids to copy data to
-   * @param {object}        factory Factory to use to generate new factory objects
-   * @param {number}        flags   storefactory flags
-   */
-  function storeSubDoc(response, args, parent) {
-
-    if (!RESOURCE_CONST.PROCESS_FOR_STORE(args.processArg)) {
-      // arg only processed during read, so ignore
-      return undefined;
-    } // else process for store
-
-    var stdArgs = standardiseArgs(args, parent),
-      factory = stdArgs.factory,
-      resp, list,
-      toSaveInfo = getObjectInfo(response, stdArgs),
-      toSave = toSaveInfo.object;
-
-    // store subdoc, resp is ResourceList or object
-    resp = storeServerRsp(response, stdArgs);
-
-    // update response with expected response type i.e. ObjectIds
-    if (resp) {
-      if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID(stdArgs.type)) {
-        // field is objectId, so was saved as object
-        toSaveInfo.parent[toSaveInfo.property] = resp._id;
-
-      } else if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID_ARRAY(stdArgs.type)) {
-        // field is an array of objectId
-        if (Array.isArray(toSave)) {
-          if (resp.toString().indexOf('ResourceList') === 0) {
-            list = resp.list; // its a ResourceList
-          } else {
-            list = resp;  // should be an raw array
-          }
-          for (var i = 0; i < toSave.length; ++i) {
-            toSave[i] = list[i]._id;
-          }
-        }
-      }
-    }
-    return resp;
-  }
-
-  /**
-   * Standardise a server response argument object
-   * @param {object}       args     process arguments object with following properties:
-   * @see storeServerRsp()
-   * @return {object}       arguments object
-   */
-  function standardiseArgs (args, parent) {
-
-    var stdArgs = angular.copy(args);
-
-    if (stdArgs.objId) {
-      stdArgs.objId = miscUtilFactory.toArray(stdArgs.objId);
-    } else {
-      stdArgs.objId = [];
-    }
-    stdArgs.flags = (args.flags ? args.flags : storeFactory.NOFLAG);
-    stdArgs.parent = parent;
-
-    copySchemaModelArgs(
-      standardiseModelArgs(copySchemaModelArgs(args), false /*no copy*/), stdArgs);
-
-    if (typeof args.factory === 'string') {
-      // get factory instance from injector
-      stdArgs.factory = $injector.get(args.factory);
-    }
-
-    if (stdArgs.subObj) {
-      if (Array.isArray(stdArgs.subObj)) {
-        for (var i = 0; i < stdArgs.subObj.length; ++i) {
-          stdArgs.subObj[i] = standardiseArgs(stdArgs.subObj[i], stdArgs);
-        }
-      } else {
-        stdArgs.subObj = [standardiseArgs(stdArgs.subObj, stdArgs)];
-      }
-    }
-
-    return stdArgs;
-  }
-
-  /**
-   * Return a standard args object
-   * @param {string|array} objId  Id(s) to use for storage
-   * @param {string} factory      Factory name
-   * @param {array} subObj        Sub-objects
-   * @param {object} schema       Schema object
-   * @param {number} flags        storeFactory flags
-   * @param {function} next       Function to call following completion
-   * @param {object} custom       Custom properties
-   * @returns {object} Standard args object
-   */
-  function getStandardArgsObject (objId, factory, subObj, schema, flags, next, custom) {
-    var args = checkStandardArgsObjectArgs(factory, subObj, schema, flags, next, custom);
-    return {
-      objId: objId,
-      factory: args.factory,
-      schema: args.schema.schema,
-      schemaId: args.schema.schemaId,
-      //type/path/storage/factory: can be retrieved using schema & schemaId
-      subObj: args.subObj,
-      flags: args.flags,
-      next: args.next,
-      customArgs: args.custom
-    };
-  }
-
-  /**
-   * Check arguemnts for getRspOptionsObject() making sure args are correctly positioned
-   * @param {string} factory      Factory name
-   * @param {array} subObj        Sub-objects
-   * @param {object} schema       Schema object
-   * @param {number} flags        storeFactory flags
-   * @param {function} next       Function to call following completion
-   * @param {object} custom       Custom properties
-   * @returns {object} args object
-   */
-  function checkStandardArgsObjectArgs(factory, subObj, schema, flags, next, custom) {
-    if (!angular.isString(factory)) {
-      custom = next;
-      next = flags;
-      flags = schema;
-      schema = subObj;
-      subObj = factory;
-      factory = undefined;
-    }
-    if (!angular.isArray(subObj)) {
-      custom = next;
-      next = flags;
-      flags = schema;
-      schema = subObj;
-      subObj = undefined;
-    }
-    if (!angular.isObject(schema)) {
-      custom = next;
-      next = flags;
-      flags = schema;
-      schema = {};
-    }
-    if (!angular.isNumber(flags)) {
-      custom = next;
-      next = flags;
-      flags = storeFactory.NOFLAG;
-    }
-    if (!angular.isFunction(next)) {
-      custom = next;
-      next = undefined;
-    }
-    return {
-      factory: factory, schema: schema, subObj: subObj,
-      flags: flags, next: next, custom: custom
-    };
-  }
-
-  /**
-   * Find an arg object within a StandardArgs object 
-   * @param {object}       stdArgs  StandardArgs object to traverse
-   * @param {function}     callback Function to test arg objects
-   * @return {object}      arguments object
-   */
-  function findInStandardArgs (stdArgs, callback) {
-
-    var arg;
-    if (callback(stdArgs)) {
-      arg = stdArgs;
-    }
-    if (!arg && stdArgs.subObj) {
-      for (var i = 0; !arg && (i < stdArgs.subObj.length); ++i) {
-        arg = findInStandardArgs(stdArgs.subObj[i], callback);
-      }
-    }
-    return arg;
-  }
-
-  /**
-   * Find all arg objects within a StandardArgs object 
-   * @param {object}       stdArgs  StandardArgs object to traverse
-   * @param {function}     callback Function to test arg objects
-   * @param {Array}        args     Array to add matching arg objects to
-   * @return {Array}       Array of matching arg objects
-   */
-  function findAllInStandardArgs (stdArgs, callback, args) {
-
-    if (!args) {
-      args = [];
-    }
-    if (callback(stdArgs)) {
-      args.push(stdArgs);
-    }
-    if (stdArgs.subObj) {
-      stdArgs.subObj.forEach(function (sub) {
-        findAllInStandardArgs(sub, callback, args);
-      });
-    }
-    return args;
-  }
-
-  /**
-   * Add resources required by Schema object
-   * @param {object}       args   Args object to add to
-   * @return {object}      arguments object
-   */
-  function addResourcesToArgs (args) {
-    if (!args.injector) {
-      /* need to pass run stage injector to Schema object as since it is created during the config
-        stage it only has access to the config stage injector (only providers and constants accessible) */
-      args.injector = $injector;
-    }
-    if (!args.findInStandardArgs) {
-      args.findInStandardArgs = findInStandardArgs;
-    }
-    return args;
-  }
-
-  /**
-   * Standardise a server response argument object
-   * @param {object}       args     process arguments object with following properties:
-   * @see storeServerRsp()
-   * @return {object}       arguments object
-   */
-  function standardiseModelArgs (args, makeCopy) {
-    
-    makeCopy = ((makeCopy === undefined) ? true : makeCopy);
-
-    var stdArgs = args;
-    if (makeCopy) {
-      stdArgs = copySchemaModelArgs(args);
-    }
-
-    if (stdArgs.schema && 
-        (typeof stdArgs.schemaId === 'number') && (stdArgs.schemaId >= 0)) {
-      // if not explicitly set retrieve using schema & schemaId
-      RESOURCE_CONST.MODEL_ARGS.forEach(function (prop) {
-        if (!stdArgs[prop]) {
-          stdArgs[prop] = stdArgs.schema[modelArgsMap[prop]](stdArgs.schemaId);
-        }
-      });
-
-
-
-
-//-      if (!stdArgs.path) {
-//-        // path not explicitly provided, retrieve from schema & schemaId
-//-        stdArgs.path = stdArgs.schema.getModelName(stdArgs.schemaId);
-//-      }
-//-      if (!stdArgs.type) {
-//-        // path not explicitly provided, retrieve from schema & schemaId
-//-        stdArgs.type = stdArgs.schema.getType(stdArgs.schemaId);
-
-
-    }
-
-    return stdArgs;
-  }
-
-  /**
-   * Copy the standard Schema/ModelProp arguments
-   * @param {Array}  list list of properties to copy
-   * @param {object} args process arguments object to copy from
-   * @param {object} to   process arguments object to copy to
-   * @return {object} arguments object
-   */
-  function copyArgs (list, args, to) {
-    if (!to) {
-      to = {};
-    }
-    return miscUtilFactory.copyProperties(args, to, list);
-  }
-
-  /**
-   * Copy the standard Schema/ModelProp arguments
-   * @param {object}       args     process arguments object to copy from
-   * @param {object}       to       process arguments object to copy to
-   * @return {object}       arguments object
-   */
-  function copySchemaModelArgs (args, to) {
-    return copyArgs(RESOURCE_CONST.SCHEMA_MODEL_ARGS, args, to);
-  }
-
-  /**
-   * Remove the standard Schema/ModelProp arguments
-   * @param {object}       args     process arguments object to remove from
-   * @return {object}       arguments object
-   */
-  function removeSchemaPathTypeArgs (args) {
-    return miscUtilFactory.removeProperties(args, RESOURCE_CONST.SCHEMA_MODEL_ARGS);
-  }
-
-  /**
-   * Copy the basic storage arguments
-   * @param {object}       args     process arguments object to copy from
-   * @param {object}       to       process arguments object to copy to
-   * @return {object}       arguments object
-   */
-  function copyBasicStorageArgs (args, to) {
-    return copyArgs(RESOURCE_CONST.BASIC_STORE_ARGS, args, to);
-  }
-
-  /**
-   * Remove the standard Schema/ModelProp arguments
-   * @param {object}       args     process arguments object to remove from
-   * @return {object}       arguments object
-   */
-  function removeBasicStorageArgs (args) {
-    return miscUtilFactory.removeProperties(args, RESOURCE_CONST.BASIC_STORE_ARGS);
-  }
-
-  
-  
-  /**
-   * Get a stored response from the server
-   * @param {object}       args     process arguments object with following properties:
-   * @see storeServerRsp()
-   * @return {object}       ResourceList or object
-   */
-  function getServerRsp (args) {
-
-    var stdArgs = standardiseArgs(args),
-      factory = stdArgs.factory,
-      idArray = stdArgs.objId,
-      resp = [],
-      asList = true,
-      asObj = true,
-      read;
-
-    if (stdArgs.storage === RESOURCE_CONST.STORE_LIST) {
-      asObj = false;
-    } else if (stdArgs.storage === RESOURCE_CONST.STORE_OBJ) {
-      asList = false;
-    } 
-    // else no type specified so try both
-
-    if (asList) {
-      idArray.forEach(function (id) {
-        read = factory.getList(id, stdArgs.flags);
-        if (read) {
-          resp.push(read);
-        }
-      });
-    } 
-    if (asObj) {
-      idArray.forEach(function (id) {
-        read = factory.getObj(id, stdArgs.flags);
-        if (read) {
-          resp.push(read);
-        }
-      });
-    }
-
-    if (stdArgs.next) {
-      stdArgs.next(resp);
-    }
-    return resp;
-  }
 
   /**
    * Create a new ResourceList object
@@ -3160,12 +4133,11 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    *   {Array}  list                        base list to use
    *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
    *   {string} factory                     name of factory
+   *   {string} resource                    name of factory resource
    * @returns {object} ResourceList object
    */
   function newResourceList (storeId, args) {
-    // jic no native implementation is available
-    miscUtilFactory.arrayPolyfill();
-    
+
     var listArgs,
       resourceList,
       newList;
@@ -3193,6 +4165,9 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
     if (typeof listArgs.factory === 'string') {
       newList.factory = $injector.get(listArgs.factory);
+    }
+    if (typeof listArgs.resource === 'string') {
+      newList.resource = listArgs.resource;
     }
 
     newList.sortOptions = newList.factory.getSortOptions();
@@ -3399,21 +4374,22 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * Sort a ResourceList
    * @param   {object}   resList         List to sort
    * @param   {function} getSortFunction Function to return  sort function
-   * @param   {object}   sortOptions     List of possible sort option
+   * @param   {array}   sortOptions     List of possible sort option
    * @param   {object}   sortByValue     Key to sort by
    * @returns {Array}    sorted list
    */
   function sortResourceList (resList, getSortFunction, sortOptions, sortByValue) {
     var sortList,
-        sortFxn;
+      sortFxn;
     
     if (resList && resList.factory) {
-      if (!getSortFunction) {
-        if (resList.factory) {
-          getSortFunction = resList.factory.getSortFunction;
-        }
+      if (!angular.isFunction(getSortFunction)) {
+        sortByValue = sortOptions;
+        sortOptions = getSortFunction;
+        getSortFunction = resList.factory.getSortFunction;
       }
-      if (!sortOptions) {
+      if (!angular.isArray(sortOptions)) {
+        sortByValue = sortOptions;
         sortOptions = resList.sortOptions;
       }
       if (!sortByValue) {
@@ -3431,8 +4407,12 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
           if (isDescendingSortOrder(sortByValue)) {
             sortList.reverse();
           }
-
-          if (resList.pager) {
+          
+          if (resList.filter.lastFilter) {
+            // reapply last filter
+            resList.applyFilter(resList.filter.lastFilter);
+          } else if (resList.pager) {
+            // update pager
             pagerFactory.updatePager(resList.pager.id, sortList);
           }
         }
@@ -3450,247 +4430,6 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   function isDescendingSortOrder (sortBy) {
     return (sortBy.charAt(0) === SCHEMA_CONST.SORT_DESC);
   }
-
-  /**
-   * Generate a query object
-   * @param {function}  forEachSchemaField  Schema field callback function 
-   * @param {object}    filter              object to filter by
-   * @returns {object} query object
-   */
-  function buildQuery(forEachSchemaField, filter) {
-    var query = {};
-    if (filter) {
-      // using the dialog fields to build an object based on the model fields
-      forEachSchemaField(function (idx, fieldProp) {
-        var filterVal = filter[fieldProp[SCHEMA_CONST.DIALOG_PROP]];
-        if (filterVal) {
-          var field = '',
-            models = fieldProp[SCHEMA_CONST.MODEL_PROP];
-          for (var i = 0; i < models.length; ++i) {
-            if (i > 0) {
-              field += ' ';
-            }
-            field += models[i];
-          }
-          query[field] = filterVal;
-        }
-      });
-    }
-    return query;
-  }
-
-
-
-  /**
-   * StandardFactory object
-   * @throws {TypeError} on incorrect argument type
-   * @param {string}   name    Name of factory
-   * @param {function} storeId Function to make store ids for objects created by the factory
-   * @param {object}   schema  Schema associated with this factory
-   */
-  function StandardFactory (storeFactory, name, storeId, schema) {
-    this.name = name;
-    this.storeId = storeId;
-    if (typeof storeId !== 'function') {
-      throw new TypeError('Incorrect argument type: storeId');
-    }
-    this.schema = schema;
-  }
-  
-  StandardFactory.$inject = ['storeFactory', 'name', 'storeId', 'schema'];
-  
-  /**
-   * Get the factory schema
-   * @param {object} factory schema
-   */
-  StandardFactory.prototype.getSchema = function () {
-    return this.schema;
-  };
-
-  /**
-   * Create a new object
-   * @param {string} id     Factory id of new object
-   * @param {number} flags  storefactory flags
-   */
-  StandardFactory.prototype.newObj = function (id, flags) {
-    return storeFactory.newObj(this.storeId(id), this.schema.getObject(), flags);
-  };
-
-  /**
-   * Create a new object by duplicating an existing object
-   * @param {string} id     Factory id of new object
-   * @param {string} srcId  Factory id of object to duplicate
-   * @param {number} flags  storefactory flags
-   * @param   {function} presetCb Optional function to be called before object stored
-   * @returns {object}   New or existing object
-   */
-  StandardFactory.prototype.duplicateObj = function (id, srcId, flags, presetCb) {
-    return storeFactory.duplicateObj(this.storeId(id), this.storeId(srcId), flags, presetCb);
-  };
-  
-  /**
-   * Delete an object
-   * @param {string} id     Factory id of object to delete
-   * @param {number} flags  storefactory flags
-   */
-  StandardFactory.prototype.delObj = function (id, flags) {
-    return storeFactory.delObj(this.storeId(id), flags);
-  };
-
-  /**
-   * Set an object
-   * @param {string} id     Factory id of object to set
-   * @param {object} data   data to set
-   * @param {number} flags  storefactory flags
-   */
-  StandardFactory.prototype.setObj = function (id, data, flags) {
-    return storeFactory.setObj(this.storeId(id), data, flags, this.schema.getObject());
-  };
-  
-  /**
-   * Get an object
-   * @param {string} id     Factory id of object to get
-   * @param {number} flags  storefactory flags
-   */
-  StandardFactory.prototype.getObj = function (id, flags) {
-    return storeFactory.getObj(this.storeId(id), flags);
-  };
-  
-  /**
-   * Initialise an object
-   * @param {string} id     Factory id of object to init
-   * @param {number} flags  storefactory flags
-   */
-  StandardFactory.prototype.initObj = function (id, flags) {
-    return this.setObj(id, this.schema.getObject(), flags);
-  };
-
-  /**
-   * Create a new ResourceList object
-   * @param   {string} id   Id of list
-   * @param {object} args Argument object with the following properties:
-   *   {string} id                          Id of list
-   *   {string} title                       Title of list
-   *   {Array}  list                        base list to use
-   *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
-   * @returns {object} address ResourceList object
-   */
-  StandardFactory.prototype.newList = function (id, args) {
-    var listArgs;
-    if (args) {
-      listArgs = angular.copy(args);
-    } else {
-      listArgs = {};
-    }
-    if (!listArgs.id) {
-      listArgs.id = id;
-    }
-    listArgs.factory = this.name;
-
-    return newResourceList(this.storeId(id), listArgs);
-  };
-  
-  /**
-   * Create a new ResourceList object by duplicating an existing object
-   * @param {string} id    Factory id of new object
-   * @param {string} srcId Factory id of object to duplicate
-   * @param {number} flags storefactory flags
-   * @param {object} args  Optional arguemnts specifying fields to duplicate when used with EXISTING
-   * @see resourceFactory.duplicateList()
-   * @returns {object} ResourceList object
-   */
-  StandardFactory.prototype.duplicateList = function (id, srcId, flags, args) {
-    return duplicateList(id, this.storeId(id), this.storeId(srcId), flags, args);
-  };
-
-  
-  /**
-   * Delete a ResourceList object
-   * @param {string}         id    Id string to use
-   * @param {number}         flags storeFactory flags; the following are used
-   *                               - COPY_GET: to return copy of list
-   *                               - other flags ignored
-   * @returns {object|boolean} Copy of deleted ResourceList object, or true if successful
-   */
-  StandardFactory.prototype.delList = function (id, flags) {
-    return delResourceList(this.storeId(id), flags);
-  };
-  
-  /**
-   * Set the base list for a ResourceList object
-   * @param {string} id    Id string to use
-   * @param {Array}  list  base list to use
-   * @param {number} flags storefactoryFlags
-   * @param {string} title Title of list if new list must be created
-   * @returns {object} ResourceList object
-   */
-  StandardFactory.prototype.setList = function (id, list, flags, title) {
-    var newListFxn = this.newList.bind(this, id);
-    return setResourceList(this.storeId(id), list, flags,
-            function (flags) {
-              return newListFxn({
-                id: id, title: title, list: list, flags: flags }
-              );
-            });
-  };
-  
-  /**
-   * Get an existing ResourceList object
-   * @param {string} id   Id string to use
-   * @param   {number}   flags   storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  StandardFactory.prototype.getList = function (id, flags) {
-    var newListFxn = this.newList.bind(this, id);
-    return getResourceList(this.storeId(id), flags,
-            function (flags) {
-              return newListFxn({
-                id: id, flags: flags
-              });
-            });
-  };
-  
-  /**
-   * Initialise a ResourceList object to an emply base list
-   * @param {string} id   Id string to use
-   * @param {number}   flags   storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  StandardFactory.prototype.initList = function (id, flags) {
-    return initResourceList(this.storeId(id), flags);
-  };
-
-  /**
-   * Check if sort key is descending order
-   * @param   {object} sortBy   Key to sort by
-   * @returns {boolean} true if is descending order, false otherwise
-   */
-  StandardFactory.prototype.isDescendingSortOrder = function (sortBy) {
-    return isDescendingSortOrder(sortBy);
-  };
-
-  /**
-   * Set the pager for a ResourceList object
-   * @param {string} id     Factory id of object
-   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  StandardFactory.prototype.setPager = function (id, pager, flags) {
-    return setPager(this.storeId(id), pager, flags);
-  };
-
-  /**
-   * Apply filter to a ResourceList object
-   * @param {string} id     Factory id of object
-   * @param {object} filter filter to use or preset filter is used if undefined
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  StandardFactory.prototype.applyFilter = function (id, filter, flags) {
-    return applyFilter(this.storeId(id), filter, flags);
-  };
-
 
   /**
    * Set the base list
@@ -3727,6 +4466,56 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   }
 
   /**
+   *  Compare the base lists of two ResourceLists
+   * @param   {object}   listA   First ResourceList
+   * @param   {object}   listB   Senond ResourceList
+   * @param   {function} compare Function to compare entries
+   * @param   {number}   start   Optional Zero-based start index
+   * @param   {number}   end     Optional Zero-based index to stop comparison before
+   * @returns {boolean}  true if lists match over specified range
+   */
+  function compareResourceLists (listA, listB, compare, start, end) {
+
+    if (typeof compare === 'number') {
+      end = start;
+      start = compare;
+      compare = angular.equals;
+    }
+
+    var n = miscUtilFactory.toInteger(start),
+      lenA = listA.list.length >>> 0,
+      lenB = listB.list.length >>> 0,
+      length = miscUtilFactory.toInteger(end),
+      count = 0,
+      testFunc = function (entry) {
+        return compare(this, entry);
+      };
+
+    if (!end || !length) {
+      // set length to smallest list length
+      length = lenA;
+      if (length !== lenB) {
+        return false; // lists not the same length
+      }
+    } else {  // end provided
+      if ((lenA === lenB) && (length > lenA)) {
+        length = lenA;  // requested length too long, use available
+      } else if ((length > lenA) || (length > lenB)) {
+        return false; // lists not the same over requested length
+      }
+    }
+    
+    // check entries
+    for (var i = n; i < length; ++i) {
+      if (listB.findIndexInList(testFunc.bind(listA.list[i])) !== undefined) {
+        ++count;
+      }
+    }
+
+    return (count === length);
+  }
+
+  /**
    * A resource list object containing base and filtered lists
    * @param {function} $filter         Angular filter service
    * @param {function} storeFactory    storeFactory service
@@ -3757,7 +4546,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   ResourceList.$inject = ['$filter', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'pagerFactory', 'id', 'title', 'list', 'flags'];
 
   /**
-   * Identify this object as a REsourceList
+   * Identify this object as a ResourceList
    */
   ResourceList.prototype.isResourceList = true;
 
@@ -3776,28 +4565,120 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
   /**
    * Add an entry to the base list
-   * @param {object} entry Entry to add to list
-   * @param {number} flags storeFactory flags; the following are used
-   *                       - COPY_SET: to add a copy of the entry argument to the list
-   *                       - APPLY_FILTER: to immediately filter list
-   *                       - other flags ignored
+   * @param {object|array} entry     Entry/entries to add to list
+   * @param {number}       flags     storeFactory flags; the following are used
+   *                                 - COPY_SET: to add a copy of the entry argument to the list
+   *                                 - APPLY_FILTER: to immediately filter list
+   *                                 - other flags ignored
+   * @param {boolean}      duplicate Duplicate check flag;
+   *                                 true => no duplicates allowed
+   *                                 false (default) => duplicated allowed
+   * @param {function}     compare   Function to use for duplicate comparision, angular.equals() is used if none provided   
    */
-  ResourceList.prototype.addToList = function (entry, flags) {
-    if (!this.list) {
-      this.setList([entry], flags);
-    } else {
-      if (storeFactory.doCopySet(flags)) {
-        entry = angular.copy(entry);
+  ResourceList.prototype.addToList = function (entry, flags, duplicate, compare) {
+
+    var count = this.count, //initial count
+      idx;
+
+    if (typeof flags === 'boolean') {
+      compare = duplicate;
+      duplicate = flags;
+      flags = storeFactory.NOFLAG;
+    }
+    if (duplicate) {
+      if (!compare) {
+        compare = angular.equals;
       }
+    }
 
-      this.list.push(entry);
-      ++this.count;
+    if (!this.list) {
+      if (Array.isArray(entry)) {
+        this.setList(entry, flags);
+      } else {
+        this.setList([entry], flags);
+      }
+    } else {
+      miscUtilFactory.toArray(entry).forEach(function (element) {
+        // process single item
+        if (duplicate) {
+          // do duplicate test
+          idx = this.findIndexInList(function (listEntry) {
+            return compare(listEntry, element);
+          });
+        } else {
+          idx = undefined;
+        }
 
+        if (idx === undefined) {
+          // add to list
+          if (storeFactory.doCopySet(flags)) {
+            element = angular.copy(element);
+          }
+
+          this.list.push(element);
+          this.count = this.list.length;
+        }
+      }, this);
+    }
+    if (count !== this.count) {
       if (storeFactory.doApplyFilter(flags)) {
         this.applyFilter();
       }
+      this.exeChanged();
     }
-    this.exeChanged();
+  };
+
+  /**
+   * Remove an entry to the base list
+   * @param {object|array} entry     Entry/entries to remove from list
+   * @param {number}       flags     storeFactory flags; the following are used
+   *                                 - APPLY_FILTER: to immediately filter list
+   *                                 - other flags ignored
+   * @param {function}     compare   Function to use for duplicate comparision, angular.equals() is used if none provided   
+   */
+  ResourceList.prototype.removeFromList = function (entry, flags, compare) {
+
+    var count = this.count, //initial count
+      idx;
+
+    if (typeof flags === 'function') {
+      compare = flags;
+      flags = storeFactory.NOFLAG;
+    }
+    if (!compare) {
+      compare = angular.equals;
+    }
+
+    miscUtilFactory.toArray(entry).forEach(function (element) {
+      // search for item
+      idx = this.findIndexInList(function (listEntry) {
+        return compare(listEntry, element);
+      });
+
+      if (idx >= 0) {
+        // remove from list
+        this.list.splice(idx, 1);
+        this.count = this.list.length;
+      }
+    }, this);
+
+    if (count !== this.count) {
+      if (storeFactory.doApplyFilter(flags)) {
+        this.applyFilter();
+      }
+      this.exeChanged();
+    }
+  };
+
+  /**
+   * Returns a shallow copy of a portion of this list as a new array object selected
+   * from begin to end (end not included). The original list will not be modified.
+   * @param {number}  begin   Optional. Zero-based index at which to begin extraction.
+   * @param {number}  end     Optional. Zero-based index before which to end extraction. slice extracts up to but not including end.
+   * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice
+   */
+  ResourceList.prototype.slice = function (begin, end) {
+    return this.list.slice(begin, end);
   };
 
   /**
@@ -3822,29 +4703,27 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   /**
    * Call the callback function for each of the entries in this objects list
    * @param {function} callback   function to callback
+   * @param {object}   thisArg    Optional, object to use as this when executing callback.
    */
-  ResourceList.prototype.forEachInList = function (callback) {
+  ResourceList.prototype.forEachInList = function (callback, thisArg) {
     this.list.forEach(function (entry) {
       callback(entry);
-    });
+    }, thisArg);
   };
 
   /**
    * Find an entry in this objects list using the callback function to test each of the entries 
    * @param {function} predicate function to test entries in list
    * @param {number}   start     offset to start from
+   * @return {object}   Found entry or undefined
    */
   ResourceList.prototype.findInList = function (predicate, start) {
     if (typeof predicate !== 'function') {
       throw new TypeError('predicate must be a function');
     }
     // If argument start was passed let n be ToInteger(start); else let n be 0.
-    var n = +start || 0;
-    if (Math.abs(n) === Infinity) {
-      n = 0;
-    }
-
-    var length = this.list.length >>> 0,
+    var n = miscUtilFactory.toInteger(start),
+      length = this.list.length >>> 0,
       value;
 
     for (var i = n; i < length; i++) {
@@ -3860,18 +4739,15 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * Find the index of an entry in this objects list using the callback function to test each of the entries 
    * @param {function} predicate function to test entries in list
    * @param {number}   start     offset to start from
+   * @return {number}   Index of found entry or undefined
    */
   ResourceList.prototype.findIndexInList = function (predicate, start) {
     if (typeof predicate !== 'function') {
       throw new TypeError('predicate must be a function');
     }
     // If argument start was passed let n be ToInteger(start); else let n be 0.
-    var n = +start || 0;
-    if (Math.abs(n) === Infinity) {
-      n = 0;
-    }
-
-    var length = this.list.length >>> 0,
+    var n = miscUtilFactory.toInteger(start),
+      length = this.list.length >>> 0,
       value;
 
     for (var i = n; i < length; i++) {
@@ -3927,26 +4803,28 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
   /**
    * Apply a filter to the list, and update the associated pager if applicable
-   * @param   {object} filter filter to use or preset filter used if undefined
+   * @param {object}   filterBy   Filter object to use (not ResourceFilter) or preset filter used if undefined
    * @returns {object} this object to facilitate chaining
    */
-  ResourceList.prototype.applyFilter = function (filter) {
-    if (typeof filter === 'undefined') {
+  ResourceList.prototype.applyFilter = function (filterBy) {
+    if (typeof filterBy === 'undefined') {
       // use preset filter object
       if (this.filter) {
-        filter = this.filter.filterBy;
+        filterBy = this.filter.filterBy;
       }
     }
 
-    filter = filter || {};
+    filterBy = filterBy || {};
+    
+    this.filter.lastFilter = filterBy;
 
-    if (!miscUtilFactory.isEmpty(filter)) {
+    if (!miscUtilFactory.isEmpty(filterBy) || !this.filter.allowBlank) {
       if (this.filter.customFunction) {
-        // use the specific filter function
-        this.filter.customFunction(this, filter);
+        // use the specific filter function to set the filtered list
+        this.filter.customFunction(this, filterBy);
       } else {
         // use the filter object
-        this.filterList = $filter('filter')(this.list, filter);
+        this.filterList = $filter('filter')(this.list, filterBy);
       }
     } else {
       this.filterList = this.list;
@@ -3969,6 +4847,18 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    */
   ResourceList.prototype.sort = function (getSortFunction, sortOptions, sortByValue) {
     return sortResourceList(this, getSortFunction, sortOptions, sortByValue);
+  };
+
+  /**
+   * Compare this ResourceList's base list to another ResourceList's
+   * @param   {object}   list    ResourceList to compare to
+   * @param   {function} compare Function to compare entries
+   * @param   {number}   start   Optional Zero-based start index
+   * @param   {number}   end     Optional Zero-based index to stop comparison before
+   * @returns {boolean}  true if lists match over specified range
+   */
+  ResourceList.prototype.compare = function (list, compare, start, end) {
+    return compareResourceLists(this, list, compare, start, end);
   };
 
   /**
@@ -4015,6 +4905,1499 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 /*global angular */
 'use strict';
 
+angular.module('ct.clientCommon')
+
+  .factory('standardFactoryFactory', standardFactoryFactory);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+standardFactoryFactory.$inject = ['$resource', '$injector', '$q', 'baseURL', 'storeFactory', 'miscUtilFactory', 'resourceListFactory', 'filterFactory', 'queryFactory', 'SCHEMA_CONST'];
+
+function standardFactoryFactory($resource, $injector, $q, baseURL, storeFactory, miscUtilFactory, resourceListFactory, filterFactory, queryFactory, SCHEMA_CONST) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  var factory = {
+    NAME: 'standardFactoryFactory',
+    getResourceConfig: getResourceConfig,
+    getResourceConfigWithId: getResourceConfigWithId,
+    
+    registerStandardFactory: registerStandardFactory
+  },
+  standardFactories = {};
+
+  // need to return factory as end so that object prototype functions are added
+
+  /* function implementation
+    -------------------------- */
+
+  /**
+   * Registger a standard factory
+   * @param   {string}          name         Name of the new factory
+   * @param   {object}          args         Optional srguments:
+   *  @param  {function|string} storeId      Function to generate store ids for objects created by the factory or id tag to use when generating
+   *  @param  {object}          schema       Schema associated with the factory
+   *  @param  {object}          addInterface Object to add standard factory interface to
+   *  @param  {object}          resources    Resource config object
+   * @returns {object}          new factory 
+   */
+  function registerStandardFactory (name, args) {
+    var factory = standardFactories[name],
+      prop,
+      resrcName,
+      cfg;
+    if (!factory) {
+      factory = $injector.instantiate(StandardFactory, {
+        name: name,
+        storeId: args.storeId,
+        schema: args.schema,
+        sortOptions: args.sortOptions,
+        resources: args.resources
+      });
+      standardFactories[name] = factory;
+
+      if (args.addInterface) {
+        // add the standard functions to the factory
+        for (prop in Object.getPrototypeOf(factory)) {
+          args.addInterface[prop] = factory[prop].bind(factory);
+        }
+        if (args.resources) {
+          // add functions to the factory for the custom actions
+          miscUtilFactory.toArray(args.resources).forEach(function (resource) {
+            for (resrcName in resource) {
+              /* StandardFactory has methods matching the default action of 
+                resource class:
+                  { 'get':    {method:'GET'},
+                    'save':   {method:'POST'},
+                    'query':  {method:'GET', isArray:true},
+                    'remove': {method:'DELETE'},
+                    'delete': {method:'DELETE'} };
+                https://docs.angularjs.org/api/ngResource/service/$resource
+              */
+              cfg = resource[resrcName];
+              if (cfg.actions) {
+                // add methods for custom methods
+                for (prop in cfg.actions) {
+                  if (!args.addInterface[prop]) {
+                    args.addInterface[prop] = factory.resourceMethod.bind(factory, prop);
+                  }
+                }
+              }
+            }
+          });
+        }
+      }
+    }
+    return factory;
+  }
+
+  /**
+   * Return a resource config object
+   * @param   {string} url     URL for resource
+   * @returns {object} resource config object
+   */
+  function getResourceConfig (url) {
+    return {
+      url: url,                   // URL template
+      paramDefaults: null,
+      actions: null
+    };
+  }
+  
+  /**
+   * Return a resource config object with parameterized URL
+   * @param   {string} url     URL for resource
+   * @param   {object} actions Optional additional custom actions
+   * @returns {object} resource config object
+   */
+  function getResourceConfigWithId (url, actions) {
+    var action,
+      cfg = {
+        url: url + '/:id', // parameterized URL template with parameters prefixed by : 
+        paramDefaults: {id:'@id'},    // extract parameter value from corresponding property on the data object
+        actions: {
+          update: { method: 'PUT'}    //  custom actions
+        }
+      };
+
+    if (actions) {
+      for (action in actions) {
+        cfg.actions[action] = actions[action];
+      }
+    }
+    return cfg;
+  }
+
+  /**
+   * Create storeFactory id
+   * @param {object} factory Factory to generate storeFactory id for
+   * @param {string} id      Factory id to generate storeFactory id from
+   * @return {string} Store id
+   */
+  function storeId (factory, id) {
+    var idstr;
+    if (typeof factory.storeId === 'string') {
+      idstr = factory.storeId + id;
+    } else if (typeof factory.storeId === 'function') {
+      idstr = factory.storeId(id);
+    } else {
+      idstr = id;
+    }
+    return idstr;
+  }
+
+  /**
+   * StandardFactory object
+   * @throws {TypeError} on incorrect argument type
+   * @param {string}   name    Name of factory
+   * @param {function} storeId Function to make store ids for objects created by the factory
+   * @param {object}   schema  Schema associated with this factory
+   * @param {object}   resources  Resource config object
+   */
+  function StandardFactory ($resource, baseURL, storeFactory, name, storeId, schema, sortOptions, resources) {
+    this.name = name;
+    if ((typeof storeId !== 'function') && (typeof storeId !== 'string')) {
+      throw new TypeError('Incorrect argument type for storeId: ' + typeof storeId);
+    }
+    this.storeId = storeId;
+    this.schema = schema;
+    this.sortOptions = sortOptions;
+    this.resources = resources;
+  }
+  
+  StandardFactory.$inject = ['$resource', 'baseURL', 'storeFactory', 'name', 'storeId', 'schema', 'sortOptions', 'resources'];
+  
+  /**
+   * Get the factory schema
+   * @param {object} factory schema
+   */
+  StandardFactory.prototype.getSchema = function (thisArg) {
+    thisArg = thisArg || this;
+    return thisArg.schema;
+  };
+
+  /**
+   * Get the factory resource
+   * @param {string} name   Name of resource to get
+   * @return {object} resource "class" object
+   */
+  StandardFactory.prototype.getResource = function (name) {
+    var resource = this.resources[name];
+    if (!resource) {
+      throw new Error('Resource not defined for \'' + name + '\'');
+    }
+    return $resource(baseURL + resource.url, resource.paramDefaults, resource.actions);
+  };
+
+  /**
+   * Call an action on the factory resource
+   * @param {object}   resource  Resource class object
+   * @param {string}   method    action name
+   * @param {object}   params    Optional params
+   * @param {object}   postData  Optional data for body of request
+   * @param {function} onSuccess Function to call on success
+   * @param {function} onFailure Function to call on failure
+   * @param {boolean}  asPromise Return the resource promise if true, otherwise implement success/failure functions
+   */
+  function requestMethod (resource, method, params, postData, onSuccess, onFailure, asPromise) {
+    var result,
+      promise;
+
+    if (typeof params === 'function') {
+      //                   resource, method, params, postData, onSuccess, onFailure, asPromise
+      return requestMethod(resource, method, undefined, undefined, params, postData, onSuccess);
+    }
+    if (typeof params === 'boolean') {
+      //                   resource, method, params, postData, onSuccess, onFailure, asPromise
+      return requestMethod(resource, method, undefined, undefined, undefined, undefined, params);
+    }
+    if (typeof postData === 'function') {
+      //                   resource, method, params, postData, onSuccess, onFailure, asPromise
+      return requestMethod(resource, method, params, undefined, postData, onSuccess, onFailure);
+    }
+    if (typeof postData === 'boolean') {
+      //                   resource, method, params, postData, onSuccess, onFailure, asPromise
+      return requestMethod(resource, method, params, undefined, undefined, undefined, postData);
+    }
+    if (typeof onSuccess === 'boolean') {
+      //                   resource, method, params, postData, onSuccess, onFailure, asPromise
+      return requestMethod(resource, method, params, postData, undefined, undefined, onSuccess);
+    }
+    if (typeof onFailure === 'boolean') {
+      //                   resource, method, params, postData, onSuccess, onFailure, asPromise
+      return requestMethod(resource, method, params, postData, onSuccess, undefined, onFailure);
+    }
+    
+    promise = resource[method](params, postData).$promise;
+    if (asPromise) {
+      result = promise;
+    } else {
+      promise.then(
+        // success function
+        function (response) {
+          if (onSuccess) {
+            onSuccess(response);
+          }
+        },
+        // error function
+        function (response) {
+          if (onFailure) {
+            onFailure(response);
+          }
+        }
+      );
+    }
+    return result;
+  }
+
+  /**
+   * Call an action on the factory resource
+   * @param {string} name   Name of resource
+   * For other arguments & return @see requestMethod()
+   */
+  StandardFactory.prototype.resourceMethod = function (method, name, params, postData, onSuccess, onFailure, asPromise) {
+    return requestMethod(this.getResource(name), method, params, postData, onSuccess, onFailure, asPromise) ;
+  };
+
+  /**
+   * Get the factory resource.
+   * For arguments & return @see requestMethod()
+   */
+  StandardFactory.prototype.get = function (name, params, postData, onSuccess, onFailure, asPromise) {
+    return this.resourceMethod('get', name, params, postData, onSuccess, onFailure, asPromise);
+  };
+
+  /**
+   * Save the factory resource
+   * For arguments & return @see requestMethod()
+   */
+  StandardFactory.prototype.save = function (name, postData, onSuccess, onFailure, asPromise) {
+    return this.resourceMethod('save', name, undefined, postData, onSuccess, onFailure, asPromise);
+  };
+
+  /**
+   * Query the factory resource
+   * For arguments & return @see requestMethod()
+   */
+  StandardFactory.prototype.query = function (name, params, postData, onSuccess, onFailure, asPromise) {
+    return this.resourceMethod('query', name, params, postData, onSuccess, onFailure, asPromise);
+  };
+
+  /**
+   * Remove using the factory resource
+   * For arguments & return @see requestMethod()
+   */
+  StandardFactory.prototype.remove = function (name, params, postData, onSuccess, onFailure, asPromise) {
+    return this.resourceMethod('remove', name, params, postData, onSuccess, onFailure, asPromise);
+  };
+
+  /**
+   * Delete using the factory resource
+   * For arguments & return @see requestMethod()
+   */
+  StandardFactory.prototype.delete = function (name, params, postData, onSuccess, onFailure, asPromise) {
+    return this.resourceMethod('delete', name, params, postData, onSuccess, onFailure, asPromise);
+  };
+
+  /**
+   * Store a response from the server asynchronously
+   * @param {string}   name             Name of factory
+   * @param {object}   resourceFactory  Reference to resourceFactory (required in order to prevent circular dependency)
+   * @param {object}   obj              Object to save
+   * @param {object}   args             process arguments object, @see resourceFactory.storeServerRsp() for details
+   * @param {object}   con              consoleService object to log output
+   * @param {string}   label            Label to use in log output
+   * @return {object}   Canvass object
+   */
+  StandardFactory.prototype.storeRspObjectAsync = function (name, resourceFactory, obj, args, con, label) {
+
+    var subObjects, i, ll, promises,
+      saveMain = function (result) {
+
+        if (con) {
+          con.debug('Store ' + label + ' response: ' + obj);
+        }
+
+        // just basic storage args as subdocs have been processed above
+        var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
+          factory: $injector.get(name)
+        });
+
+        resourceFactory.storeServerRsp(obj, storeArgs);
+      };
+
+    // store sub objects first
+    if (args.subObj) {
+      subObjects = miscUtilFactory.toArray(args.subObj);
+      promises = [];
+
+      if (con) {
+        con.debug('Store ' + label + ' subobjs: ' + subObjects.length);
+      }
+
+      for (i = 0, ll = subObjects.length; i < ll; ++i) {
+        promises.push(
+          $q(function (resolve, reject) {
+            resourceFactory.storeSubDoc(obj, subObjects[i], args);
+            if (con) {
+              con.debug('Stored ' + label + ' subobj[' + i + ']: ' + subObjects[i].objId);
+            }
+            resolve();
+          })
+        );
+      }
+    }
+
+    if (promises) {
+      $q.all(promises).then(saveMain);
+    } else {
+      saveMain();
+    }
+  };
+
+  /**
+   * Create a new object
+   * @param {string} id     Factory id of new object
+   * @param {number} flags  storefactory flags
+   */
+  StandardFactory.prototype.newObj = function (id, flags) {
+    return storeFactory.newObj(storeId(this, id), this.schema.getObject(), flags);
+  };
+
+  /**
+   * Create a new object by duplicating an existing object
+   * @param {string} id     Factory id of new object
+   * @param {string} srcId  Factory id of object to duplicate
+   * @param {number} flags  storefactory flags
+   * @param   {function} presetCb Optional function to be called before object stored
+   * @returns {object}   New or existing object
+   */
+  StandardFactory.prototype.duplicateObj = function (id, srcId, flags, presetCb) {
+    return storeFactory.duplicateObj(storeId(this, id), storeId(this, srcId), flags, presetCb);
+  };
+  
+  /**
+   * Delete an object
+   * @param {string} id     Factory id of object to delete
+   * @param {number} flags  storefactory flags
+   */
+  StandardFactory.prototype.delObj = function (id, flags) {
+    return storeFactory.delObj(storeId(this, id), flags);
+  };
+
+  /**
+   * Set an object
+   * @param {string} id     Factory id of object to set
+   * @param {object} data   data to set
+   * @param {number} flags  storefactory flags
+   */
+  StandardFactory.prototype.setObj = function (id, data, flags) {
+    return storeFactory.setObj(storeId(this, id), data, flags, this.schema.getObject());
+  };
+  
+  /**
+   * Get an object
+   * @param {string} id     Factory id of object to get
+   * @param {number} flags  storefactory flags
+   */
+  StandardFactory.prototype.getObj = function (id, flags) {
+    return storeFactory.getObj(storeId(this, id), flags);
+  };
+  
+  /**
+   * Initialise an object
+   * @param {string} id     Factory id of object to init
+   * @param {number} flags  storefactory flags
+   */
+  StandardFactory.prototype.initObj = function (id, flags) {
+    return this.setObj(id, this.schema.getObject(), flags);
+  };
+
+  /**
+   * Create a new ResourceList object
+   * @param   {string} id   Id of list
+   * @param {object} args Argument object @see resourceListFactory.newResourceList()
+   * @returns {object} ResourceList object
+   */
+  StandardFactory.prototype.newList = function (id, args) {
+    var listArgs;
+    if (args) {
+      listArgs = angular.copy(args);
+    } else {
+      listArgs = {};
+    }
+    if (!listArgs.id) {
+      listArgs.id = id;
+    }
+    listArgs.factory = this.name;
+
+    return resourceListFactory.newResourceList(storeId(this, id), listArgs);
+  };
+  
+  /**
+   * Create a new ResourceList object by duplicating an existing object
+   * @param {string} id    Factory id of new object
+   * @param {string} srcId Factory id of object to duplicate
+   * @param {number} flags storefactory flags
+   * @param {object} args  Optional arguemnts specifying fields to duplicate when used with EXISTING
+   * @see resourceListFactory.duplicateList()
+   * @returns {object} ResourceList object
+   */
+  StandardFactory.prototype.duplicateList = function (id, srcId, flags, args) {
+    return resourceListFactory.duplicateList(id, storeId(this, id), storeId(this, srcId), flags, args);
+  };
+
+  
+  /**
+   * Delete a ResourceList object
+   * @param {string}         id    Id string to use
+   * @param {number}         flags storeFactory flags; the following are used
+   *                               - COPY_GET: to return copy of list
+   *                               - other flags ignored
+   * @returns {object|boolean} Copy of deleted ResourceList object, or true if successful
+   */
+  StandardFactory.prototype.delList = function (id, flags) {
+    return resourceListFactory.delResourceList(storeId(this, id), flags);
+  };
+  
+  /**
+   * Set the base list for a ResourceList object
+   * @param {string} id    Id string to use
+   * @param {Array}  list  base list to use
+   * @param {number} flags storefactoryFlags
+   * @param {string} title Title of list if new list must be created
+   * @returns {object} ResourceList object
+   */
+  StandardFactory.prototype.setList = function (id, list, flags, title) {
+    var newListFxn = this.newList.bind(this, id);
+    return resourceListFactory.setResourceList(storeId(this, id), list, flags,
+            function (flags) {
+              return newListFxn({
+                id: id, title: title, list: list, flags: flags }
+              );
+            });
+  };
+  
+  /**
+   * Get an existing ResourceList object
+   * @param {string} id   Id string to use
+   * @param   {number}   flags   storefactoryFlags
+   * @returns {object} ResourceList object
+   */
+  StandardFactory.prototype.getList = function (id, flags) {
+    var newListFxn = this.newList.bind(this, id);
+    return resourceListFactory.getResourceList(storeId(this, id), flags,
+            function (flags) {
+              return newListFxn({
+                id: id, flags: flags
+              });
+            });
+  };
+  
+  /**
+   * Initialise a ResourceList object to an emply base list
+   * @param {string} id   Id string to use
+   * @param {number}   flags   storefactoryFlags
+   * @returns {object} ResourceList object
+   */
+  StandardFactory.prototype.initList = function (id, flags) {
+    return resourceListFactory.initResourceList(storeId(this, id), flags);
+  };
+
+  /**
+   * Check if sort key is descending order
+   * @param   {object} sortBy   Key to sort by
+   * @returns {boolean} true if is descending order, false otherwise
+   */
+  StandardFactory.prototype.isDescendingSortOrder = function (sortBy) {
+    return resourceListFactory.isDescendingSortOrder(sortBy);
+  };
+
+  /**
+   * Set the pager for a ResourceList object
+   * @param {string} id     Factory id of object
+   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
+   * @param {number} flags  storefactory flags
+   * @returns {object} canvass result ResourceList object
+   */
+  StandardFactory.prototype.setPager = function (id, pager, flags) {
+    return resourceListFactory.setPager(storeId(this, id), pager, flags);
+  };
+
+  /**
+   * Generate a new ResourceFilter
+   * @param {object}   base         Base object to generate filter from
+   * @param {function} customFilter Custom filter function
+   * @param {object}   options      Additional options
+   */
+  StandardFactory.prototype.newFilter = function (base, customFilter, options) {
+    if (typeof base === 'function') {
+      options = customFilter;
+      customFilter = base;
+      base = undefined;
+    }
+    if (typeof customFilter === 'object') {
+      options = customFilter;
+      customFilter = undefined;
+    }
+    if (!customFilter) {
+      customFilter = this.filterFunction;
+    }
+
+    var opts = miscUtilFactory.copyAndAddProperties(options, {
+      customFunction: customFilter
+    });
+
+    return filterFactory.newResourceFilter(this.schema, base, opts);
+  };
+  
+  /**
+   * Generate a filtered list
+   * @param {object}   reslist    ResourceList object to filter
+   * @param {object}   filterBy   Filter object to use (not ResourceFilter)
+   * @param {function} xtraFilter Function to provide additional filtering
+   * @returns {Array}  filtered list
+   */
+  StandardFactory.prototype.getFilteredList = function (reslist, filterBy, xtraFilter) {
+    return filterFactory.getFilteredList('filterSchema', reslist, filterBy, xtraFilter);
+  };
+  
+  /**
+   * Address-specific filter function
+   * @param {object}   reslist    ResourceList object
+   * @param {object}   filterBy   Filter object to use (not ResourceFilter)
+   */
+  StandardFactory.prototype.filterFunction = function (reslist, filterBy, xtraFilter) {
+    reslist.filterList = reslist.factory.getFilteredList(reslist, filterBy);
+  };
+
+  /**
+   * Get resources from the server
+   * @param {string}   name                 Name of resource
+   * @param {object}   resList              ResourceList to save result to
+   * @param {object}   [filter=newFilter()] ResourceFilter to filter raw results
+   * @param {function} success              Function to call on success
+   * @param {function} failure              Function to call on failure
+   * @param {function} forEachSchemaField   Schema field iterator
+   */
+  StandardFactory.prototype.getFilteredResource = function (name, resList, filter, success, failure, forEachSchemaField) {
+
+    if (typeof name !== 'string') {
+      throw new TypeError('Incorrect argument type for name: ' + typeof name);
+    }
+    if (!resList.isResourceList) {
+      throw new TypeError('Incorrect argument type for resList: ' + typeof resList);
+    }
+    if (typeof filter === 'function') {
+      forEachSchemaField = failure;
+      failure = success;
+      filter = this.newFilter();
+    }
+    if (!forEachSchemaField) {
+      forEachSchemaField = this.forEachSchemaField;
+    }
+    filter = filter || this.newFilter();
+
+    var query;
+    if (filter.isResourceFilter) {
+      // build query from a schema filter object
+      query = queryFactory.buildSchemaQuery(forEachSchemaField, filter.getFilterValue(), this);
+    } else {
+      // use raw query
+      query = filter;
+    }
+
+    resList.setList([]);
+    this.query(name, query,
+      // success function
+      function (response) {
+        // add indices
+        for (var i = 0; i < response.length; ++i) {
+          response[i].index = i + 1;
+        }
+        // response from server contains result of filter request
+        resList.setList(response, storeFactory.APPLY_FILTER);
+
+        if (success){
+          success(response);
+        }
+      },
+      // error function
+      failure
+    );
+  };
+  
+  /**
+   * Set the filter for a ResourceList
+   * @param {string} id                   ResourceList id
+   * @param {object} [filter=newFilter()] ResourceFilter to set
+   * @param {number} flags                storefactoryFlags
+   * @returns {object} ResourceList object
+   */
+  StandardFactory.prototype.setFilter = function (id, filter, flags) {
+    if (!filter) {
+      filter = this.newFilter();
+    }
+    return resourceListFactory.setFilter(storeId(this, id), filter, flags);
+  };
+
+  /**
+   * Apply filter to a ResourceList object
+   * @param {string} id     Factory id of object
+   * @param {object} filter filter to use or preset filter is used if undefined
+   * @param {number} flags  storefactory flags
+   * @returns {object} canvass result ResourceList object
+   */
+  StandardFactory.prototype.applyFilter = function (id, filter, flags) {
+    return resourceListFactory.applyFilter(storeId(this, id), filter, flags);
+  };
+
+  /**
+   * Return the ResourceList sort options for this factory
+   * @return {Array} Array of options
+  */
+  StandardFactory.prototype.getSortOptions = function (thisArg) {
+    thisArg = thisArg || this;
+    return thisArg.sortOptions;
+  };
+
+  /**
+   * Return a sort options for this factory
+   * @param {number} index   Field index
+   * @param {string} sortKey Sort key; SCHEMA_CONST.SORT_ASC or SCHEMA_CONST.SORT_DESC
+   * @return {object} Sort option
+  */
+  StandardFactory.prototype.getSortOption = function (index, sortKey, thisArg) {
+    thisArg = thisArg || this;
+    var sortObj,
+      value = thisArg.schema.getField(index);
+
+    if (value) {
+      value = SCHEMA_CONST.MAKE_SORT_OPTION_VALUE(sortKey, value.dialog);
+      sortObj = thisArg.sortOptions.find(function(option) {
+        return (option.value === value);
+      });
+    }
+    return sortObj;
+  };
+
+  /**
+   * Callback the specified function for each field in the schema, providing the field details as the callback arguments
+   * @see Schema.prototype.forEachField() for argument details
+   */
+  StandardFactory.prototype.forEachSchemaField = function (callback, thisArg) {
+    thisArg = thisArg || this;
+    if (thisArg.schema) {
+      thisArg.schema.forEachField(callback, thisArg);
+    }
+  };
+  
+  /**
+   * Return a list of fields in this schema that match the specified criteria
+   * @param {object} args Criteria to match, 
+   *                      @see ModelProp.prototype.matches() for details
+   * @return {array}  Array of matching modelProp objects
+   */
+  StandardFactory.prototype.getFieldList = function (args, thisArg) {
+    var result = [];
+    thisArg = thisArg || this;
+    if (thisArg.schema) {
+      result = thisArg.schema.getFieldList(args);
+    }
+    return result;
+  };
+
+  /**
+   * Callback the specified function for each ModelProp in the schema, providing the ModelProp details as the callback arguments
+   * @see Schema.prototype.forEachModelProp() for argument details
+   */
+  StandardFactory.prototype.forEachModelPropField = function (callback, thisArg) {
+    thisArg = thisArg || this;
+    if (thisArg.schema) {
+      thisArg.schema.forEachModelProp(callback, thisArg);
+    }
+  };
+
+  /**
+   * Return a list of ModfelProps in this schema that match the specified criteria
+   * @param {object} args Criteria to match, 
+   *                      @see ModelProp.prototype.matches() for details
+   * @return {array}  Array of matching modelProp objects
+   */
+  StandardFactory.prototype.getModelPropList = function (args, thisArg) {
+    var result = [];
+    thisArg = thisArg || this;
+    if (thisArg.schema) {
+      result = thisArg.schema.getModelPropList(args);
+    }
+    return result;
+  };
+
+  // need the return here so that object prototype functions are added
+  return factory;
+}
+
+
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('ct.clientCommon')
+
+  .constant('RESOURCE_CONST', (function () {
+    var model = ['path', 'type', 'storage', 'factory'],   // related to ModelProp
+      schemaModel = ['schema', 'schemaId', 'resource'].concat(model), // related to Schema & ModelProp
+      basicStore = ['objId', 'flags', 'storage', 'next'],
+      stdArgs = schemaModel.concat(basicStore, ['subObj', 'customArgs']),
+      processRead = 0x01,   // process argument during read
+      processStore = 0x02,  // process argument during store
+      toProcess = function (processArg, toCheck) {
+        var process = true;
+        if (processArg && toCheck) {
+          process = ((processArg & toCheck) !== 0);
+        }
+        return process;
+      };
+    return {
+      STORE_LIST: 'list',
+      STORE_OBJ: 'obj',
+
+      PROCESS_READ: processRead,
+      PROCESS_STORE: processStore,
+      PROCESS_READ_STORE: (processRead | processStore),
+      PROCESS_FOR_READ: function (toCheck) {
+        return toProcess(processRead, toCheck);
+      },
+      PROCESS_FOR_STORE: function (toCheck) {
+        return toProcess(processStore, toCheck);
+      },
+
+      MODEL_ARGS: model,
+      SCHEMA_MODEL_ARGS: schemaModel,
+      BASIC_STORE_ARGS: basicStore,
+      STD_ARGS: stdArgs,
+      
+      QUERY_OR: '$or', // performs a logical OR operation on an array of two or more <expressions> and selects the documents that satisfy at least one of the <expressions>
+      QUERY_AND: '$and', // performs a logical AND operation on an array of two or more expressions (e.g. <expression1>, <expression2>, etc.) and selects the documents that satisfy all the expressions
+      QUERY_NOT: '$not', // performs a logical NOT operation on the specified <operator-expression> and selects the documents that do not match the <operator-expression>
+      QUERY_NOR: '$nor', // performs a logical NOR operation on an array of one or more query expression and selects the documents that fail all the query expressions
+
+      QUERY_OR_JOIN: '|',   // multi field OR
+      QUERY_AND_JOIN: '+',  // multi field AND
+      QUERY_COMMA_JOIN: ',',  // multi field comma join
+
+      QUERY_NE: '!',  // inverse i.e. not equal
+      QUERY_EQ: '=',  // equal
+      QUERY_GT: '>',  // greater than
+      QUERY_LT: '<',  // less than
+      QUERY_GTE: '>=',  // greater than or equal
+      QUERY_LTE: '<=',  // less than or equal
+      QUERY_BLANK: '~', // blank
+      QUERY_NBLANK: '!~' // not blank
+    };
+  }()))
+
+  .factory('resourceFactory', resourceFactory);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+resourceFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'miscUtilFactory', 'pagerFactory', 'compareFactory', 'standardFactoryFactory', 'resourceListFactory', 'queryFactory', 'consoleService', 'SCHEMA_CONST', 'RESOURCE_CONST'];
+
+function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, miscUtilFactory, pagerFactory, compareFactory, standardFactoryFactory, resourceListFactory, queryFactory, consoleService, SCHEMA_CONST, RESOURCE_CONST) {
+
+  // jic no native implementation is available
+  miscUtilFactory.arrayPolyfill();
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  var factory = {
+    NAME: 'resourceFactory',
+    createResources: createResources,
+    getStoreResource: getStoreResource,
+    storeServerRsp: storeServerRsp,
+    storeSubDoc: storeSubDoc,
+    standardiseArgs: standardiseArgs,
+    getStandardArgsObject: getStandardArgsObject,
+    checkArgs: checkArgs,
+    arrayiseArguments: arrayiseArguments,
+    findInStandardArgs: findInStandardArgs,
+    findAllInStandardArgs: findAllInStandardArgs,
+    addResourcesToArgs: addResourcesToArgs,
+    standardiseModelArgs: standardiseModelArgs,
+    getObjectInfo: getObjectInfo,
+    removeSchemaPathTypeArgs: removeSchemaPathTypeArgs,
+    copyBasicStorageArgs: copyBasicStorageArgs,
+    removeBasicStorageArgs: removeBasicStorageArgs,
+    getServerRsp: getServerRsp,
+    
+    extendFactory: extendFactory
+  },
+  modelArgsMap = {},
+  StandardArgsInfo = [
+    // arg info for getStandardArgsObject()
+    { name: 'factory', test: angular.isString, dflt: undefined },
+    { name: 'resource', test: angular.isString, dflt: undefined },
+    { name: 'subObj', test: angular.isArray, dflt: undefined },
+    { name: 'schema', test: angular.isObject, dflt: {} },
+    { name: 'flags', test: angular.isNumber, dflt: storeFactory.NOFLAG },
+    { name: 'next', test: angular.isFunction, dflt: undefined },
+    { name: 'customArgs', test: angular.isObject, dflt: {} }
+  ],
+  con;  // console logger
+
+  if (consoleService.isEnabled(factory.NAME)) {
+    con = consoleService.getLogger(factory.NAME);
+  }
+
+  // add additional methods to factory
+  extendFactory(factory, standardFactoryFactory);
+  extendFactory(factory, resourceListFactory);
+  extendFactory(factory, queryFactory);
+  
+  RESOURCE_CONST.MODEL_ARGS.forEach(function (prop) {
+    switch (prop) {
+      case 'path':
+        modelArgsMap[prop] = 'getModelName'; // Schema object function to get value
+        break;
+      case 'type':
+        modelArgsMap[prop] = 'getType'; // Schema object function to get value
+        break;
+      case 'storage':
+        modelArgsMap[prop] = 'getStorageType'; // Schema object function to get value
+        break;
+      case 'factory':
+        modelArgsMap[prop] = 'getModelFactory'; // Schema object function to get value
+        break;
+    }
+  });
+
+  // need the return here so that object prototype functions are added
+  return factory;
+
+  // need to return factory as end so that object prototype functions are added
+
+  /* function implementation
+    -------------------------- */
+
+  /**
+   * Extend a factory with poprerties from another factory
+   * @param   {object} dst     Factory to extend
+   * @param   {object} src     Factory to get poprerties from
+   * @param   {Array}  addlist List of properties to add to dst
+   * @param   {Array}  exlist  List of properties to not add to dst
+   * @returns {object} Destination factory
+   */
+  function extendFactory (dst, src, addlist, exlist) {
+    
+    if (addlist) {
+      addlist = addlist.slice();
+    } else {
+      addlist = Object.getOwnPropertyNames(src);
+    }
+    if (exlist) {
+      exlist = exlist.slice();
+    } else {
+      exlist = [];
+    }
+    exlist.push('NAME');  // never copy name
+    
+    // remove excluded entries from add list
+    exlist.forEach(function (prop) {
+      var idx = addlist.findIndex(function (element) {
+        return (element === prop);
+      });
+      if (idx >= 0) {
+        addlist.splice(idx, 1);
+      }
+    });
+    // copy add list entries
+    addlist.forEach(function (prop) {
+      if (src.hasOwnProperty(prop)) {
+        dst[prop] = src[prop];
+      }
+    });
+    return dst;
+  }
+  
+  /**
+   * Create resources
+   * @param   {object} options   Options specifying ids & types
+   * @param   {object} resources Object to add the new resources to
+   * @returns {object} Object updateed with the new resources
+   */
+  function createResources (options, resources) {
+    var srcId,
+      result,
+      args = standardiseArgs(options);
+    if (!resources) {
+      resources = {};
+    }
+    args.objId.forEach(function (id) {
+      switch (args.storage) {
+        case RESOURCE_CONST.STORE_OBJ:
+          if (!srcId) {
+            result = args.factory.newObj(id, storeFactory.CREATE_INIT);
+          } else {
+            result = args.factory.duplicateObj(id, srcId, storeFactory.OVERWRITE);
+          }
+          break;
+        case RESOURCE_CONST.STORE_LIST:
+          if (!srcId) {
+            result = args.factory.newList(id, {
+              title: id,
+              flags: storeFactory.CREATE_INIT,
+              resource: args.resource
+            });
+          } else {
+            result = args.factory.duplicateList(id, srcId, storeFactory.OVERWRITE);
+          }
+          break;
+        default:
+          result = undefined;
+      }
+      if (result) {
+        resources[id] = result;
+      }
+      if (!srcId) {
+        srcId = id;
+      }
+    });
+
+    if (args.subObj) {
+      args.subObj.forEach(function (subObj) {
+        createResources(subObj, resources);
+      });
+    }
+
+    return resources;
+  }
+
+  /**
+   * Get a store object
+   * @param {object}       options   process arguments object with following properties:
+   *  @param {string}       objId    id of object to get
+   *  @param {number}       flags    storefactory flags
+   * @return {object}       ResourceList or object
+   */
+  function getStoreResource (options) {
+    var result,
+      args = standardiseArgs(options);
+    if (args.storage === RESOURCE_CONST.STORE_LIST) {
+      result = args.factory.getList(args.objId, args.flags);
+    } else if (args.storage === RESOURCE_CONST.STORE_OBJ) {
+      result = args.factory.getObj(args.objId, args.flags);
+    }
+    return result;
+  }
+
+  /**
+   * Store a response from the server
+   * @param {object}       response Server response
+   * @param {object}       args     process arguments object with following properties:
+   *  @param {string|Array} objId    id/array of ids of object to save response data to
+   *  @param {string}       storage  save as list or object flag; STORE_LIST, STORE_OBJ, default depends on response
+   *  @param {string}       path     path within response object to object to store
+   *  @param {string}       type     object type, @see SCHEMA_CONST.FIELD_TYPES
+   *  @param {object}       schema   Schema to use to retrieve object path & type
+   *  @param {number}       schemaId Schema id to use to retrieve object path & type
+   *  @param {number}       flags    storefactory flags
+   *  @param {object|string} factory  factory (or factory name) to handle saving of objects/lists
+   *  @param {function}     next     function to call after processing
+   *  @param {Object|array} subObj   additional set(s) of arguments for sub objects
+   * @return {object}       ResourceList or object
+   */
+  function storeServerRsp (response, args) {
+
+    if (!RESOURCE_CONST.PROCESS_FOR_STORE(args.processArg)) {
+      // arg only processed during read, so ignore
+      return undefined;
+    } // else process for store
+
+    var stdArgs = standardiseArgs(args, args.parent),
+      factory = stdArgs.factory,
+      idArray = stdArgs.objId,
+      resp,
+      asList, i,
+      toSave = getObjectInfo(response, stdArgs).object;
+
+    // store sub objects first
+    if (args.subObj) {
+      miscUtilFactory.toArray(args.subObj).forEach(function (subObj) {
+        storeSubDoc(response, subObj, stdArgs);
+      });
+    }
+
+    resp = toSave;  // default result is raw object
+
+    if (idArray.length) {
+      if (stdArgs.storage === RESOURCE_CONST.STORE_LIST) {
+        asList = true;
+      } else if (stdArgs.storage === RESOURCE_CONST.STORE_OBJ) {
+        asList = false;
+      } else {
+        asList = Array.isArray(toSave);
+      }
+
+      if (asList) {
+        // process a query response
+        if (toSave) {
+          resp = factory.setList(idArray[0], toSave, stdArgs.flags);
+        } else {
+          resp = factory.initList(idArray[0], stdArgs.flags);
+        }
+      } else {
+        // process a get response
+        if (toSave) {
+          resp = factory.setObj(idArray[0], toSave, stdArgs.flags);
+        } else {
+          resp = factory.initObj(idArray[0], stdArgs.flags);
+        }
+      }
+      if (con) {
+        con.debug('storeServerRsp: ' + idArray[0]);
+      }
+      // if multiple objId's secondary ids are set to copies
+      for (i = 1; i < idArray.length; ++i) {
+        if (asList) {
+          factory.duplicateList(idArray[i], idArray[0], storeFactory.EXISTING, {
+            list: true  // just duplicate list
+          });
+        } else {
+          factory.duplicateObj(idArray[i], idArray[0], storeFactory.OVERWRITE);
+        }
+      }
+    }
+
+    if (stdArgs.next) {
+      stdArgs.next(resp);
+    }
+    return resp;
+  }
+
+
+  /**
+   * Get the object to save based on the provided path
+   * @param {object} response Response object
+   * @param {string} path     Path to required object
+   * @return {object} object to save
+   */
+  function getObjectInfo (response, args) {
+    var paths = [],
+      object = response,
+      parent, property;
+
+    if (args.path) {
+      paths.push(args.path);
+    }
+    for (parent = args.parent; parent && parent.path; parent = parent.parent) {
+      paths.unshift(parent.path);
+    }
+    
+    // drill down to get item to save
+    paths.forEach(function (path) {
+      if (object) {
+        parent = object;
+        property = path;
+        object = parent[property];
+      }
+    });
+    return { object: object,    // object to save
+              parent: parent,   // parent object
+              property: property }; // parent object property
+  }
+
+  /**
+   * Process a populated sub document, by copying the data to a new factory object and 
+   * transforming the original to ObjectIds.
+   * @param {object} response Server response
+   * @param {object} args     process arguments object, @see storeServerRsp() for details
+   * @param {object} parent   Object's parent
+   */
+  function storeSubDoc(response, args, parent) {
+
+    if (!RESOURCE_CONST.PROCESS_FOR_STORE(args.processArg)) {
+      // arg only processed during read, so ignore
+      return undefined;
+    } // else process for store
+
+    var stdArgs = standardiseArgs(args, parent),
+      resp, list,
+      toSaveInfo = getObjectInfo(response, stdArgs),
+      toSave = toSaveInfo.object;
+
+    // store subdoc, resp is ResourceList or object
+    resp = storeServerRsp(response, stdArgs);
+
+    // update response with expected response type i.e. ObjectIds
+    if (resp) {
+      if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID(stdArgs.type)) {
+        // field is objectId, so was saved as object
+        toSaveInfo.parent[toSaveInfo.property] = resp._id;
+
+      } else if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID_ARRAY(stdArgs.type)) {
+        // field is an array of objectId
+        if (Array.isArray(toSave)) {
+          if (resp.isResourceList) {
+            list = resp.list; // its a ResourceList
+          } else {
+            list = resp;  // should be an raw array
+          }
+          for (var i = 0; i < toSave.length; ++i) {
+            toSave[i] = list[i]._id;
+          }
+        }
+      }
+    }
+    return resp;
+  }
+
+  /**
+   * Standardise a server response argument object
+   * @param {object}   args     process arguments object, @see storeServerRsp() for details
+   * @param {object}   parent   Object's parent
+   * @return {object}  arguments object
+   */
+  function standardiseArgs (args, parent) {
+
+    var stdArgs = angular.copy(args);
+
+    if (stdArgs.objId) {
+      stdArgs.objId = miscUtilFactory.toArray(stdArgs.objId);
+    } else {
+      stdArgs.objId = [];
+    }
+    stdArgs.flags = (args.flags ? args.flags : storeFactory.NOFLAG);
+    stdArgs.parent = parent;
+
+    copySchemaModelArgs(
+      standardiseModelArgs(copySchemaModelArgs(args), false /*no copy*/), stdArgs);
+
+    if (typeof args.factory === 'string') {
+      // get factory instance from injector
+      stdArgs.factory = $injector.get(args.factory);
+    }
+
+    if (stdArgs.subObj) {
+      if (Array.isArray(stdArgs.subObj)) {
+        for (var i = 0; i < stdArgs.subObj.length; ++i) {
+          stdArgs.subObj[i] = standardiseArgs(stdArgs.subObj[i], stdArgs);
+        }
+      } else {
+        stdArgs.subObj = [standardiseArgs(stdArgs.subObj, stdArgs)];
+      }
+    }
+
+    return stdArgs;
+  }
+
+  /**
+   * Return a standard args object
+   * @param {string|array} objId    Id(s) to use for storage
+   * @param {string}       factory  Factory name
+   * @param {string}       resource Name of factory resource to access resources on server
+   * @param {array}        subObj   Sub-objects
+   * @param {object}       schema   Schema object
+   * @param {number}       flags    storeFactory flags
+   * @param {function}     next     Function to call following completion
+   * @param {object}       customArgs   Custom properties
+   * @returns {object}       Standard args object
+   *                                  
+   * NOTE 1: make sure to update StandardArgsInfo on any change to function prototype.
+   *      2: the objIdargument must be passed
+   */
+  function getStandardArgsObject(objId, factory, resource, subObj, schema, flags, next, customArgs) {
+
+    var args = intCheckStandardArgsObjectArgs(arrayiseArguments(arguments, 1)); // exclude objId
+    return {
+      objId: objId,
+      factory: args.factory,
+      resource: args.resource,
+      schema: args.schema.schema,
+      schemaId: args.schema.schemaId,
+      //type/path/storage/factory: can be retrieved using schema & schemaId
+      subObj: args.subObj,
+      flags: args.flags,
+      next: args.next,
+      customArgs: args.customArgs
+    };
+  }
+
+  /**
+   * Check arguemnts for getRspOptionsObject() making sure args are correctly positioned
+   * @param {object}  funcArguments Argument object for original function
+   * @return {object} checked argument object
+   */
+  function intCheckStandardArgsObjectArgs(funcArguments) {
+    return checkArgs(StandardArgsInfo, funcArguments);
+  }
+
+  /**
+   * Check arguments for correct positioning in function call
+   * @param {Array}         argsInfo      Array of argument info objects:
+   *                                      { name: <arg name>, test: <predicate validity test>, 
+   *                                        dflt: <default value> }
+   * @param {object|Array}  funcArguments Argument object for original function or an array of arguments
+   * @return {object} checked argument object
+   */
+  function checkArgs(argsInfo, funcArguments) {
+
+    var args = (Array.isArray(funcArguments) ? funcArguments.slice() : arrayiseArguments(funcArguments)),
+      arg,
+      checked = {};
+
+    for (var i = 0, ll = argsInfo.length; i < ll; ++i) {
+      arg = argsInfo[i];
+      if (!arg.test(args[i])) {
+        if (args.length < ll) { // num of args < expected
+          args.splice(i, 0, arg.dflt);  // insert argument default value
+        } else {
+          if (args[i] !== undefined) {
+            // right shift arguments
+            for (var j = args.length - 1; j > i; --j) {
+              args[j] = args[j - 1];
+            }
+          }
+          args[i] = arg.dflt;   // set argument to default value
+        }
+      }
+      checked[arg.name] = args[i];
+    }
+    return checked;
+  }
+
+  /**
+   * 
+   * Convert a function arguments object to an array
+   * @param {object}  funcArguments Argument object for original function
+   * @param {number}  start         Argument indexto start from
+   * @return {Array} argument array
+   */
+  function arrayiseArguments(funcArguments, start) {
+    var array;
+    if (start === undefined) {
+      start = 0;
+    }
+    if (start >= funcArguments.length) {
+      array = [];
+    } else if (funcArguments.length === 1) {
+      array = [funcArguments[0]];
+    } else {
+      array = Array.prototype.slice.call(funcArguments, start);
+    }
+    return array;
+  }
+
+  /**
+   * Find an arg object within a StandardArgs object 
+   * @param {object}       stdArgs  StandardArgs object to traverse
+   * @param {function}     callback Function to test arg objects
+   * @return {object}      arguments object
+   */
+  function findInStandardArgs (stdArgs, callback) {
+
+    var arg;
+    if (callback(stdArgs)) {
+      arg = stdArgs;
+    }
+    if (!arg && stdArgs.subObj) {
+      for (var i = 0; !arg && (i < stdArgs.subObj.length); ++i) {
+        arg = findInStandardArgs(stdArgs.subObj[i], callback);
+      }
+    }
+    return arg;
+  }
+
+  /**
+   * Find all arg objects within a StandardArgs object 
+   * @param {object}       stdArgs  StandardArgs object to traverse
+   * @param {function}     callback Function to test arg objects
+   * @param {Array}        args     Array to add matching arg objects to
+   * @return {Array}       Array of matching arg objects
+   */
+  function findAllInStandardArgs (stdArgs, callback, args) {
+
+    if (!args) {
+      args = [];
+    }
+    if (callback(stdArgs)) {
+      args.push(stdArgs);
+    }
+    if (stdArgs.subObj) {
+      stdArgs.subObj.forEach(function (sub) {
+        findAllInStandardArgs(sub, callback, args);
+      });
+    }
+    return args;
+  }
+
+  /**
+   * Add resources required by Schema object
+   * @param {object}       args   Args object to add to
+   * @return {object}      arguments object
+   */
+  function addResourcesToArgs (args) {
+    if (!args.injector) {
+      /* need to pass run stage injector to Schema object as since it is created during the config
+        stage it only has access to the config stage injector (only providers and constants accessible) */
+      args.injector = $injector;
+    }
+    if (!args.findInStandardArgs) {
+      args.findInStandardArgs = findInStandardArgs;
+    }
+    return args;
+  }
+
+  /**
+   * Standardise a server response argument object
+   * @param {object}       args     process arguments object with following properties:
+   * @see storeServerRsp()
+   * @return {object}       arguments object
+   */
+  function standardiseModelArgs (args, makeCopy) {
+    
+    makeCopy = ((makeCopy === undefined) ? true : makeCopy);
+
+    var stdArgs = args;
+    if (makeCopy) {
+      stdArgs = copySchemaModelArgs(args);
+    }
+
+    if (stdArgs.schema && 
+        (typeof stdArgs.schemaId === 'number') && (stdArgs.schemaId >= 0)) {
+      // if not explicitly set retrieve using schema & schemaId
+      RESOURCE_CONST.MODEL_ARGS.forEach(function (prop) {
+        if (!stdArgs[prop]) {
+          stdArgs[prop] = stdArgs.schema[modelArgsMap[prop]](stdArgs.schemaId);
+        }
+      });
+
+
+
+
+//-      if (!stdArgs.path) {
+//-        // path not explicitly provided, retrieve from schema & schemaId
+//-        stdArgs.path = stdArgs.schema.getModelName(stdArgs.schemaId);
+//-      }
+//-      if (!stdArgs.type) {
+//-        // path not explicitly provided, retrieve from schema & schemaId
+//-        stdArgs.type = stdArgs.schema.getType(stdArgs.schemaId);
+
+
+    }
+
+    return stdArgs;
+  }
+
+  /**
+   * Copy the standard Schema/ModelProp arguments
+   * @param {Array}  list list of properties to copy
+   * @param {object} args process arguments object to copy from
+   * @param {object} to   process arguments object to copy to
+   * @return {object} arguments object
+   */
+  function copyArgs (list, args, to) {
+    if (!to) {
+      to = {};
+    }
+    return miscUtilFactory.copyProperties(args, to, list);
+  }
+
+  /**
+   * Copy the standard Schema/ModelProp arguments
+   * @param {object}       args     process arguments object to copy from
+   * @param {object}       to       process arguments object to copy to
+   * @return {object}       arguments object
+   */
+  function copySchemaModelArgs (args, to) {
+    return copyArgs(RESOURCE_CONST.SCHEMA_MODEL_ARGS, args, to);
+  }
+
+  /**
+   * Remove the standard Schema/ModelProp arguments
+   * @param {object}       args     process arguments object to remove from
+   * @return {object}       arguments object
+   */
+  function removeSchemaPathTypeArgs (args) {
+    return miscUtilFactory.removeProperties(args, RESOURCE_CONST.SCHEMA_MODEL_ARGS);
+  }
+
+  /**
+   * Copy the basic storage arguments
+   * @param {object}       args     process arguments object to copy from
+   * @param {object}       to       process arguments object to copy to
+   * @return {object}       arguments object
+   */
+  function copyBasicStorageArgs (args, to) {
+    return copyArgs(RESOURCE_CONST.BASIC_STORE_ARGS, args, to);
+  }
+
+  /**
+   * Remove the standard Schema/ModelProp arguments
+   * @param {object}       args     process arguments object to remove from
+   * @return {object}       arguments object
+   */
+  function removeBasicStorageArgs (args) {
+    return miscUtilFactory.removeProperties(args, RESOURCE_CONST.BASIC_STORE_ARGS);
+  }
+
+  
+  
+  /**
+   * Get a stored response from the server
+   * @param {object}       args     process arguments object with following properties:
+   * @see storeServerRsp()
+   * @return {object}       ResourceList or object
+   */
+  function getServerRsp (args) {
+
+    var stdArgs = standardiseArgs(args),
+      factory = stdArgs.factory,
+      idArray = stdArgs.objId,
+      resp = [],
+      asList = true,
+      asObj = true,
+      read;
+
+    if (stdArgs.storage === RESOURCE_CONST.STORE_LIST) {
+      asObj = false;
+    } else if (stdArgs.storage === RESOURCE_CONST.STORE_OBJ) {
+      asList = false;
+    } 
+    // else no type specified so try both
+
+    if (asList) {
+      idArray.forEach(function (id) {
+        read = factory.getList(id, stdArgs.flags);
+        if (read) {
+          resp.push(read);
+        }
+      });
+    } 
+    if (asObj) {
+      idArray.forEach(function (id) {
+        read = factory.getObj(id, stdArgs.flags);
+        if (read) {
+          resp.push(read);
+        }
+      });
+    }
+
+    if (stdArgs.next) {
+      stdArgs.next(resp);
+    }
+    return resp;
+  }
+
+}
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
 /* This pager service was inspired by http://jasonwatmore.com/post/2016/01/31/AngularJS-Pagination-Example-with-Logic-like-Google.aspx */
 
 
@@ -4036,7 +6419,8 @@ function pagerFactory (storeFactory) {
     newPager: newPager,
     delPager: delPager,
     getPager: getPager,
-    updatePager: updatePager
+    updatePager: updatePager,
+    addPerPageOptions: addPerPageOptions
   };
 
   return factory;
@@ -4048,6 +6432,15 @@ function pagerFactory (storeFactory) {
     return 'pager.' + id;
   }
 
+  /**
+   * Create a new pager
+   * @param   {string} id           Pager id
+   * @param   {Array}  items        Items for pager to paginate
+   * @param   {number} currentPage  Current page, NOTE 1-based
+   * @param   {number} itemsPerPage Number of items per page
+   * @param   {number} maxDispPages Max number of page numbers to display in page bar
+   * @returns {object} new pager
+   */
   function newPager(id, items, currentPage, itemsPerPage, maxDispPages) {
     return updatePager(id, items, currentPage, itemsPerPage, maxDispPages);
   }
@@ -4117,6 +6510,27 @@ function pagerFactory (storeFactory) {
     }
     return val;
   }
+  
+  /**
+   * Add per page options to a scope
+   * @param {object} scope     Scope to add to
+   * @param {number} min       Min number per page
+   * @param {number} step      Per page increment
+   * @param {number} stepCnt   Number of options
+   * @param {number} defltStep Which increment is the default option. NOTE zero-bases!
+   */
+  function addPerPageOptions (scope, min, step, stepCnt, defltStep) {
+    var perPageOpt = [];
+    
+    for (var i = 0; i < stepCnt; ++i) {
+      perPageOpt.push(min + (step * i));
+      if (i === defltStep) {
+        scope.perPage = perPageOpt[perPageOpt.length - 1];
+      }
+    }
+    scope.perPageOpt = perPageOpt;
+  }
+  
 }
 
 function Pager(id, items, totalItems, currentPage, itemsPerPage, maxDispPages, totalPages, startPage, endPage, startIndex, endIndex, pages, pageItems) {
@@ -4252,58 +6666,76 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-consoleService.$inject = ['$injector'];
+consoleService.$inject = ['$injector', 'DBG'];
 
-function consoleService($injector) {
+function consoleService($injector, DBG) {
 
+  /*jshint validthis:true */
   this.getLogger = function (tag) {
     return $injector.instantiate(ConsoleLogger, {tag: tag});
   };
+  
+  /*jshint validthis:true */
+  this.isEnabled = function (tag) {
+    return DBG.isEnabled(getConsoleLoggerTag(tag));
+  };
+}
+
+function getConsoleLoggerTag (tag) {
+  if (tag.indexOf('dbg') === 0) {
+    return tag;
+  } else {
+    return 'dbg' + tag;
+  }
 }
 
 function ConsoleLogger(DBG, tag) {
   this.dbg = DBG;
-  this.tag = tag;
+  this.tag = getConsoleLoggerTag(tag);
 }
 
 ConsoleLogger.$inject = ['DBG', 'tag'];
 
 ConsoleLogger.prototype.config = function (tag) {
-  this.tag = tag;
+  this.tag = getConsoleLoggerTag(tag);
 };
 
 ConsoleLogger.prototype.isEnabled = function () {
   return this.dbg.isEnabled(this.tag);
 };
 
+/**
+ * General logger function 
+ * NOTE: not to be called from outside ConsoleLogger object
+ * @param {string} level Log level
+ */
+ConsoleLogger.prototype.loggerFunc = function (level) {
+  if (this.isEnabled()) {
+    // argument after level will be an array as called from log/debug etc.
+    var args = [].concat(arguments[1]);
+    args.unshift(this.tag);
+    this.dbg[level].apply(this.dbg, args);
+  }
+};
+
 ConsoleLogger.prototype.log = function () {
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift(this.tag);
-  this.dbg.log.apply(this.dbg, args);
+  this.loggerFunc('log', Array.prototype.slice.call(arguments));
 };
 
 ConsoleLogger.prototype.debug = function () {
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift(this.tag);
-  this.dbg.debug.apply(this.dbg, args);
+  this.loggerFunc('debug', Array.prototype.slice.call(arguments));
 };
 
 ConsoleLogger.prototype.info = function () {
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift(this.tag);
-  this.dbg.info.apply(this.dbg, args);
+  this.loggerFunc('info', Array.prototype.slice.call(arguments));
 };
 
 ConsoleLogger.prototype.warn = function () {
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift(this.tag);
-  this.dbg.debug.warn(this.dbg, args);
+  this.loggerFunc('warn', Array.prototype.slice.call(arguments));
 };
 
 ConsoleLogger.prototype.error = function () {
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift(this.tag);
-  this.dbg.debug.error(this.dbg, args);
+  this.loggerFunc('error', Array.prototype.slice.call(arguments));
 };
 
 ConsoleLogger.prototype.objToString = function (obj) {
@@ -4325,9 +6757,420 @@ ConsoleLogger.prototype.objToString = function (obj) {
 
 angular.module('ct.clientCommon')
 
+  .factory('timerFactory', TimerFactory);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+TimerFactory.$inject = ['$timeout', 'USER'];
+
+function TimerFactory($timeout, USER) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  var factory = {
+    addTimeout: addTimeout,
+    getTimerDuration: getTimerDuration,
+    decodeTimerConfigSetting: decodeTimerConfigSetting,
+
+    DURATION: {
+      LENGTH: 'len',
+      TOKEN_PERCENT: 'token%',  // duration is percentage of token life (e.g. 0.5=50%)
+      TOKEN_MINUS: 'token-',    // duration is token life minus amount
+      TOKEN_PLUS: 'token+',     // duration is token life plus amount
+      TOKEN_DIVIDE: 'token/',   // duration is token life divided by amount
+      TOKEN_MULTIPLY: 'token*'  // duration is token life multiplied by amount
+    }
+  },
+  UNITS = [ 
+    { designator: 'ms', factor: 1 },      // msec
+    { designator: 's', factor: 1000 },    // sec
+    { designator: 'm', factor: 60000 },   // min
+    { designator: 'h', factor: 3600000 }  // hour
+  ];
+
+  return factory;
+
+  /* function implementation
+    -------------------------- */
+  
+  /**
+   * Add a timout
+   * @param {object}        data  Timeout properties object:
+   * @param {number|string} value Countdown duration in the form:
+   *                              number - msec value
+   *                              string - text representation, e.g. '1ms', '1s', '1m', '1h', '0.5'
+   * @param {string}        type  Duration type; @see factory.DURATION
+   * @param {function}      fn    Function to delay execution of
+   * @returns {object}        timeout promise
+   */
+  function addTimeout (data) {
+    var promise;
+    if (data) {
+      var duration = getTimerDuration(data);
+      if (duration > 0) {
+        promise = $timeout(data.fn, duration);
+      } else {
+        // call immediately
+        data.fn();
+      }
+    }
+    return promise;
+  }
+
+  /**
+   * Get the value for a timer in msec
+   * @param {object|string} data  Timeout properties object or config string
+   * @returns {object} duration in msec
+   */
+  function getTimerDuration (data) {
+    var duration,
+      param;
+    if (data) {
+      if (typeof data === 'string') {
+        param = decodeTimerConfigSetting (data);
+      } else {
+        param = data;
+      }
+      if (param) {
+        var value,
+          unit;
+        if (typeof data.value === 'number') {
+          value = data.value;
+        } else if (typeof data.value === 'string') {
+          unit = UNITS.find(function (chk) {
+                  var position = this.length - chk.designator.length,
+                    lastIndex = this.lastIndexOf(chk.designator, position);
+                  return lastIndex !== -1 && lastIndex === position;
+                }, data.value);
+          value = parseFloat(data.value);
+          if (unit) {
+            value *= unit.factor;  // convert to msec
+          }
+        }
+
+        switch (data.type) {
+          case factory.DURATION.LENGTH:
+            duration = value;
+            break;
+          case factory.DURATION.TOKEN_PERCENT:
+            duration = USER.sessionLength * value;
+            break;
+          case factory.DURATION.TOKEN_MINUS:
+            duration = USER.sessionLength - value;
+            break;
+          case factory.DURATION.TOKEN_PLUS:
+            duration = USER.sessionLength + value;
+            break;
+          case factory.DURATION.TOKEN_DIVIDE:
+            duration = USER.sessionLength / value;
+            break;
+          case factory.DURATION.TOKEN_MULTIPLY:
+            duration = USER.sessionLength / value;
+            break;
+        }
+        if (duration) {
+          duration = Math.floor(duration);
+        }
+      }
+    }
+    return duration;
+  }
+
+  /**
+   * Decode a timer config setting in the form '<<type>><<value>>', e.g. 'len10s' for 10sec
+   * @param   {string} config Config string to decode
+   * @returns {object} decoded value as 
+   * @param {string} type of timer
+   * @param {string} valur for timer
+   */
+  function decodeTimerConfigSetting (config) {
+    var param,
+      duration = Object.getOwnPropertyNames(factory.DURATION).find(
+        function (prop) {
+          return (config.indexOf(factory.DURATION[prop]) === 0);
+        });
+    if (duration) {
+      duration = factory.DURATION[duration];
+      param = {
+        type: duration,
+        value: config.substr(duration.length)
+      };
+    }
+    return param;
+  }
+  
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('ct.clientCommon')
+
+  .factory('undoFactory', undoFactory);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+undoFactory.$inject = ['$injector', 'consoleService', 'miscUtilFactory'];
+
+function undoFactory ($injector, consoleService, miscUtilFactory) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  var factory = {
+    NAME: 'undoFactory',
+    newUndoStack: newUndoStack,
+    newUndoStep: newUndoStep
+  };
+  
+  /* function implementation
+    -------------------------- */
+
+  /**
+   * Create a new UndoStack object
+   * @returns {object} new UndoStack object
+   */
+  function newUndoStack () {
+    return $injector.instantiate(UndoStack);
+  }
+  
+  /**
+   * Create a new UndoStep object
+   * @throws {Error} Missing arguments
+   * @param   {function} func Function to execute to do the undo
+   * @returns {object}   UndoStep object
+   */
+  function newUndoStep (func) {
+    if (!func) {
+      throw new Error('Missing argument: schema');
+    }
+    return $injector.instantiate(UndoStep, {
+      func: func
+    });
+  }
+  
+  
+  function initUndoStack (stack) {
+    stack.array = [];
+    stack.size = 0;
+    stack.multiInProgress = false;  // multi step entry in progress
+  }
+  
+
+  /**
+   * Configurable object to compare schema fields
+   */
+  function UndoStack () {
+    initUndoStack(this);
+  }
+
+  UndoStack.$inject = [];
+
+  function undoStepTypeCheck (entry) {
+    if (!entry.isUndoStep) {
+      throw new TypeError('Unsupported object type');
+    }
+  }
+
+  function multiStepInProgressCheck (stack, require) {
+    if (stack.multiInProgress !== require) {
+      var msg = 'Multi-step entry ';
+      if (require) {
+        msg += 'not ';
+      }
+      msg += 'in progress';
+      throw new Error(msg);
+    }
+  }
+  
+  /**
+   * Format an entry to add to the stack
+   * @param {object|array} entry Entry/array of entries to add
+   * @returns {array} Entry to add
+   */
+  function getEntryToAdd (entry) {
+    var toAdd;
+
+    if (Array.isArray(entry)) {
+      if (entry.length) {
+        entry.forEach(function (element) {
+          undoStepTypeCheck(element);
+        });
+        toAdd = entry;
+      }
+    } else {
+      undoStepTypeCheck(entry);
+      toAdd = [entry];
+    }
+
+    return toAdd;
+  }
+
+  /**
+   * Push an entry to the end of the stack
+   * @param {object|array} entry Entry/array of entries to add
+   * @returns {number} current length of stack
+   */
+  UndoStack.prototype.push = function (entry) {
+
+    multiStepInProgressCheck(this, false);
+
+    var toAdd,
+      len;
+
+    if (entry !== undefined) {
+      toAdd = getEntryToAdd(entry);
+      if (toAdd) {
+        len = this.array.push(toAdd);
+        this.size = len;
+      }
+    }
+    return len;
+  };
+
+  /**
+   * Start a multi-step entry on the stack
+   * @returns {number} current position in stack
+   */
+  UndoStack.prototype.startMultiStep = function () {
+    multiStepInProgressCheck(this, false);
+
+    this.multiInProgress = true;
+    return this.array.push([]);
+  };
+
+  /**
+   * Add a step to a multi-step entry on the stack
+   * @param {object} step Step to add
+   * @returns {number} number of steps in entry
+   */
+  UndoStack.prototype.addStep = function (step) {
+    multiStepInProgressCheck(this, true);
+
+    var toAdd,
+      len;
+
+    if (step !== undefined) {
+      toAdd = getEntryToAdd(step);
+      if (toAdd) {
+        len = this.array[this.array.length - 1].push(toAdd);
+        this.size = this.array.length;
+      }
+    }
+    return len;
+  };
+
+  /**
+   * End a multi-step entry on the stack
+   */
+  UndoStack.prototype.endMultiStep = function () {
+    this.multiInProgress = false;
+    if (this.array[this.array.length - 1].length === 0) {
+      // no steps
+      this.array.pop();
+    }
+  };
+
+  
+  /**
+   * Clear the stack
+   */
+  UndoStack.prototype.clear = function () {
+    initUndoStack(this);
+  };
+
+  /**
+   * Undo the specified number of entries from the stack
+   * @param {number} steps  Number of steps to undo, or all if not passed
+   * @returns {number} New length of atack
+   */
+  UndoStack.prototype.undo = function (steps) {
+
+    multiStepInProgressCheck(this, false);
+
+    processUndo(this.array, steps);
+    return (this.size = this.array.length);
+  };
+
+  function processUndo (array, steps) {
+
+    var cnt = miscUtilFactory.toInteger(steps) || array.length,
+      popped;
+    if (cnt > array.length) {
+      cnt = array.length;
+    }
+
+    while (cnt > 0) {
+      popped = array.pop();
+      if (popped) {
+        if (Array.isArray(popped)) {
+          processUndo(popped);  // undo all
+        } else {
+          popped.execute();
+        }
+      }
+      --cnt;
+    }
+    return array.length;
+  }
+
+
+  /**
+   * Canvasser/address undo link object
+   * @param {object}   canvasser Canvasser to unlink
+   * @param {object}   address   Address to unlink
+   * @param {function} func      Undo function
+   */
+  function UndoStep (func) {
+    this.func = func;
+  }
+
+  UndoStep.$inject = ['func'];
+
+  UndoStep.prototype.isUndoStep = true;
+  
+  /**
+   * Execute the canvasser/address undo
+   */
+  UndoStep.prototype.execute = function () {
+    if (this.func) {
+      this.func();
+    }
+  };
+  
+  
+  
+  // need the return here so that object prototype functions are added
+  return factory;
+}
+
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('ct.clientCommon')
+
   .value('USER', {
     authenticated: false,
-    authToken: undefined,
+    token: undefined,
+    expires: undefined,     // time & date string
+    sessionLength: 0,       // session length in millisec
+    expired: false,
+    fromStore: false,
+
+    // access properties
+    votingsys: 0,
+    roles: 0,
+    users: 0,
+    elections: 0,
+    candidates: 0,
+    canvasses: 0,
 
     // mirroring user model properties
     id: '',
@@ -4337,8 +7180,8 @@ angular.module('ct.clientCommon')
   })
   .constant('AUTH_KEYS', (function () {
     return {
-      TOKEN_KEY: 'token',       // object key for user token
-      USERINFO_KEY: 'userinfo' // object key for user info
+      TOKEN_KEY: 'canvasstraccredentials',  // object key for user credentials
+      USERINFO_KEY: 'canvasstracuserinfo'   // object key for user info
     };
   }()))
   .factory('authFactory', AuthFactory);
@@ -4347,9 +7190,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-AuthFactory.$inject = ['$resource', '$http', 'storeFactory', 'localStorage', 'baseURL', 'miscUtilFactory', 'AUTH_KEYS', 'USER'];
+AuthFactory.$inject = ['$resource', '$http', '$cookies', '$timeout', 'localStore', 'baseURL', 'miscUtilFactory', 'timerFactory', 'AUTH_KEYS', 'USER', 'APPCODE', 'ACCESS'];
 
-function AuthFactory($resource, $http, storeFactory, localStorage, baseURL, miscUtilFactory, AUTH_KEYS, USER) {
+function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, miscUtilFactory, timerFactory, AUTH_KEYS, USER, APPCODE, ACCESS) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -4357,13 +7200,47 @@ function AuthFactory($resource, $http, storeFactory, localStorage, baseURL, misc
     logout: logout,
     register: register,
     loginByFacebook: loginByFacebook,
+    tokenRefresh: tokenRefresh,
+    checkForAuthError: checkForAuthError,
+    getUserinfo: getUserinfo,
     isAuthenticated: isAuthenticated,
     getUsername: getUsername,
     getUserId: getUserId,
-    getUserinfo: getUserinfo,
     storeUserinfo: storeUserinfo,
-    removeUserinfo: removeUserinfo
-  };
+    removeUserinfo: removeUserinfo,
+    hasAccess: hasAccess,
+    isAccess: isAccess,
+    SRC: {
+      WEB: 'web',
+      MOBILE: 'mobile'
+    }
+  },
+  menuAccessProperties = [
+    ACCESS.VOTINGSYS,
+    ACCESS.ROLES,
+    ACCESS.USERS,
+    ACCESS.ELECTIONS,
+    ACCESS.CANDIDATES,
+    ACCESS.CANVASSES
+  ],
+  responseProperties = menuAccessProperties.concat([
+    'token',
+    'expires',
+    'id'
+  ]),
+  credentialProperties = responseProperties.concat('username'),
+  stateProperties = credentialProperties.concat('sessionLength'),
+  crud = [
+    { chr: 'c', bit: ACCESS.ACCESS_CREATE },
+    { chr: 'r', bit: ACCESS.ACCESS_READ },
+    { chr: 'u', bit: ACCESS.ACCESS_UPDATE },
+    { chr: 'd', bit: ACCESS.ACCESS_DELETE }
+  ],
+  a1o = [
+    { chr: 'a', bit: ACCESS.ACCESS_ALL },
+    { chr: '1', bit: ACCESS.ACCESS_ONE },
+    { chr: 'o', bit: ACCESS.ACCESS_OWN }
+  ];
 
   loadUserCredentials();
 
@@ -4372,64 +7249,163 @@ function AuthFactory($resource, $http, storeFactory, localStorage, baseURL, misc
   /* function implementation
     -------------------------- */
   
-  // TODO sort out use of localStorage or storeFactory !!!!
+  function useCredentials(credentials, fromStore) {
+    var authenticated = false,
+      expiry,
+      state;
 
-  function useCredentials (credentials) {
-    var state = {
-      authenticated: !miscUtilFactory.isEmpty(credentials), // TODO method to verify authenticated against server
+    fromStore = fromStore || false;
+
+    if (!miscUtilFactory.isEmpty(credentials)) {
+      // check for expired
+      authenticated = !credentialsExpired(credentials.expires);
+      if (!authenticated) {
+        destroyUserCredentials('stored');
+        fromStore = false;
+      }
+    } else {
+      fromStore = false;
+    }
+
+    state = {
       username: '',
-      authToken: undefined,
+      token: undefined,
+      expires: undefined,
+      sessionLength: 0,
       id: ''
     };
-    if (state.authenticated) {
-      state.username = credentials.username;
-      state.authToken = credentials.token;
-      state.id = credentials.id;
+    menuAccessProperties.forEach(function (prop) {
+      state[prop] = 0;
+    });
+    if (authenticated) {
+      expiry = new Date(credentials.expires);
+
+      miscUtilFactory.copyProperties(credentials, state, credentialProperties);
+      state.sessionLength = expiry.getTime() - Date.now();
     }
     // update value
-    USER.authenticated = state.authenticated;
-    USER.username = state.username;
-    USER.authToken = state.authToken;
-    USER.id = state.id;
-    
+    USER.authenticated = authenticated;
+    USER.expired = !authenticated;
+    USER.fromStore = fromStore;
+    miscUtilFactory.copyProperties(state, USER, stateProperties);
+
     // Set the token as header for your requests!
-    $http.defaults.headers.common['x-access-token'] = state.authToken;
+    $http.defaults.headers.common['x-access-token'] = state.token;
+
   }
 
-  function destroyUserCredentials() {
-    useCredentials(undefined);
-    localStorage.remove(AUTH_KEYS.TOKEN_KEY);
+  function credentialsExpired (expires) {
+    var expired = true;
+    if (expires) {
+      // check for expired
+      var expiry = new Date(expires);
+      expired = (Date.now() >= expiry.getTime());
+    }
+    return expired;
+  }
+
+  function destroyUserCredentials (level) {
+    if (level !== 'stored') {
+      useCredentials(undefined);
+    }
+    removeStored(AUTH_KEYS.TOKEN_KEY);    
+  }
+
+  function removeStored (key) {
+    if (localStore.isAvailable()) {
+      localStore.remove(key);
+    }
+    $cookies.remove(key);    
+  }
+
+  function removeUserinfo () {
+    removeStored(AUTH_KEYS.USERINFO_KEY);
   }
 
   function loadUserCredentials () {
-    var credentials = localStorage.getObject(AUTH_KEYS.TOKEN_KEY, '{}');
-    useCredentials(credentials);
+    var credentials = loadStored(AUTH_KEYS.TOKEN_KEY);
+    useCredentials(credentials, true);
+  }
+
+  function loadStored (key) {
+    var stored;
+    if (localStore.isAvailable()) {
+      stored = localStore.getObject(key, '{}');
+    }
+    if (miscUtilFactory.isEmpty(stored)) {
+      stored = $cookies.getObject(key);
+      if (stored === undefined) {
+        stored = {};
+      }
+    }
+    return stored;
+  }
+
+  function getUserinfo() {
+    return loadStored(AUTH_KEYS.USERINFO_KEY);
   }
 
   function storeUserCredentials (credentials) {
-    localStorage.storeObject(AUTH_KEYS.TOKEN_KEY, credentials);
-    useCredentials(credentials);
+    store(AUTH_KEYS.TOKEN_KEY, credentials, credentials.expires);
   }
-  
-  function loginSuccess (loginData, response) {
-    var credentials = {
-      username: loginData.username,
-      token: response.token,
-      id: response.id
-    };
-    if (loginData.rememberMe) {
-      storeUserCredentials(credentials);
+
+  function store (key, obj, expires) {
+    if (localStore.isAvailable()) {
+      localStore.storeObject(key, obj);
     } else {
-      useCredentials(credentials);
+      var options;
+      if (expires) {
+        options = {
+          expires: expires
+        };
+      }
+      $cookies.putObject(key, obj, expires);
     }
   }
 
-  function loginFailure (response) {
+  function storeUserinfo (loginData) {
+    // only save username
+    store(AUTH_KEYS.USERINFO_KEY, { username: loginData.username });
+  }
+
+
+  function loginSuccess (loginData, response) {
+    
+    var credentials = miscUtilFactory.copyProperties(response, {
+      username: loginData.username
+    }, responseProperties);
+
+    if (loginData.rememberMe) {
+      storeUserinfo(loginData);
+    } else {
+      removeUserinfo();
+    }
+    storeUserCredentials(credentials);
+    useCredentials(credentials);
+
+    timerFactory.addTimeout(loginData.timeout);
+  }
+
+  function refreshSuccess (response) {
+    var credentials = loadStored(AUTH_KEYS.TOKEN_KEY);
+    
+    credentials.token = response.token;
+    credentials.expires = response.expires;
+    
+    storeUserCredentials(credentials);
+    useCredentials(credentials);
+  }
+
+  function loginFailure (/*response*/) {
     destroyUserCredentials();
   }
 
+  function userUrl (fxn) {
+    return baseURL + 'users/' + fxn;
+  }
+
   function login (loginData, success, failure) {
-    $resource(baseURL + 'users/login')
+    $resource(userUrl('login'))
       .save(loginData,
         function (response) {
           // success response
@@ -4450,17 +7426,57 @@ function AuthFactory($resource, $http, storeFactory, localStorage, baseURL, misc
       );
   }
 
-  function logout (next) {
-    $resource(baseURL + 'users/logout').get(function (response) {
-      if (next) {
-        next(response);
-      }
-    });
+  function tokenRefresh (success, failure) {
+    $resource(userUrl('token') + '/:id', {id:'@id'}, null)
+      .get({ id: USER.id, src: factory.SRC.WEB },
+        function (response) {
+          // success response
+          refreshSuccess(response);
+      
+          if (success) {
+            success(response);
+          }
+        },
+        function (response) {
+          // error response
+          checkForAuthError(response);
+
+          if (failure) {
+            failure(response);
+          }
+        }
+      );
+  }
+
+  function checkForAuthError (response) {
+    // error response
+    var wasErr = false,
+      appCode = miscUtilFactory.readSafe(response, ['data','error','appCode']);
+    if (APPCODE.IS_TOKEN_APPERR(appCode)) {
+      // any token error on a refresh shuts the shop
+      destroyUserCredentials();
+      wasErr = true;
+    }
+    return wasErr;
+  }
+
+  function logout (success, failure) {
+    $resource(userUrl('logout'))
+      .get(function (response) {
+        if (success) {
+          success(response);
+        }
+      },
+      function (response) {
+        if (failure) {
+          failure(response);
+        }
+      });
     destroyUserCredentials();
   }
 
   function register (registerData, success, failure) {
-    $resource(baseURL + 'users/register')
+    $resource(userUrl('register'))
       .save(registerData, function (response) {
           // success response
           var loginData = { username: registerData.username, password: registerData.password };
@@ -4482,10 +7498,12 @@ function AuthFactory($resource, $http, storeFactory, localStorage, baseURL, misc
   }
 
   function loginByFacebook (loginData, success, failure) {
-    $resource(baseURL + 'users/facebook')
+    $resource(userUrl('facebook'))
       .get({},
         function (response) {
           // success response
+      
+      console.log('success' , response);
       
         // TODO username from facebook login
       
@@ -4505,31 +7523,127 @@ function AuthFactory($resource, $http, storeFactory, localStorage, baseURL, misc
         }
       );
   }
+  
+  
+  /**
+   * Get an access setting for a menu
+   * @param   {string} menu  Menu name
+   * @param   {number} group Access group
+   * @returns {number} Access setting
+   */
+  function getAccess (menu, group) {
+    var access = ACCESS.ACCESS_NONE,
+      privileges = menuAccessProperties.find(function (name) {
+        return (name === menu);
+      });
+    if (privileges) {
+      privileges = USER[privileges] || ACCESS.ACCESS_NONE;
+      for (var bit = (group & ACCESS.ACCESS_GROUPMASK); bit; bit >>>= 1) {
+        if (bit & 0x01) {
+          access = privileges & ACCESS.ACCESS_MASK;
+          break;
+        }
+        privileges >>>= ACCESS.ACCESS_BIT_COUNT;  // next group
+      }
+    }
+    return access;
+  }
 
+  /**
+   * Access test
+   * @param   {string}  menu  Name of menu to test access for
+   * @param   {number}  group Access group
+   * @param   {number}  mask  Mask to test for
+   * @param   {boolean} exact Match criteria; true=exact, false=any
+   * @returns {boolean} true if access matches 
+   */
+  function accessTest (menu, group, mask, exact) {
+    var result = false,
+      testMask = (mask & ACCESS.ACCESS_MASK),
+      access;
+
+    for (var bit = 0x01; (bit & ACCESS.ACCESS_GROUPMASK); bit <<= 1) {
+      if (bit & group) {
+        access = getAccess(menu, bit) & testMask;
+        if (exact) {
+          result = (access === testMask); // exact match test
+          if (!result) {
+            break;
+          }
+        } else {
+          if (access !== 0) { // bit match test
+            result = true;
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Has access (i.e. at least one privilege) test
+   * @param   {string}  menu  Name of menu to test access for
+   * @param   {string}  group Access group; 'a'=all, '1'=one or 'o'=own
+   * @param   {string}  ops   Operations; 'c'=create, 'r'=read, 'u'=update & 'd'=delete
+   * @returns {boolean} true if has access
+   */
+  function hasAccess (menu, group, ops) {
+    return accessTest(menu, valToMask(group, a1o), valToMask(ops, crud), false);
+  }
+
+  /**
+   * Is access (i.e. all privilege) test
+   * @param   {string}  menu  Name of menu to test access for
+   * @param   {string}  group Access group; 'a'=all, '1'=one or 'o'=own
+   * @param   {string}  ops   Operations; 'c'=create, 'r'=read, 'u'=update & 'd'=delete
+   * @returns {boolean} true if has access
+   */
+  function isAccess (menu, group, ops) {
+    return accessTest(menu, valToMask(group, a1o), valToMask(ops, crud), true);
+  }
+
+  /**
+   * Convert a string value to a mask
+   * @param   {string} val   Value to convert
+   * @param   {Array}  cvals Convert values array
+   * @returns {number} mask
+   */
+  function valToMask (val, cvals) {
+    var lval = val.toLowerCase(),
+      mask = 0;
+    cvals.forEach(function (cval) {
+      if (lval.indexOf(cval.chr) >= 0) {
+        mask |= cval.bit;
+      }
+    });
+    return mask;
+  }
+
+  /**
+   * Convenience method to check if user is authenticated
+   * @returns {boolean} true if authenticated
+   */
   function isAuthenticated() {
     return USER.authenticated;
   }
 
+  /**
+   * Convenience method to get user's username
+   * @returns {string} 
+   */
   function getUsername() {
     return USER.username;
   }
 
+  /**
+   * Convenience method to get user's id
+   * @returns {string} 
+   */
   function getUserId() {
     return USER.id;
   }
-
-
-  function getUserinfo() {
-    return localStorage.getObject(AUTH_KEYS.USERINFO_KEY, '{}');
-  }
-
-  function storeUserinfo(loginData) {
-    localStorage.storeObject(AUTH_KEYS.USERINFO_KEY, { username: loginData.username });  // only save username
-  }
-
-  function removeUserinfo() {
-    localStorage.remove(AUTH_KEYS.USERINFO_KEY);
-  }
+  
+  
 }
 
 
@@ -4543,50 +7657,17 @@ angular.module('ct.clientCommon')
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'ADDR1', modelName: 'addrLine1',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'ADDR2', modelName: 'addrLine2',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'ADDR3', modelName: 'addrLine3',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'TOWN', modelName: 'town',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'CITY', modelName: 'city',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'COUNTY', modelName: 'county',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'COUNTRY', modelName: 'country',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'PCODE', modelName: 'postcode',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'GPS', modelName: 'gps',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'VOTEDIST', modelName: 'votingDistrict',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'OWNER', modelName: 'owner',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      }
+      schemaProvider.getStringModelPropArgs('addrLine1', { field: 'ADDR1' }),
+      schemaProvider.getStringModelPropArgs('addrLine2', { field: 'ADDR2' }),
+      schemaProvider.getStringModelPropArgs('addrLine3', { field: 'ADDR3' }),
+      schemaProvider.getStringModelPropArgs('town', { field: 'TOWN' }),
+      schemaProvider.getStringModelPropArgs('city', { field: 'CITY' }),
+      schemaProvider.getStringModelPropArgs('county', { field: 'COUNTY' }),
+      schemaProvider.getStringModelPropArgs('country', { field: 'COUNTRY' }),
+      schemaProvider.getStringModelPropArgs('postcode', { field: 'PCODE' }),
+      schemaProvider.getStringModelPropArgs('gps', { field: 'GPS' }),
+      schemaProvider.getObjectIdModelPropArgs('votingDistrict', undefined, undefined, undefined, undefined, { field: 'VOTEDIST' }),
+      schemaProvider.getObjectIdModelPropArgs('owner', undefined, undefined, undefined, undefined, { field: 'OWNER' })
     ],
       ids = {},
       modelProps = [];
@@ -4637,100 +7718,42 @@ angular.module('ct.clientCommon')
       });
   }])
 
-  .filter('filterAddr', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
-
-    function filterAddrFilter (input, schema, filterBy) {
-      
-      // address specific filter function
-      var out = [];
-
-      if (!miscUtilFactory.isEmpty(filterBy)) {
-        var testCnt = 0,  // num of fields to test as speced by filter
-          matchCnt;       // num of fields matching filter
-        schema.forEachField(function(idx, fieldProp) {
-          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
-            ++testCnt;
-          }
-        });
-        angular.forEach(input, function (addr) {
-          matchCnt = 0;
-          schema.forEachField(function(idx, fieldProp) {
-            var filterVal = filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]];  // filter uses dialog properties
-            if (filterVal) {
-              filterVal = filterVal.toLowerCase();
-              // apply OR logic to multiple model fields
-              var match = false,
-                model = fieldProp[SCHEMA_CONST.MODEL_PROP];
-              for (var j = 0; !match && (j < model.length); ++j) {
-                var addrVal = addr[model[j]];
-                if (addrVal) {
-                  match = (addrVal.toLowerCase().indexOf(filterVal) >= 0);
-                }
-              }
-              if (match) {
-                ++matchCnt;
-                if (matchCnt === testCnt) {
-                  out.push(addr);
-                }
-              }
-            }
-          });
-        });
-      } else {
-        out = input;
-      }
-      return out;
-    }
-
-    return filterAddrFilter;
-  }])
-
   .factory('addressFactory', addressFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-addressFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'consoleService', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'SCHEMA_CONST', 'ADDRSCHEMA'];
+addressFactory.$inject = ['$filter', '$injector', 'baseURL', 'consoleService', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'SCHEMA_CONST', 'ADDRSCHEMA'];
 
-function addressFactory($resource, $filter, $injector, baseURL, consoleService, storeFactory, resourceFactory, compareFactory, filterFactory, SCHEMA_CONST, ADDRSCHEMA) {
+function addressFactory($filter, $injector, baseURL, consoleService, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, SCHEMA_CONST, ADDRSCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'addressFactory',
-      getAddresses: getAddresses,
-      getCount: getCount,
 
       readRspObject: readRspObject,
 
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachAddrSchemaField,
-      getSortOptions: getSortOptions,
       getSortFunction: getSortFunction,
-      getFilteredResource: getFilteredResource,
       stringifyAddress: stringifyAddress
     },
-    con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: ADDRSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: ADDRSCHEMA.ID_TAG,
+    schema: ADDRSCHEMA.SCHEMA,
+    sortOptions: ADDRSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      address: resourceFactory.getResourceConfigWithId('addresses'),
+      count: resourceFactory.getResourceConfig('addresses/count')
+    }
+  });
   
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getAddresses () {
-    return resourceFactory.getResources('addresses');
-  }
-
-  function getCount () {
-    return resourceFactory.getCount('addresses');
-  }
 
   /**
    * Read a server response address object
@@ -4758,95 +7781,6 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
     return object;
   }
 
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId(id) {
-    return ADDRSCHEMA.ID_TAG + id;
-  }
-
-  function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
-    
-    filter = filter || newFilter();
-
-    if (typeof filter === 'function') {
-      forEachSchemaField = failure;
-      failure = success;
-      filter = newFilter();
-    }
-    if (!forEachSchemaField) {
-      forEachSchemaField = forEachAddrSchemaField;
-    }
-
-    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
-
-    resList.setList([]);
-    getAddresses().query(query).$promise.then(
-      // success function
-      function (response) {
-        // add indices
-        for (var i = 0; i < response.length; ++i) {
-          response[i].index = i + 1;
-        }
-        // response from server contains result of filter request
-        resList.setList(response, storeFactory.APPLY_FILTER);
-
-        if (success){
-          success(response);
-        }
-      },
-      // error function
-      function (response) {
-        if (failure){
-          failure(response);
-        }
-      }
-    );
-  }
-  
-  function setFilter (id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions () {
-    return ADDRSCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachAddrSchemaField (callback) {
-    ADDRSCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  function newFilter (base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(ADDRSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object}   reslist    Address ResourceList object to filter
-   * @param {object}   filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array}    filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // address specific filter function
-    return filterFactory.getFilteredList('filterAddr', reslist, filter, xtraFilter);
-  }
-  
-  function filterFunction (addrList, filter) {
-    // address specific filter function
-    addrList.filterList = getFilteredList(addrList, filter);
-  }
-  
-  
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
     if (typeof sortFxn === 'object') {
@@ -4902,7 +7836,7 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
       join = ', ';
     }
     var str = '';
-    forEachAddrSchemaField(function (idx, fieldProp) {
+    factory.forEachSchemaField(function (fieldProp) {
       fieldProp[SCHEMA_CONST.MODEL_PROP].forEach(function (property) {
         if (addr[property]) {
           var value = addr[property].trim();
@@ -4916,7 +7850,6 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
     return str;
   }
 
-
 }
 
 
@@ -4929,34 +7862,16 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'ADDRSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, ADDRSCHEMA) {
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'FNAME', modelName: 'firstname',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'LNAME', modelName: 'lastname',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'NOTE', modelName: 'note',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'ADDR', modelName: 'address',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'CONTACT', modelName: 'contactDetails',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'OWNER', modelName: 'owner',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      }
+      schemaProvider.getStringModelPropArgs('firstname', { field: 'FNAME' }),
+      schemaProvider.getStringModelPropArgs('lastname', { field: 'LNAME' }),
+      schemaProvider.getStringModelPropArgs('note', { field: 'NOTE' }),
+      schemaProvider.getObjectIdModelPropArgs('address', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDR' }),
+      schemaProvider.getObjectIdModelPropArgs('contactDetails', undefined, undefined, undefined, undefined,  { field: 'CONTACT' }),
+      schemaProvider.getObjectIdModelPropArgs('owner', undefined, undefined, undefined, undefined, { field: 'OWNER' })
     ],
       ids = {},
       modelProps = [];
@@ -5001,64 +7916,32 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-peopleFactory.$inject = ['$resource', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'SCHEMA_CONST', 'PEOPLESCHEMA'];
+peopleFactory.$inject = ['baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'SCHEMA_CONST', 'PEOPLESCHEMA'];
 
-function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, SCHEMA_CONST, PEOPLESCHEMA) {
+function peopleFactory (baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, SCHEMA_CONST, PEOPLESCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     NAME: 'peopleFactory',
-    getPeople: getPeople,
-    getCount: getCount,
-    setFilter: setFilter,
-    newFilter: newFilter,
-    forEachSchemaField: forEachPeopleSchemaField,
-    getSortOptions: getSortOptions,
     getSortFunction: getSortFunction
-  },
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: PEOPLESCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+  };
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: PEOPLESCHEMA.ID_TAG,
+    schema: PEOPLESCHEMA.SCHEMA,
+    sortOptions: PEOPLESCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      person: resourceFactory.getResourceConfigWithId('people'),
+      count: resourceFactory.getResourceConfig('people/count')
+    }
+  });
   
   return factory;
 
   /* function implementation
     -------------------------- */
 
-  function getPeople () {
-    return resourceFactory.getResources('people');
-  }
-
-  function getCount () {
-    return resourceFactory.getCount('people');
-  }
-  
-  function storeId (id) {
-    return PEOPLESCHEMA.ID_TAG + id;
-  }
-
-  function setFilter (id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions () {
-    return PEOPLESCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachPeopleSchemaField (callback) {
-    PEOPLESCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  function newFilter (base) {
-    return filterFactory.newResourceFilter(PEOPLESCHEMA.SCHEMA, base);
-  }
-  
-  
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
     if (typeof sortFxn === 'object') {
@@ -5113,30 +7996,109 @@ angular.module('ct.clientCommon')
     };
   })())
 
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'ROLES', function ($provide, schemaProvider, SCHEMA_CONST, ROLES) {
+
+    var details = [
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getNumberModelPropArgs('level', ROLES.ROLE_NONE, { field: 'LEVEL' })
+    ],
+      ids = {},
+      modelProps = [];
+
+    for (var i = 0; i < details.length; ++i) {
+      ids[details[i].field] = i;          // id is index
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      
+      var x = schemaProvider.getModelPropObject(args);
+      console.log(x.toString());
+      
+      modelProps.push(schemaProvider.getModelPropObject(args));
+    }
+
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('role'),
+      schema = schemaProvider.getSchema('Role', modelProps, ids, ID_TAG),
+      ROLE_NAME_IDX =
+        schema.addFieldFromModelProp('name', 'Name', ids.NAME),
+      ROLE_LEVEL_IDX =
+        schema.addFieldFromModelProp('level', 'Level', ids.LEVEL),
+
+      // generate list of sort options
+      sortOptions = schemaProvider.makeSortList(schema, 
+                      [ROLE_NAME_IDX, ROLE_LEVEL_IDX],
+                      ID_TAG);
+
+    $provide.constant('ROLESCHEMA', {
+      IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
+      MODELPROPS: modelProps,
+
+      SCHEMA: schema,
+      // row indices
+      ROLE_NAME_IDX: ROLE_NAME_IDX,
+      ROLE_LEVEL_IDX: ROLE_LEVEL_IDX,
+
+      SORT_OPTIONS: sortOptions,
+      ID_TAG: ID_TAG
+    });
+  }])
+
+
   .factory('roleFactory', roleFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-roleFactory.$inject = ['$resource', 'baseURL'];
+roleFactory.$inject = ['SCHEMA_CONST', 'ROLESCHEMA', 'resourceFactory'];
 
-function roleFactory ($resource, baseURL) {
+function roleFactory (SCHEMA_CONST, ROLESCHEMA, resourceFactory) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-    getRoles: getRoles
+    NAME: 'roleFactory',
+    readRspObject: readRspObject
   };
   
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: ROLESCHEMA.ID_TAG,
+    schema: ROLESCHEMA.SCHEMA,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      role: resourceFactory.getResourceConfig('roles')
+    }
+  });
+
   return factory;
 
   /* function implementation
     -------------------------- */
 
-  function getRoles () {
-    // only getting roles, so no need for a custom action as the default resource "class" object has get/query
-    return $resource(baseURL + 'roles', null, null);
+  /**
+   * Read a server response canvass object
+   * @param {object} response   Server response
+   * @param {object} args       arguments object
+   *                            @see Schema.readProperty() for details
+   * @returns {object}  Canvass object
+   */
+  function readRspObject (response, args) {
+    if (!args) {
+      args = {};
+    }
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
+
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = ROLESCHEMA.SCHEMA.read(response, stdArgs);
+
+    return object;
   }
+
+  
 }
 
 
@@ -5147,7 +8109,7 @@ function roleFactory ($resource, baseURL) {
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'ROLESCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA, ROLESCHEMA) {
 
     var i, uidx = 0,
       ids = {},
@@ -5158,18 +8120,9 @@ angular.module('ct.clientCommon')
 
       details = [
         SCHEMA_CONST.ID,
-        {
-          field: 'UNAME', modelName: 'username',
-          dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-        },
-        {
-          field: 'ROLE', modelName: 'role', factory: 'roleFactory',
-          dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-        },
-        {
-          field: 'PERSON', modelName: 'person', factory: 'peopleFactory',
-          dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-        }
+        schemaProvider.getStringModelPropArgs('username', { field: 'UNAME' }),
+        schemaProvider.getObjectIdModelPropArgs('role', 'roleFactory', 'role', ROLESCHEMA, ROLESCHEMA.IDs.ID, { field: 'ROLE' }),
+        schemaProvider.getObjectIdModelPropArgs('person', 'peopleFactory', 'person', PEOPLESCHEMA, PEOPLESCHEMA.IDs.ID, { field: 'PERSON' })
       ];
 
     // user schema is a combination of the person & address
@@ -5214,6 +8167,8 @@ angular.module('ct.clientCommon')
 
       USER_UNAME_IDX =
         schema.addFieldFromModelProp('uname', 'Username', ids.UNAME),
+      USER_ROLE_IDX =
+        schema.addFieldFromModelProp('role', 'Role', ids.ROLE),
 
       sortOptions,  // user schema sort options
       sortOptionIndices = // dialog properties of sort options
@@ -5223,18 +8178,14 @@ angular.module('ct.clientCommon')
 
     subSchemaList.forEach(function (subSchema) {
       subSchema.schema.SCHEMA.forEachField(
-        function (index, fieldProp) {
-          schema.addField(
-            fieldProp[SCHEMA_CONST.DIALOG_PROP],
-            fieldProp[SCHEMA_CONST.DISPLAY_PROP],
-            fieldProp[SCHEMA_CONST.MODEL_PROP],
-            fieldProp[SCHEMA_CONST.TYPE_PROP], {
-              path: subSchema.path,
-              cb: function (field) {
-                // save dialog property for index configuration
-                sortOptionIndices.push(field.dialog);
-              }
-            });
+        function (schemaField) {
+          schema.addFieldFromField(schemaField, {
+            path: subSchema.path,
+            cb: function (field) {
+              // save dialog property for index configuration
+              sortOptionIndices.push(field.dialog);
+            }
+          });
         });
     });
 
@@ -5269,6 +8220,7 @@ angular.module('ct.clientCommon')
       MODELPROPS: modelProps,
 
       USER_UNAME_IDX: USER_UNAME_IDX,
+      USER_ROLE_IDX: USER_ROLE_IDX,
 
       SCHEMA: schema,
 
@@ -5278,98 +8230,38 @@ angular.module('ct.clientCommon')
     $provide.constant('USERSCHEMA', constToProvide);
   }])
 
-  .filter('filterUser', ['SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'miscUtilFactory', function (SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA, miscUtilFactory) {
-    
-    function filterUserFilter (input, schema, filterBy) {
-      
-      // user specific filter function
-      var out = [];
-
-      if (!miscUtilFactory.isEmpty(filterBy)) {
-        var testCnt = 0,  // num of fields to test as speced by filter
-          matchCnt;       // num of fields matching filter
-        schema.forEachField(function(idx, fieldProp) {
-          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
-            ++testCnt;
-          }
-        });
-        angular.forEach(input, function (user) {
-          matchCnt = 0;
-          schema.forEachField(function(idx, fieldProp) {
-            var filterVal = filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]];  // filter uses dialog properties
-            if (filterVal) {
-              var userObj = user,
-                path = fieldProp[SCHEMA_CONST.PATH_PROP];
-              if (path) {
-                for (var i = 0; !miscUtilFactory.isNullOrUndefined(userObj) && (i < path.length); ++i) {
-                  userObj = userObj[path[i]];
-                }
-              }
-              if (userObj) {
-                filterVal = filterVal.toLowerCase();
-                // apply OR logic to multiple model fields
-                var match = false,
-                  model = fieldProp[SCHEMA_CONST.MODEL_PROP];
-                for (var j = 0; !match && (j < model.length); ++j) {
-                  var userVal = userObj[model[j]];
-                  if (userVal) {
-                    match = (userVal.toLowerCase().indexOf(filterVal) >= 0);
-                  }
-                }
-                if (match) {
-                  ++matchCnt;
-                  if (matchCnt === testCnt) {
-                    out.push(user);
-                  }
-                }
-              }
-            }
-          });
-        });
-      } else {
-        out = input;
-      }
-      return out;
-    }
-    
-    return filterUserFilter;
-  }])
-
   .factory('userFactory', userFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-userFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory',
+userFactory.$inject = ['$injector', '$filter', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory',
   'SCHEMA_CONST', 'USERSCHEMA'];
 
-function userFactory($resource, $injector, $filter, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory,
+function userFactory($injector, $filter, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory,
   SCHEMA_CONST, USERSCHEMA) {
 
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     NAME: 'userFactory',
-    getUsers: getUsers,
-    getCount: getCount,
-    setFilter: setFilter,
-    newFilter: newFilter,
-    getFilteredList: getFilteredList,
-    forEachSchemaField: forEachUserSchemaField,
-    getSortOptions: getSortOptions,
     getSortFunction: getSortFunction,
-    getFilteredResource: getFilteredResource,
     readUserRsp: readUserRsp
-
   },
-  stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-    storeId: storeId,
-    schema: USERSCHEMA.SCHEMA,
-    addInterface: factory // add standard factory functions to this factory
-  }),
   comparinators = [];
-  
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: USERSCHEMA.ID_TAG,
+    schema: USERSCHEMA.SCHEMA,
+    sortOptions: USERSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      user: resourceFactory.getResourceConfigWithId('users'),
+      count: resourceFactory.getResourceConfig('users/count')
+    }
+  });
+
   // make an array of comparinator objects based on sort indices
   USERSCHEMA.SORT_OPTIONS.forEach(function (option) {
     if (option.id) {
@@ -5385,53 +8277,6 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
 
   /* function implementation
     -------------------------- */
-
-  function getUsers () {
-    return resourceFactory.getResources('users');
-  }
-
-  function getCount () {
-    return resourceFactory.getCount('users');
-  }
-  
-  function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
-    
-    filter = filter || newFilter();
-
-    if (typeof filter === 'function') {
-      forEachSchemaField = failure;
-      failure = success;
-      filter = newFilter();
-    }
-    if (!forEachSchemaField) {
-      forEachSchemaField = forEachUserSchemaField;
-    }
-
-    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
-
-    resList.setList([]);
-    getUsers().query(query).$promise.then(
-      // success function
-      function (response) {
-        // add indices
-        for (var i = 0; i < response.length; ++i) {
-          response[i].index = i + 1;
-        }
-        // response from server contains result of filter request
-        resList.setList(response, storeFactory.APPLY_FILTER);
-        
-        if (success){
-          success(response);
-        }
-      },
-      // error function
-      function (response) {
-        if (failure){
-          failure(response);
-        }
-      }
-    );
-  }
 
   /**
    * Read a server response user object
@@ -5493,81 +8338,6 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
   }
 
   /**
-   * Create storefactory id
-   * @param {string}   id       id within this factory
-   * @return {string}  storefactory id
-   */
-  function storeId(id) {
-    return USERSCHEMA.ID_TAG + id;
-  }
-
-  /**
-   * Set the filter for a user ResourceList object
-   * @param {string} id     Factory id of object
-   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
-   * @param {number} flags  storefactory flags
-   * @returns {object} user ResourceList object
-   */
-  function setFilter(id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  /**
-   * Get the default sort options for a user ResourceList object
-   * @returns {object} user ResourceList sort options
-   */
-  function getSortOptions() {
-    return USERSCHEMA.SORT_OPTIONS;
-  }
-
-  /**
-   * Execute the callback on each of the schema fields
-   */
-  function forEachUserSchemaField(callback) {
-    USERSCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  /**
-   * Get a new filter object
-   * @param {object} base           filter base object
-   * @param {function} customFilter custom filter function
-   * @returns {object} user ResourceList filter object
-   */
-  function newFilter(base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(USERSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-
-  /**
-   * Generate a filtered list
-   * @param {object}   reslist    User ResourceList object to filter
-   * @param {object}   filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array}    filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // user specific filter function
-    return filterFactory.getFilteredList('filterUser', reslist, filter, xtraFilter);
-  }
-  
-  /**
-   * Default user ResourceList custom filter function
-   * @param {object} reslist    user ResourceList object to filter
-   * @param {object} filter     filter to apply
-   */
-  function filterFunction(reslist, filter) {
-    // user specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
-  }
-  
-  /**
    * Get the sort function for a user ResourceList
    * @param   {object} sortOptions  List of possible sort option
    * @param   {object} sortBy       Key to sort by
@@ -5592,9 +8362,9 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
    * @param   {object} b Second user object
    * @returns {number} comparision result
    */
-  function compareUsername (a, b) {
-    return compareFactory.compareStringFields(USERSCHEMA.SCHEMA, USERSCHEMA.USER_UNAME_IDX, a, b);
-  }
+//  function compareUsername (a, b) {
+//    return compareFactory.compareStringFields(USERSCHEMA.SCHEMA, USERSCHEMA.USER_UNAME_IDX, a, b);
+//  }
 
   /**
    * Wrapper function to return comparinator function
@@ -5623,195 +8393,11 @@ angular.module('ct.clientCommon')
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'NAME', modelName: 'name',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'DESCRIPTION', modelName: 'description',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'QUESTIONS', modelName: 'questions', factory: 'questionFactory',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      }
-    ],
-      ids = {},
-      modelProps = [];
-
-    for (var i = 0; i < details.length; ++i) {
-      ids[details[i].field] = i;          // id is index
-
-      var args = angular.copy(details[i]);
-      args.id = i;
-      modelProps.push(schemaProvider.getModelPropObject(args));
-    }
-
-    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('survey'),
-      schema = schemaProvider.getSchema('Survey', modelProps, ids, ID_TAG),
-      SURVEY_NAME_IDX =
-        schema.addFieldFromModelProp('name', 'Name', ids.NAME),
-      SURVEY_DESCRIPTION_IDX =
-        schema.addFieldFromModelProp('description', 'Description', ids.DESCRIPTION),
-      SURVEY_QUESTIONS_IDX =
-        schema.addFieldFromModelProp('questions', 'Questions', ids.QUESTIONS),
-
-      // generate list of sort options
-      sortOptions = schemaProvider.makeSortList(schema, 
-                      [SURVEY_NAME_IDX, SURVEY_DESCRIPTION_IDX],
-                      ID_TAG);
-
-    $provide.constant('SURVEYSCHEMA', {
-      IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      MODELPROPS: modelProps,
-
-      SCHEMA: schema,
-      // row indices
-      SURVEY_NAME_IDX: SURVEY_NAME_IDX,
-      SURVEY_DESCRIPTION_IDX: SURVEY_DESCRIPTION_IDX,
-      SURVEY_QUESTIONS_IDX: SURVEY_QUESTIONS_IDX,
-
-      SORT_OPTIONS: sortOptions,
-      ID_TAG: ID_TAG
-    });
-  }])
-
-  .factory('surveyFactory', surveyFactory);
-
-/* Manually Identify Dependencies
-  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
-*/
-
-surveyFactory.$inject = ['$resource', '$injector', 'baseURL', 'SURVEYSCHEMA', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'consoleService'];
-
-function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory, resourceFactory, miscUtilFactory, consoleService) {
-
-  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
-  var factory = {
-      NAME: 'surveyFactory',
-      getSurveys: getSurveys,
-      readRspObject: readRspObject,
-      readResponse: readResponse,
-      storeRspObject: storeRspObject
-    },
-   con = consoleService.getLogger(factory.NAME),
-   stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: SURVEYSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
- 
-  return factory;
-
-  /* function implementation
-    -------------------------- */
-
-  function getSurveys () {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update method
-    */
-    return $resource(baseURL + 'surveys/:id', {id:'@id'}, {'update': {method: 'PUT'}});
-  }
-
-  /**
-   * Read a server response survey object
-   * @param {object} response   Server response
-   * @param {object} args       arguments object
-   *                            @see Schema.readProperty() for details
-   * @returns {object}  Survey object
-   */
-  function readRspObject(response, args) {
-    if (!args) {
-      args = {};
-    }
-    // no conversions required by default
-//    if (!args.convert) {
-//      args.convert = readRspObjectValueConvert;
-//    }
-    // add resources required by Schema object
-    resourceFactory.addResourcesToArgs(args);
-
-    var stdArgs = resourceFactory.standardiseArgs(args),
-      object = SURVEYSCHEMA.SCHEMA.read(response, stdArgs);
-
-    con.debug('Read survey rsp object: ' + object);
-
-    return object;
-  }
-
-  /**
-   * Read a survey response from the server and store it
-   * @param {object}   response   Server response
-   * @param {object}   args       process arguments object with following properties
-   *    {string|Array} objId      id/array of ids of survey object to save response data to
-   *    {number}       flags      storefactory flags
-   *    {function}     next       function to call after processing
-   * @returns {object}   Survey object
-   */
-  function readResponse (response, args) {
-    var survey = readRspObject(response, args);
-    return storeRspObject(survey, args);
-  }
-
-  /**
-   * Store a survey object
-   * @param {object}   obj        Object to store
-   * @param {object}   args       process arguments object as per resourceFactory.storeServerRsp()
-   *                              without 'factory' argument
-   *                              @see resourceFactory.storeServerRsp()
-   * @return {object}  survey ResourceList object
-   */
-  function storeRspObject (obj, args) {
-    var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
-      factory: $injector.get(factory.NAME)
-    });
-    return resourceFactory.storeServerRsp(obj, storeArgs);
-  }
-
-
-  function storeId(id) {
-    return SURVEYSCHEMA.ID_TAG + id;
-  }
-
-}
-
-/*jslint node: true */
-/*global angular */
-'use strict';
-
-angular.module('ct.clientCommon')
-
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
-
-    var details = [
-      SCHEMA_CONST.ID,
-      {
-        field: 'TYPE', modelName: 'type',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.NUMBER
-      },
-      {
-        field: 'QUESTION', modelName: 'question',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'OPTIONS', modelName: 'options',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.STRING_ARRAY
-      },
-      {
-        field: 'RANGEMIN', modelName: 'rangeMin',
-        dfltValue: 1, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
-      },
-      {
-        field: 'RANGEMAX', modelName: 'rangeMax',
-        dfltValue: 10, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
-      }
+      schemaProvider.getNumberModelPropArgs('type', undefined, { field: 'TYPE' }),
+      schemaProvider.getStringModelPropArgs('question', { field: 'QUESTION' }),
+      schemaProvider.getStringArrayModelPropArgs('options', { field: 'OPTIONS' }),
+      schemaProvider.getNumberModelPropArgs('rangeMin', 1, { field: 'RANGEMIN' }),
+      schemaProvider.getNumberModelPropArgs('rangeMax', 10, { field: 'RANGEMAX' })
     ],
       ids = {},
       modelProps = [];
@@ -5906,38 +8492,19 @@ angular.module('ct.clientCommon')
     });
   }])
 
-  .filter('filterQues', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
-
-    function filterQuesFilter(input, schema, filterBy) {
-
-      // question specific filter function
-      var out = [];
-
-      //if (!miscUtilFactory.isEmpty(filterBy)) {
-        // TODO question specific filter function
-      //} else {
-        out = input;
-      //}
-      return out;
-    }
-
-    return filterQuesFilter;
-  }])
-
   .factory('questionFactory', questionFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-questionFactory.$inject = ['$resource', '$injector', 'baseURL', 'SCHEMA_CONST', 'QUESTIONSCHEMA', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'consoleService'];
+questionFactory.$inject = ['$injector', 'baseURL', 'SCHEMA_CONST', 'QUESTIONSCHEMA', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'consoleService'];
 
-function questionFactory($resource, $injector, baseURL, SCHEMA_CONST, QUESTIONSCHEMA, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, consoleService) {
+function questionFactory($injector, baseURL, SCHEMA_CONST, QUESTIONSCHEMA, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'questionFactory',
-      getQuestions: getQuestions,
       getQuestionTypes: getQuestionTypes,
       getQuestionTypeObj: getQuestionTypeObj,
       getQuestionTypeName: getQuestionTypeName,
@@ -5951,39 +8518,24 @@ function questionFactory($resource, $injector, baseURL, SCHEMA_CONST, QUESTIONSC
       readResponse: readResponse,
       storeRspObject: storeRspObject,
 
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachQuesSchemaField,
-      getSortOptions: getSortOptions,
       getSortFunction: getSortFunction,
-      getFilteredResource: getFilteredResource
     },
-    con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: QUESTIONSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: QUESTIONSCHEMA.ID_TAG,
+    schema: QUESTIONSCHEMA.SCHEMA,
+    sortOptions: QUESTIONSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      question: resourceFactory.getResourceConfigWithId('questions')
+    }
+  });
 
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getQuestions () {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update method
-    */
-    return $resource(baseURL + 'questions/:id', {id:'@id'}, {'update': {method: 'PUT'}});
-  }
 
   /**
     * Return all the possible question types
@@ -6145,91 +8697,6 @@ function questionFactory($resource, $injector, baseURL, SCHEMA_CONST, QUESTIONSC
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
-  function getFilteredResource(resList, filter, success, failure, forEachSchemaField) {
-
-    filter = filter || newFilter();
-
-    if (typeof filter === 'function') {
-      forEachSchemaField = failure;
-      failure = success;
-      filter = newFilter();
-    }
-    if (!forEachSchemaField) {
-      forEachSchemaField = forEachQuesSchemaField;
-    }
-
-    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
-
-    resList.setList([]);
-    getQuestions().query(query).$promise.then(
-      // success function
-      function (response) {
-        // add indices
-        for (var i = 0; i < response.length; ++i) {
-          response[i].index = i + 1;
-        }
-        // response from server contains result of filter request
-        resList.setList(response, storeFactory.APPLY_FILTER);
-
-        if (success) {
-          success(response);
-        }
-      },
-      // error function
-      function (response) {
-        if (failure) {
-          failure(response);
-        }
-      }
-    );
-  }
-
-
-  function storeId(id) {
-    return QUESTIONSCHEMA.ID_TAG + id;
-  }
-  
-  function setFilter (id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions () {
-    return QUESTIONSCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachQuesSchemaField (callback) {
-    QUESTIONSCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  function newFilter (base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(QUESTIONSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object}   reslist    Address ResourceList object to filter
-   * @param {object}   filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array}    filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    return filterFactory.getFilteredList('filterQues', reslist, filter, xtraFilter);
-  }
-  
-  function filterFunction (reslist, filter) {
-    // question specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
-  }
-  
-  
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
     if (typeof sortFxn === 'object') {
@@ -6259,18 +8726,12 @@ function questionFactory($resource, $injector, baseURL, SCHEMA_CONST, QUESTIONSC
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'QUESTIONSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, QUESTIONSCHEMA) {
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'ANSWER', modelName: 'answer',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'QUESTION', modelName: 'question',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      }
+      schemaProvider.getStringModelPropArgs('answer', { field: 'ANSWER' }),
+      schemaProvider.getObjectIdModelPropArgs('question', 'questionFactory', 'question', QUESTIONSCHEMA, QUESTIONSCHEMA.IDs.ID, { field: 'QUESTION' })
     ],
       ids = {},
       modelProps = [];
@@ -6306,75 +8767,41 @@ angular.module('ct.clientCommon')
     });
   }])
 
-  .filter('filterAns', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
-
-    function filterQuesFilter(input, schema, filterBy) {
-
-      // answer specific filter function
-      var out = [];
-
-      //if (!miscUtilFactory.isEmpty(filterBy)) {
-      // TODO answer specific filter function
-      //} else {
-      out = input;
-      //}
-      return out;
-    }
-
-    return filterQuesFilter;
-  }])
-
   .factory('answerFactory', answerFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-answerFactory.$inject = ['$resource', '$injector', 'baseURL', 'SCHEMA_CONST', 'ANSWERSCHEMA', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'consoleService'];
+answerFactory.$inject = ['$injector', 'baseURL', 'SCHEMA_CONST', 'ANSWERSCHEMA', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'consoleService'];
 
-function answerFactory($resource, $injector, baseURL, SCHEMA_CONST, ANSWERSCHEMA, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, consoleService) {
+function answerFactory($injector, baseURL, SCHEMA_CONST, ANSWERSCHEMA, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'answerFactory',
-      getAnswers: getAnswers,
       readRspObject: readRspObject,
       readResponse: readResponse,
       storeRspObject: storeRspObject,
 
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachAnsSchemaField,
-      getSortOptions: getSortOptions,
       getSortFunction: getSortFunction,
-      getFilteredResource: getFilteredResource
     },
-    con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: ANSWERSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: ANSWERSCHEMA.ID_TAG,
+    schema: ANSWERSCHEMA.SCHEMA,
+    sortOptions: ANSWERSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      answer: resourceFactory.getResourceConfigWithId('answers')
+    }
+  });
 
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getAnswers () {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update method
-    */
-    return $resource(baseURL + 'answers/:id', { id: '@id' }, { 'update': { method: 'PUT' } });
-  }
 
   /**
    * Read a server response question object
@@ -6431,91 +8858,6 @@ function answerFactory($resource, $injector, baseURL, SCHEMA_CONST, ANSWERSCHEMA
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
-  function getFilteredResource(resList, filter, success, failure, forEachSchemaField) {
-
-    filter = filter || newFilter();
-
-    if (typeof filter === 'function') {
-      forEachSchemaField = failure;
-      failure = success;
-      filter = newFilter();
-    }
-    if (!forEachSchemaField) {
-      forEachSchemaField = forEachAnsSchemaField;
-    }
-
-    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
-
-    resList.setList([]);
-    getAnswers().query(query).$promise.then(
-      // success function
-      function (response) {
-        // add indices
-        for (var i = 0; i < response.length; ++i) {
-          response[i].index = i + 1;
-        }
-        // response from server contains result of filter request
-        resList.setList(response, storeFactory.APPLY_FILTER);
-
-        if (success) {
-          success(response);
-        }
-      },
-      // error function
-      function (response) {
-        if (failure) {
-          failure(response);
-        }
-      }
-    );
-  }
-
-
-  function storeId(id) {
-    return ANSWERSCHEMA.ID_TAG + id;
-  }
-  
-  function setFilter (id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions () {
-    return ANSWERSCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachAnsSchemaField (callback) {
-    ANSWERSCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  function newFilter (base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(ANSWERSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object}   reslist    Address ResourceList object to filter
-   * @param {object}   filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array}    filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    return filterFactory.getFilteredList('filterAns', reslist, filter, xtraFilter);
-  }
-  
-  function filterFunction (reslist, filter) {
-    // question specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
-  }
-  
-  
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
     if (typeof sortFxn === 'object') {
@@ -6542,34 +8884,13 @@ function answerFactory($resource, $injector, baseURL, SCHEMA_CONST, ANSWERSCHEMA
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'QUESTIONSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, QUESTIONSCHEMA) {
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'NAME', modelName: 'name',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'DESCRIPTION', modelName: 'description',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'SEATS', modelName: 'seats',
-        dfltValue: 0, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
-      },
-      {
-        field: 'ELECTIONDATE', modelName: 'electionDate',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
-      },
-      {
-        field: 'SYSTEM', modelName: 'system', factory: 'votingsystemFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'CANDIDATES', modelName: 'candidates',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      }
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('questions', 'questionFactory', 'question', QUESTIONSCHEMA, QUESTIONSCHEMA.IDs.ID, { field: 'QUESTIONS' })
     ],
       ids = {},
       modelProps = [];
@@ -6582,149 +8903,116 @@ angular.module('ct.clientCommon')
       modelProps.push(schemaProvider.getModelPropObject(args));
     }
 
-    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('election'),
-      schema = schemaProvider.getSchema('Election', modelProps, ids, ID_TAG),
-      ELECTION_NAME_IDX =
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('survey'),
+      schema = schemaProvider.getSchema('Survey', modelProps, ids, ID_TAG),
+      SURVEY_NAME_IDX =
         schema.addFieldFromModelProp('name', 'Name', ids.NAME),
-      ELECTION_DESCRIPTION_IDX =
+      SURVEY_DESCRIPTION_IDX =
         schema.addFieldFromModelProp('description', 'Description', ids.DESCRIPTION),
-      ELECTION_SEATS_IDX =
-        schema.addFieldFromModelProp('seats', 'Seats', ids.SEATS),
-      ELECTION_ELECTIONDATE_IDX =
-        schema.addFieldFromModelProp('date', 'Election Date', ids.ELECTIONDATE),
-      ELECTION_SYSTEM_IDX =
-        schema.addFieldFromModelProp('system', 'System', ids.SYSTEM),
+      SURVEY_QUESTIONS_IDX =
+        schema.addFieldFromModelProp('questions', 'Questions', ids.QUESTIONS),
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-                [ELECTION_NAME_IDX, ELECTION_SEATS_IDX, ELECTION_ELECTIONDATE_IDX, ELECTION_SYSTEM_IDX],
-                ID_TAG);
+                      [SURVEY_NAME_IDX, SURVEY_DESCRIPTION_IDX],
+                      ID_TAG);
 
-    $provide.constant('ELECTIONSCHEMA', {
+    $provide.constant('SURVEYSCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
       MODELPROPS: modelProps,
 
       SCHEMA: schema,
       // row indices
-      ELECTION_NAME_IDX: ELECTION_NAME_IDX,
-      ELECTION_DESCRIPTION_IDX: ELECTION_DESCRIPTION_IDX,
-      ELECTION_SEATS_IDX: ELECTION_SEATS_IDX,
-      ELECTION_ELECTIONDATE_IDX: ELECTION_ELECTIONDATE_IDX,
-      ELECTION_SYSTEM_IDX: ELECTION_SYSTEM_IDX,
+      SURVEY_NAME_IDX: SURVEY_NAME_IDX,
+      SURVEY_DESCRIPTION_IDX: SURVEY_DESCRIPTION_IDX,
+      SURVEY_QUESTIONS_IDX: SURVEY_QUESTIONS_IDX,
 
       SORT_OPTIONS: sortOptions,
       ID_TAG: ID_TAG
     });
   }])
 
-  .factory('electionFactory', electionFactory);
+  .factory('surveyFactory', surveyFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-electionFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'filterFactory', 'consoleService',
-  'miscUtilFactory', 'SCHEMA_CONST', 'ELECTIONSCHEMA'];
+surveyFactory.$inject = ['$injector', 'baseURL', 'SURVEYSCHEMA', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'consoleService'];
 
-function electionFactory($resource, $injector, $filter, storeFactory, resourceFactory, filterFactory, consoleService, 
-  miscUtilFactory, SCHEMA_CONST, ELECTIONSCHEMA) {
+function surveyFactory($injector, baseURL, SURVEYSCHEMA, storeFactory, resourceFactory, miscUtilFactory, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-      NAME: 'electionFactory',
-      getElections: getElections,
+      NAME: 'surveyFactory',
       readRspObject: readRspObject,
       readResponse: readResponse,
-      storeRspObject: storeRspObject,
-      setFilter:setFilter,
-      getSortOptions: getSortOptions,
-      forEachSchemaField: forEachElectionSchemaField,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      filterFunction: filterFunction,
-      getSortFunction: getSortFunction
+      storeRspObject: storeRspObject
     },
-    con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: ELECTIONSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
-  
+   con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: SURVEYSCHEMA.ID_TAG,
+    schema: SURVEYSCHEMA.SCHEMA,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      survey: resourceFactory.getResourceConfigWithId('surveys')
+    }
+
+  });
+ 
   return factory;
 
   /* function implementation
     -------------------------- */
 
-  function getElections () {
-    return resourceFactory.getResources('elections');
-  }
-
   /**
-   * Read a server response election object
+   * Read a server response survey object
    * @param {object} response   Server response
    * @param {object} args       arguments object
    *                            @see Schema.readProperty() for details
-   * @returns {object}  election object
+   * @returns {object}  Survey object
    */
-  function readRspObject (response, args) {
+  function readRspObject(response, args) {
     if (!args) {
       args = {};
     }
-    if (!args.convert) {
-      args.convert = readRspObjectValueConvert;
-    }
+    // no conversions required by default
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
     // add resources required by Schema object
     resourceFactory.addResourcesToArgs(args);
 
     var stdArgs = resourceFactory.standardiseArgs(args),
-      object = ELECTIONSCHEMA.SCHEMA.read(response, stdArgs);
+      object = SURVEYSCHEMA.SCHEMA.read(response, stdArgs);
 
-    con.debug('Read election rsp object: ' + object);
+    con.debug('Read survey rsp object: ' + object);
 
     return object;
   }
 
   /**
-   * Convert values read from a server election response
-   * @param {number}    schema id 
-   * @param {object}    read value
-   * @returns {object}  Converted value
-   */
-  function readRspObjectValueConvert (id, value) {
-    switch (id) {
-      case ELECTIONSCHEMA.IDs.ELECTIONDATE:
-        value = new Date(value);
-        break;
-      default:
-        // other fields require no conversion
-        break;
-    }
-    return value;
-  }
-
-
-  /**
-   * Read an election response from the server and store it
+   * Read a survey response from the server and store it
    * @param {object}   response   Server response
    * @param {object}   args       process arguments object with following properties
-   *    {string|Array} objId      id/array of ids of election object to save response data to
+   *    {string|Array} objId      id/array of ids of survey object to save response data to
    *    {number}       flags      storefactory flags
    *    {function}     next       function to call after processing
-   * @return {object}  election ResourceList object
+   * @returns {object}   Survey object
    */
   function readResponse (response, args) {
-    var election = readRspObject(response, args);
-    return storeRspObject(election, args);
+    var survey = readRspObject(response, args);
+    return storeRspObject(survey, args);
   }
 
   /**
-   * Store an election object
+   * Store a survey object
    * @param {object}   obj        Object to store
    * @param {object}   args       process arguments object as per resourceFactory.storeServerRsp()
    *                              without 'factory' argument
    *                              @see resourceFactory.storeServerRsp()
-   * @return {object}  election ResourceList object
+   * @return {object}  survey ResourceList object
    */
   function storeRspObject (obj, args) {
     var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
@@ -6733,81 +9021,7 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
-  function storeId (id) {
-    return ELECTIONSCHEMA.ID_TAG + id;
-  }
-
-  function setFilter(id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions() {
-    return ELECTIONSCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachElectionSchemaField(callback) {
-    ELECTIONSCHEMA.SCHEMA.forEachField(callback);
-  }
-
-  function newFilter(base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(ELECTIONSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-
-  /**
-   * Generate a filtered list
-   * @param {object} reslist    Election ResourceList object to filter
-   * @param {object} filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array} filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // election specific filter function
-    return filterFactory.getFilteredList('filterElection', reslist, filter, xtraFilter);
-  }
-
-  function filterFunction(electionList, filter) {
-    // election specific filter function
-    electionList.filterList = getFilteredList(electionList, filter);
-  }
-
-  function getSortFunction(options, sortBy) {
-    var sortFxn = resourceFactory.getSortFunction(options, sortBy);
-    if (typeof sortFxn === 'object') {
-      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
-      if (sortItem.idTag === ELECTIONSCHEMA.ID_TAG) {
-        switch (sortItem.index) {
-//          case ELECTIONSCHEMA.ELECTION_NAME_IDX:
-//            sortFxn = compareAddress;
-//            break;
-//          case ELECTIONSCHEMA.ELECTION_SEATS_IDX:
-//            sortFxn = compareCity;
-//            break;
-//          case ELECTIONSCHEMA.ELECTION_ELECTIONDATE_IDX:
-//            sortFxn = compareCounty;
-//            break;
-//          case ELECTIONSCHEMA.ELECTION_SYSTEM_IDX:
-//            sortFxn = comparePostcode;
-//            break;
-          default:
-            sortFxn = undefined;
-            break;
-        }
-      }
-    }
-    return sortFxn;
-  }
-
 }
-
-
 
 /*jslint node: true */
 /*global angular */
@@ -6819,18 +9033,9 @@ angular.module('ct.clientCommon')
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'NAME', modelName: 'name',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'DESCRIPTION', modelName: 'description',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'ABBREVIATION', modelName: 'abbreviation',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      }
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
+      schemaProvider.getStringModelPropArgs('abbreviation', { field: 'ABBREVIATION' })
     ],
       ids = {},
       modelProps = [];
@@ -6878,44 +9083,37 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-votingsystemFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'filterFactory', 'consoleService',
+votingsystemFactory.$inject = ['$injector', '$filter', 'storeFactory', 'resourceFactory', 'filterFactory', 'consoleService',
   'miscUtilFactory', 'SCHEMA_CONST', 'VOTINGSYSSCHEMA'];
 
-function votingsystemFactory ($resource, $injector, $filter, storeFactory, resourceFactory, filterFactory, consoleService, 
+function votingsystemFactory ($injector, $filter, storeFactory, resourceFactory, filterFactory, consoleService, 
   miscUtilFactory, SCHEMA_CONST, VOTINGSYSSCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'votingsystemFactory',
-      getVotingSystems: getVotingSystems,
       readRspObject: readRspObject,
       readResponse: readResponse,
       storeRspObject: storeRspObject,
-      setFilter:setFilter,
-      getSortOptions: getSortOptions,
-      forEachSchemaField: forEachVotingSysSchemaField,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      filterFunction: filterFunction,
+
       getSortFunction: getSortFunction
     },
-    con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: VOTINGSYSSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: VOTINGSYSSCHEMA.ID_TAG,
+    schema: VOTINGSYSSCHEMA.SCHEMA,
+    sortOptions: VOTINGSYSSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      system: resourceFactory.getResourceConfigWithId('votingsystems')
+    }
+  });
   
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getVotingSystems () {
-    return resourceFactory.getResources('votingsystems');
-    
-  }
-  
 
   /**
    * Read a server response voting system object
@@ -6991,51 +9189,6 @@ function votingsystemFactory ($resource, $injector, $filter, storeFactory, resou
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
-  function storeId (id) {
-    return VOTINGSYSSCHEMA.ID_TAG + id;
-  }
-
-  function setFilter(id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions() {
-    return VOTINGSYSSCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachVotingSysSchemaField(callback) {
-    VOTINGSYSSCHEMA.SCHEMA.forEachField(callback);
-  }
-
-  function newFilter(base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(VOTINGSYSSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-
-  /**
-   * Generate a filtered list
-   * @param {object} reslist    Election ResourceList object to filter
-   * @param {object} filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array} filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // voting system specific filter function
-    return filterFactory.getFilteredList('filterVotingSys', reslist, filter, xtraFilter);
-  }
-
-  function filterFunction(reslist, filter) {
-    // voting system specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
-  }
-
   function getSortFunction(options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
     if (typeof sortFxn === 'object') {
@@ -7067,44 +9220,546 @@ function votingsystemFactory ($resource, $injector, $filter, storeFactory, resou
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'VOTINGSYSSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, VOTINGSYSSCHEMA) {
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'NAME', modelName: 'name',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      { field: 'DESCRIPTION', modelName: 'description', 
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      {
-        field: 'STARTDATE', modelName: 'startDate',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
-      },
-      {
-        field: 'ENDDATE', modelName: 'endDate',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
-      },
-      {
-        field: 'ELECTION', modelName: 'election', factory: 'electionFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'SURVEY', modelName: 'survey', factory: 'surveyFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'ADDRESSES', modelName: 'addresses', factory: 'addressFactory',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      },
-      {
-        field: 'CANVASSERS', modelName: 'canvassers', factory: 'userFactory',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      },
-      {
-        field: 'RESULTS', modelName: 'results', factory: 'canvassResultFactory',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
+      schemaProvider.getNumberModelPropArgs('seats', 0, { field: 'SEATS' }),
+      schemaProvider.getDateModelPropArgs('electionDate', undefined, { field: 'ELECTIONDATE' }),
+      schemaProvider.getObjectIdModelPropArgs('system', 'votingsystemFactory', 'system', VOTINGSYSSCHEMA, VOTINGSYSSCHEMA.IDs.ID, { field: 'SYSTEM' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('candidates', undefined, undefined, undefined, undefined, { field: 'CANDIDATES' })
+    ],
+      ids = {},
+      modelProps = [];
+
+    for (var i = 0; i < details.length; ++i) {
+      ids[details[i].field] = i;          // id is index
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
+    }
+
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('election'),
+      schema = schemaProvider.getSchema('Election', modelProps, ids, ID_TAG),
+      ELECTION_NAME_IDX =
+        schema.addFieldFromModelProp('name', 'Name', ids.NAME),
+      ELECTION_DESCRIPTION_IDX =
+        schema.addFieldFromModelProp('description', 'Description', ids.DESCRIPTION),
+      ELECTION_SEATS_IDX =
+        schema.addFieldFromModelProp('seats', 'Seats', ids.SEATS),
+      ELECTION_ELECTIONDATE_IDX =
+        schema.addFieldFromModelProp('date', 'Election Date', ids.ELECTIONDATE),
+      ELECTION_SYSTEM_IDX =
+        schema.addFieldFromModelProp('system', 'System', ids.SYSTEM),
+
+      // generate list of sort options
+      sortOptions = schemaProvider.makeSortList(schema, 
+                [ELECTION_NAME_IDX, ELECTION_SEATS_IDX, ELECTION_ELECTIONDATE_IDX, ELECTION_SYSTEM_IDX],
+                ID_TAG);
+
+    $provide.constant('ELECTIONSCHEMA', {
+      IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
+      MODELPROPS: modelProps,
+
+      SCHEMA: schema,
+      // row indices
+      ELECTION_NAME_IDX: ELECTION_NAME_IDX,
+      ELECTION_DESCRIPTION_IDX: ELECTION_DESCRIPTION_IDX,
+      ELECTION_SEATS_IDX: ELECTION_SEATS_IDX,
+      ELECTION_ELECTIONDATE_IDX: ELECTION_ELECTIONDATE_IDX,
+      ELECTION_SYSTEM_IDX: ELECTION_SYSTEM_IDX,
+
+      SORT_OPTIONS: sortOptions,
+      ID_TAG: ID_TAG
+    });
+  }])
+
+  .factory('electionFactory', electionFactory);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+electionFactory.$inject = ['$injector', '$filter', 'storeFactory', 'resourceFactory', 'filterFactory', 'consoleService',
+  'miscUtilFactory', 'SCHEMA_CONST', 'ELECTIONSCHEMA'];
+
+function electionFactory($injector, $filter, storeFactory, resourceFactory, filterFactory, consoleService, 
+  miscUtilFactory, SCHEMA_CONST, ELECTIONSCHEMA) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  var factory = {
+      NAME: 'electionFactory',
+      readRspObject: readRspObject,
+      readResponse: readResponse,
+      storeRspObject: storeRspObject,
+
+      getSortFunction: getSortFunction
+    },
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: ELECTIONSCHEMA.ID_TAG,
+    schema: ELECTIONSCHEMA.SCHEMA,
+    sortOptions: ELECTIONSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      election: resourceFactory.getResourceConfigWithId('elections'),
+    }
+  });
+  
+  return factory;
+
+  /* function implementation
+    -------------------------- */
+
+  /**
+   * Read a server response election object
+   * @param {object} response   Server response
+   * @param {object} args       arguments object
+   *                            @see Schema.readProperty() for details
+   * @returns {object}  election object
+   */
+  function readRspObject (response, args) {
+    if (!args) {
+      args = {};
+    }
+    if (!args.convert) {
+      args.convert = readRspObjectValueConvert;
+    }
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
+
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = ELECTIONSCHEMA.SCHEMA.read(response, stdArgs);
+
+    con.debug('Read election rsp object: ' + object);
+
+    return object;
+  }
+
+  /**
+   * Convert values read from a server election response
+   * @param {number}    schema id 
+   * @param {object}    read value
+   * @returns {object}  Converted value
+   */
+  function readRspObjectValueConvert (id, value) {
+    switch (id) {
+      case ELECTIONSCHEMA.IDs.ELECTIONDATE:
+        value = new Date(value);
+        break;
+      default:
+        // other fields require no conversion
+        break;
+    }
+    return value;
+  }
+
+
+  /**
+   * Read an election response from the server and store it
+   * @param {object}   response   Server response
+   * @param {object}   args       process arguments object with following properties
+   *    {string|Array} objId      id/array of ids of election object to save response data to
+   *    {number}       flags      storefactory flags
+   *    {function}     next       function to call after processing
+   * @return {object}  election ResourceList object
+   */
+  function readResponse (response, args) {
+    var election = readRspObject(response, args);
+    return storeRspObject(election, args);
+  }
+
+  /**
+   * Store an election object
+   * @param {object}   obj        Object to store
+   * @param {object}   args       process arguments object as per resourceFactory.storeServerRsp()
+   *                              without 'factory' argument
+   *                              @see resourceFactory.storeServerRsp()
+   * @return {object}  election ResourceList object
+   */
+  function storeRspObject (obj, args) {
+    var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
+      factory: $injector.get(factory.NAME)
+    });
+    return resourceFactory.storeServerRsp(obj, storeArgs);
+  }
+
+  function getSortFunction(options, sortBy) {
+    var sortFxn = resourceFactory.getSortFunction(options, sortBy);
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === ELECTIONSCHEMA.ID_TAG) {
+        switch (sortItem.index) {
+//          case ELECTIONSCHEMA.ELECTION_NAME_IDX:
+//            sortFxn = compareAddress;
+//            break;
+//          case ELECTIONSCHEMA.ELECTION_SEATS_IDX:
+//            sortFxn = compareCity;
+//            break;
+//          case ELECTIONSCHEMA.ELECTION_ELECTIONDATE_IDX:
+//            sortFxn = compareCounty;
+//            break;
+//          case ELECTIONSCHEMA.ELECTION_SYSTEM_IDX:
+//            sortFxn = comparePostcode;
+//            break;
+          default:
+            sortFxn = undefined;
+            break;
+        }
       }
+    }
+    return sortFxn;
+  }
+
+}
+
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('ct.clientCommon')
+
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'USERSCHEMA', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'ANSWERSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, USERSCHEMA, PEOPLESCHEMA, ADDRSCHEMA, ANSWERSCHEMA) {
+
+    var details = [
+      SCHEMA_CONST.ID,
+      schemaProvider.getBooleanModelPropArgs('available', true, { field: 'AVAILABLE' }),
+      schemaProvider.getBooleanModelPropArgs('dontCanvass', false, { field: 'DONTCANVASS' }),
+      schemaProvider.getBooleanModelPropArgs('tryAgain', false, { field: 'TRYAGAIN' }),
+      schemaProvider.getNumberModelPropArgs('support', -1, { field: 'SUPPORT' }),
+      schemaProvider.getDateModelPropArgs('date', undefined, { field: 'DATE' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('answers', 'answerFactory', 'answer', ANSWERSCHEMA, ANSWERSCHEMA.IDs.ID, { field: 'ANSWERS' }),
+      schemaProvider.getObjectIdModelPropArgs('canvasser', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSER' }),
+      schemaProvider.getObjectIdModelPropArgs('voter', 'peopleFactory', 'person', PEOPLESCHEMA, PEOPLESCHEMA.IDs.ID, { field: 'VOTER' }),
+      schemaProvider.getObjectIdModelPropArgs('address', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESS' }),
+      SCHEMA_CONST.CREATEDAT,
+      SCHEMA_CONST.UPDATEDAT
+    ],
+      ids = {},
+      modelProps = [];
+
+    for (var i = 0; i < details.length; ++i) {
+      ids[details[i].field] = i;          // id is index
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
+    }
+
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('canvassresult'),
+      schema = schemaProvider.getSchema('CanvassResult', modelProps, ids, ID_TAG),
+      CANVASSRES_AVAILABLE_IDX =
+        schema.addFieldFromModelProp('available', 'Available', ids.AVAILABLE),
+      CANVASSRES_DONTCANVASS_IDX =
+        schema.addFieldFromModelProp('dontCanvass', 'Don\'t Canvass', ids.DONTCANVASS),
+      CANVASSRES_TRYAGAIN_IDX =
+        schema.addFieldFromModelProp('tryAgain', 'Try Again', ids.TRYAGAIN),
+      CANVASSRES_SUPPORT_IDX =
+        schema.addFieldFromModelProp('support', 'Support', ids.SUPPORT),
+      CANVASSRES_DATE_IDX =
+        schema.addFieldFromModelProp('date', 'Date', ids.DATE),
+
+      // generate list of sort options
+      sortOptions = schemaProvider.makeSortList(schema, 
+                      [CANVASSRES_AVAILABLE_IDX, CANVASSRES_DONTCANVASS_IDX, CANVASSRES_TRYAGAIN_IDX, CANVASSRES_SUPPORT_IDX, CANVASSRES_DATE_IDX],
+                      ID_TAG);
+
+    $provide.constant('CANVASSRES_SCHEMA', {
+      IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
+      MODELPROPS: modelProps,
+
+      SCHEMA: schema,
+      // row indices
+      CANVASSRES_AVAILABLE_IDX: CANVASSRES_AVAILABLE_IDX,
+      CANVASSRES_DONTCANVASS_IDX: CANVASSRES_DONTCANVASS_IDX,
+      CANVASSRES_TRYAGAIN_IDX: CANVASSRES_TRYAGAIN_IDX,
+      CANVASSRES_SUPPORT_IDX: CANVASSRES_SUPPORT_IDX,
+      CANVASSRES_DATE_IDX: CANVASSRES_DATE_IDX,
+
+      SORT_OPTIONS: sortOptions,
+      ID_TAG: ID_TAG,
+
+      SUPPORT_UNKNOWN: -1,  // -1 represents unknown
+      SUPPORT_MIN: 0,
+      SUPPORT_MAX: 10       // 0-10 represents none to full support
+
+    });
+  }])
+
+  .factory('canvassResultFactory', canvassResultFactory);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+canvassResultFactory.$inject = ['$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'surveyFactory',
+  'addressFactory', 'electionFactory', 'userFactory', 'miscUtilFactory', 'SCHEMA_CONST', 'CANVASSRES_SCHEMA', 'consoleService'];
+function canvassResultFactory($injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, surveyFactory,
+  addressFactory, electionFactory, userFactory, miscUtilFactory, SCHEMA_CONST, CANVASSRES_SCHEMA, consoleService) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  var factory = {
+      NAME: 'canvassResultFactory',
+      readRspObject: readRspObject,
+      readResponse: readResponse,
+      storeRspObject: storeRspObject,
+
+      getSortFunction: getSortFunction,
+
+      filterResultsLatestPerAddress: filterResultsLatestPerAddress
+    },
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: CANVASSRES_SCHEMA.ID_TAG,
+    schema: CANVASSRES_SCHEMA.SCHEMA,
+    sortOptions: CANVASSRES_SCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      result: resourceFactory.getResourceConfigWithId('canvassresult', {
+                        saveMany: { method: 'POST', isArray: true }
+                      })
+    }
+  });
+  
+  return factory;
+
+  /* function implementation
+    -------------------------- */
+
+  /**
+   * Read a server response canvass result object
+   * @param {object} response   Server response
+   * @param {object} args       arguments object
+   *                            @see Schema.readProperty() for details
+   * @returns {object}  Canvass object
+   */
+  function readRspObject (response, args) {
+    if (!args) {
+      args = {};
+    }
+    if (!args.convert) {
+      args.convert = readRspObjectValueConvert;
+    }
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
+
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = CANVASSRES_SCHEMA.SCHEMA.read(response, stdArgs);
+
+    con.debug('Read canvass result rsp object: ' + object);
+
+    return object;
+  }
+
+  /**
+   * Convert values read from a server canvass result response
+   * @param {number}    schema id 
+   * @param {object}    read value
+   * @returns {object}  Converted value
+   */
+  function readRspObjectValueConvert(id, value) {
+    switch (id) {
+      case CANVASSRES_SCHEMA.IDs.DATE:
+      case CANVASSRES_SCHEMA.IDs.CREATED:
+      case CANVASSRES_SCHEMA.IDs.UPDATED:
+        value = new Date(value);
+        break;
+      default:
+        // other fields require no conversion
+        break;
+    }
+    return value;
+  }
+
+  /**
+   * Read a canvass result response from the server
+   * @param {object}   response   Server response
+   * @param {object}   args       process arguments object with following properties
+   *    {string|Array}  objId       id/array of ids of canvass & survey objects to save response data to
+   *    {string|Array}  addrId      id/array of ids of list object(s) to save address data to
+   *    {string|Array}  userId      id/array of ids of list object to save canvasser data to
+   *    {number}        flags       storefactory flags
+   *    {object}        surveyArgs  arguments to process embedded survey sub doc, 
+   *                                @see surveyFactory.readResponse() for details
+   *    {object}        electionArgs arguments to process embedded election sub doc, 
+   *                                @see electionFactory.readResponse() for details
+   *    {function}      next        function to call after processing
+   * @return {object}   Canvass object
+   */
+  function readResponse (response, args) {
+
+    var result = readRspObject(response, args);
+    return storeRspObject(result, args);
+  }
+
+  /**
+   * Store a canvass result response from the server
+   * @param {object}   response   Server response
+   * @param {object}   args       process arguments object with following properties
+   *    {string|Array}  objId       id/array of ids of canvass & survey objects to save response data to
+   *    {string|Array}  addrId      id/array of ids of list object(s) to save address data to
+   *    {string|Array}  userId      id/array of ids of list object to save canvasser data to
+   *    {number}        flags       storefactory flags
+   *    {object}        surveyArgs  arguments to process embedded survey sub doc, 
+   *                                @see surveyFactory.readResponse() for details
+   *    {object}        electionArgs arguments to process embedded election sub doc, 
+   *                                @see electionFactory.readResponse() for details
+   *    {function}      next        function to call after processing
+   * @return {object}   Canvass object
+   */
+  function storeRspObject(canvassRes, args) {
+
+    con.debug('Store canvass result response: ' + canvassRes);
+
+    // just basic storage args as subdocs have been processed above
+    var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
+        factory: $injector.get(factory.NAME)
+      });
+
+    return resourceFactory.storeServerRsp(canvassRes, storeArgs);
+  }
+
+  /**
+   * Get the sort function for a canvass result ResourceList
+   * @param   {object} sortOptions  List of possible sort option
+   * @param   {object} sortBy       Key to sort by
+   * @returns {function} sort function
+   */
+  function getSortFunction(options, sortBy) {
+    var sortFxn = resourceFactory.getSortFunction(options, sortBy);
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === CANVASSRES_SCHEMA.ID_TAG) {
+        switch (sortItem.index) {
+          case CANVASSRES_SCHEMA.CANVASSRES_AVAILABLE_IDX:
+            sortFxn = compareAvailable;
+            break;
+          case CANVASSRES_SCHEMA.CANVASSRES_DONTCANVASS_IDX:
+            sortFxn = compareDontCanvass;
+            break;
+          case CANVASSRES_SCHEMA.CANVASSRES_TRYAGAIN_IDX:
+            sortFxn = compareTryAgain;
+            break;
+          case CANVASSRES_SCHEMA.CANVASSRES_SUPPORT_IDX:
+            sortFxn = compareSupport;
+            break;
+          case CANVASSRES_SCHEMA.CANVASSRES_DATE_IDX:
+            sortFxn = compareDate;
+            break;
+          default:
+            sortFxn = undefined;
+            break;
+        }
+      }
+    }
+    return sortFxn;
+  }
+
+  /**
+   * Compare objects based on 'available' property
+   * @param {object}  a       First object to compare
+   * @param {object}  b       Second object to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareAvailable (a, b) {
+    return compareFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_AVAILABLE_IDX, a, b);
+  }
+
+  /**
+   * Compare objects based on 'dont canvass' property
+   * @param {object}  a       First object to compare
+   * @param {object}  b       Second object to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareDontCanvass (a, b) {
+    return compareFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_DONTCANVASS_IDX, a, b);
+  }
+
+  /**
+   * Compare objects based on 'try again' property
+   * @param {object}  a       First object to compare
+   * @param {object}  b       Second object to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareTryAgain (a, b) {
+    return compareFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_TRYAGAIN_IDX, a, b);
+  }
+
+  /**
+   * Compare objects based on 'support' property
+   * @param {object}  a       First object to compare
+   * @param {object}  b       Second object to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareSupport (a, b) {
+    return compareFactory.compareNumberFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_SUPPORT_IDX, a, b);
+  }
+  
+  /**
+   * Compare objects based on 'date' property
+   * @param {object}  a       First object to compare
+   * @param {object}  b       Second object to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareDate (a, b) {
+    return compareFactory.compareDateFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_DATE_IDX, a, b);
+  }
+  
+  
+  /**
+   * Filter an array of results to give a list of the latest results for each address
+   * @param   {Array} resArray Result array to filter
+   * @returns {Array} New array containing filtered values
+   */
+  function filterResultsLatestPerAddress (resArray) {
+    var i,
+      filteredList = filterFactory.filterArray(
+        resArray.slice(),
+        function (a, b) {
+          // sort list in descending date order
+          return compareFactory.compareDate(a.updatedAt, b.updatedAt, '-');
+        },                                           
+        function (value, index, array) {
+          // exclude value from filtered list if newer entry already in list
+          var noneNewer = true;
+          for (i = index - 1; (i >= 0) && noneNewer; --i) {
+            noneNewer = (array[i].address._id !== value.address._id);
+          }
+          return noneNewer;
+      });
+    return filteredList;
+  }
+  
+  
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('ct.clientCommon')
+
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'ELECTIONSCHEMA', 'SURVEYSCHEMA', 'ADDRSCHEMA', 'USERSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, ELECTIONSCHEMA, SURVEYSCHEMA, ADDRSCHEMA, USERSCHEMA) {
+
+    var details = [
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
+      schemaProvider.getDateModelPropArgs('startDate', undefined, { field: 'STARTDATE' }),
+      schemaProvider.getDateModelPropArgs('endDate', undefined, { field: 'ENDDATE' }),
+      schemaProvider.getObjectIdModelPropArgs('election', 'electionFactory', 'election', ELECTIONSCHEMA, ELECTIONSCHEMA.IDs.ID, { field: 'ELECTION' }),
+      schemaProvider.getObjectIdModelPropArgs('survey', 'surveyFactory', 'survey', SURVEYSCHEMA, SURVEYSCHEMA.IDs.ID, { field: 'SURVEY' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('addresses', 'addressFactory', 'address',  ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESSES' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('canvassers', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSERS' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('results', 'canvassResultFactory', 'result', undefined, undefined, { field: 'RESULTS' })
     ],
       ids = {},
       modelProps = [],
@@ -7156,80 +9811,55 @@ angular.module('ct.clientCommon')
     });
   }])
 
-  .filter('filterCanvass', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
-
-    function filterCanvassFilter(input, schema, filterBy) {
-
-      // canvass specific filter function
-      var out = [];
-
-      //if (!miscUtilFactory.isEmpty(filterBy)) {
-      // TODO canvass specific filter function
-      //} else {
-      out = input;
-      //}
-      return out;
-    }
-
-    return filterCanvassFilter;
-  }])
-
   .factory('canvassFactory', canvassFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassFactory.$inject = ['$resource', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'questionFactory',
+canvassFactory.$inject = ['$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'questionFactory',
   'addressFactory', 'electionFactory', 'userFactory', 'canvassResultFactory', 'SCHEMA_CONST', 'CANVASSSCHEMA', 'SURVEYSCHEMA', 'RESOURCE_CONST', 'CHARTS', 'consoleService'];
-function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFactory, filterFactory, miscUtilFactory, surveyFactory, questionFactory,
+function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filterFactory, miscUtilFactory, surveyFactory, questionFactory,
   addressFactory, electionFactory, userFactory, canvassResultFactory, SCHEMA_CONST, CANVASSSCHEMA, SURVEYSCHEMA, RESOURCE_CONST, CHARTS, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-      NAME: 'canvassFactory',
-      getCanvasses: getCanvasses,
-      readRspObject: readRspObject,
-      readResponse: readResponse,
+    NAME: 'canvassFactory',
+    readRspObject: readRspObject,
+    readResponse: readResponse,
 
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachCanvassSchemaField,
-      getSortOptions: getSortOptions,
-      getSortFunction: getSortFunction,
-      getFilteredResource: getFilteredResource,
+    getSortFunction: getSortFunction,
 
-      storeRspObject: storeRspObject,
-      setLabeller: setLabeller,
-      linkCanvasserToAddr: linkCanvasserToAddr,
-      unlinkAddrFromCanvasser: unlinkAddrFromCanvasser,
-      unlinkAddrListFromCanvasser: unlinkAddrListFromCanvasser,
+    storeRspObject: storeRspObject,
 
-      processAddressResultsLink: processAddressResultsLink,
-      ADDR_RES_LINKADDRESS: 'addrResLinkAddr',  // link address flag for linking addresses & results
-      ADDR_RES_LINKRESULT: 'addrResLinkRes',    // link result flag for linking addresses & results
+    processAddressResultsLink: processAddressResultsLink,
+    ADDR_RES_LINKADDRESS: 'addrResLinkAddr',  // link address flag for linking addresses & results
+    ADDR_RES_LINKRESULT: 'addrResLinkRes',    // link result flag for linking addresses & results
 
-      QUES_RES_LINKQUES: 'quesResLinkQues', // link results flag for linking questions & results
-      QUES_RES_LINKRES: 'quesResLinkRes'    // link results flag for linking questions & results
+    QUES_RES_LINKQUES: 'quesResLinkQues', // link results flag for linking questions & results
+    QUES_RES_LINKRES: 'quesResLinkRes'    // link results flag for linking questions & results
 
-    },
-    con = consoleService.getLogger(factory.NAME),
-    labeller,
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: CANVASSSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+  },
+  con;  // console logger
+
+  if (consoleService.isEnabled(factory.NAME)) {
+    con = consoleService.getLogger(factory.NAME);
+  }
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: CANVASSSCHEMA.ID_TAG,
+    schema: CANVASSSCHEMA.SCHEMA,
+    sortOptions: CANVASSSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      canvass: resourceFactory.getResourceConfigWithId('canvasses')
+    }
+  });
 
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getCanvasses () {
-    return resourceFactory.getResources('canvasses');
-  }
 
   /**
    * Read a server response canvass object
@@ -7254,7 +9884,9 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     processAddressResultsLink(response, stdArgs);
     processQuestionResultsLink(response, stdArgs);
 
-    con.debug('Read canvass rsp object: ' + object);
+    if (con) {
+      con.debug('Read canvass rsp object: ' + object);
+    }
 
     return object;
   }
@@ -7265,7 +9897,8 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
    * @param {object} args       arguments object
    */
   function processAddressResultsLink (response, args) {
-    if (args.linkAddressAndResult) {
+    
+    if (miscUtilFactory.readSafe(args, ['customArgs', 'linkAddressAndResult'])) {
       var stdArgs = resourceFactory.standardiseArgs(args),
         addr = resourceFactory.findAllInStandardArgs(stdArgs, function (arg) {
           return arg[factory.ADDR_RES_LINKADDRESS];
@@ -7284,7 +9917,7 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
    * @param {object} args       arguments object
    */
   function processQuestionResultsLink (response, args) {
-    if (args.linkQuestionAndResult) {
+    if (miscUtilFactory.readSafe(args, ['customArgs', 'linkQuestionAndResult'])) {
       var stdArgs = resourceFactory.standardiseArgs(args),
         ques = resourceFactory.findAllInStandardArgs(stdArgs, function (arg) {
           return arg[factory.QUES_RES_LINKQUES];
@@ -7318,14 +9951,6 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   }
 
   /**
-   * Set the labeling function
-   * @param {function} labelfunc Function to return label class
-   */
-  function setLabeller (labelfunc) {
-    labeller = labelfunc;
-  }
-  
-  /**
    * Read a canvass response from the server
    * @param {object}   response   Server response
    * @param {object}   args       process arguments object 
@@ -7347,19 +9972,30 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
    */
   function storeRspObject (obj, args) {
 
-    var subObjects, i, stdArgs;
+    // async version
+    //factory.storeRspObjectTest(factory.NAME, resourceFactory, obj, args, con, 'canvass');
+
+    var subObjects, i;
 
     // store sub objects first
     if (args.subObj) {
       subObjects = miscUtilFactory.toArray(args.subObj);
-      for (i = 0; i < subObjects.length; ++i) {
-        stdArgs = resourceFactory.standardiseArgs(subObjects[i]);
 
-        resourceFactory.storeSubDoc(obj, stdArgs, args);
+      if (con) {
+        con.debug('Store canvass subobjs: ' + subObjects.length);
+      }
+
+      for (i = 0; i < subObjects.length; ++i) {
+        resourceFactory.storeSubDoc(obj, subObjects[i], args);
+        if (con) {
+          con.debug('Stored canvass subobj[' + i + ']: ' + subObjects[i].objId);
+        }
       }
     }
 
-    con.debug('Store canvass response: ' + obj);
+    if (con) {
+      con.debug('Store canvass response: ' + obj);
+    }
 
     // just basic storage args as subdocs have been processed above
     var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
@@ -7378,29 +10014,46 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   function linkAddressAndResults (addrArgs, resultArgs, response) {
     if (addrArgs && resultArgs) {
       var addresses,
-        results;
+        results,
+        filteredList,
+        obj;
 
       miscUtilFactory.toArray(response).forEach(function (rsp) {
-        addresses = [];
-        results = [];
+        addresses = []; // array of arrays of addresses
+        results = [];   // array of arrays of results
 
         miscUtilFactory.toArray(addrArgs).forEach(function (addrArg) {
-          addresses.push(resourceFactory.getObjectInfo(rsp, addrArg).object);
+          obj = resourceFactory.getObjectInfo(rsp, addrArg).object;
+          if (obj) {
+            addresses.push(obj);
+          }
         });
         miscUtilFactory.toArray(resultArgs).forEach(function (resArg) {
-          results.push(resourceFactory.getObjectInfo(rsp, resArg).object);
+          obj = resourceFactory.getObjectInfo(rsp, resArg).object;
+          if (obj) {
+            results.push(obj);
+          }
         });
 
+        if (con) {
+          con.debug('linkAddressAndResults: addresses ' + addresses.length + ' results ' + results.length);
+        }
+
         if (addresses.length && results.length) {
-          results.forEach(function (result) {
-            result.forEach(function (resObj) {
-              addresses.forEach(function (address) {
-                var addr = address.find(function (entry) {
+          results.forEach(function (resArray) {
+            
+            filteredList = canvassResultFactory.filterResultsLatestPerAddress(resArray);
+
+            filteredList.forEach(function (resObj) {
+
+              addresses.forEach(function (addrArray) {
+                var addrObj = addrArray.find(function (entry) {
                   return (entry._id === resObj.address._id);
                 });
-                if (addr) {
+                if (addrObj) {
                   // link address and canvass result
-                  addr.canvassResult = resObj._id;
+                  addrObj.canvassResult = resObj._id;
+                  addrObj.canvassDate = new Date(resObj.updatedAt);
                 }
               });
             });
@@ -7491,9 +10144,7 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
         });
         
         // loop through results linking answers & questions
-        var start,
-          ques,
-          ansProcessor = new AnswerProcessor();
+        var ansProcessor = new AnswerProcessor();
         resLists.forEach(function (res) {
           if (res.list) {
             // loop through results 
@@ -7599,184 +10250,6 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     return 'optIdx_' + option;
   }
   
-  
-  /**
-   * Link the specified canvasser and address
-   * @param {object}   canvasser  Canvasser object to link
-   * @param {object}   addr       Address object to link
-   */
-  function linkCanvasserToAddr (canvasser, addr) {
-    if (!canvasser.addresses) {
-      canvasser.addresses = [];
-    }
-    if (canvasser.addresses.findIndex(elementTest, addr) < 0) {
-      canvasser.addresses.push(addr._id);
-    }
-
-    addr.canvasser = canvasser._id;
-    var badge = '';
-    if (canvasser.person.firstname) {
-      badge += getFirstLetters(canvasser.person.firstname);
-    }
-    if (canvasser.person.lastname) {
-      badge += getFirstLetters(canvasser.person.lastname);
-    }
-    addr.badge = badge;
-    
-    if (!canvasser.labelClass) {
-      if (labeller) {
-        canvasser.labelClass = labeller();
-      }
-    }
-    addr.labelClass = canvasser.labelClass;
-  }
-  
-  /**
-   * Get the first letters of all words in a string
-   * @param {string}   str  String to get leading letter from
-   * @return {string}  String of leading letters
-   */
-  function getFirstLetters (str) {
-    var splits = str.split(' '),
-      letters = '';
-    splits.forEach(function (split) {
-      letters += split.charAt(0);
-    });
-    return letters;
-  }
-  
-
-  function elementIdTest (element) {
-    return (element._id === this);
-  }
-
-  function elementTest (element) {
-    return (element === this._id);
-  }
-
-  /**
-   * Unlink the specified canvasser and address
-   * @param {object}   canvasser  Canvasser object to unlink
-   * @param {object}   addr       Address object to unlink
-   */
-  function unlinkAddrFromCanvasser (canvasser, addr) {
-    if (canvasser.addresses) {
-      var idx = canvasser.addresses.findIndex(elementTest, addr);
-      if (idx >= 0) {
-        canvasser.addresses.splice(idx, 1);
-      }
-    }
-    delete addr.canvasser;
-    delete addr.badge;
-  }
-  
-  /**
-   * Unlink the specified canvasser and all addresses in a list
-   * @param {object}   canvasser  Canvasser object to unlink
-   * @param {object}   addrList   List of address objects to unlink
-   */
-  function unlinkAddrListFromCanvasser (canvasser, addrList) {
-    if (canvasser.addresses) {
-      canvasser.addresses.forEach(function (addrId) {
-        var addr = addrList.find(elementIdTest, addrId);
-        if (addr) {
-          delete addr.canvasser;
-          delete addr.badge;
-        }
-      });
-    }
-    canvasser.addresses = [];
-  }
-  
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId (id) {
-    return CANVASSSCHEMA.ID_TAG + id;
-  }
-
-  function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
-    
-    filter = filter || newFilter();
-
-    if (typeof filter === 'function') {
-      forEachSchemaField = failure;
-      failure = success;
-      filter = newFilter();
-    }
-    if (!forEachSchemaField) {
-      forEachSchemaField = forEachCanvassSchemaField;
-    }
-
-    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
-
-    resList.setList([]);
-    getCanvasses().query(query).$promise.then(
-      // success function
-      function (response) {
-        // add indices
-        for (var i = 0; i < response.length; ++i) {
-          response[i].index = i + 1;
-        }
-        // response from server contains result of filter request
-        resList.setList(response, storeFactory.APPLY_FILTER);
-
-        if (success){
-          success(response);
-        }
-      },
-      // error function
-      function (response) {
-        if (failure){
-          failure(response);
-        }
-      }
-    );
-  }
-
-  function setFilter (id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions () {
-    return CANVASSSCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachCanvassSchemaField (callback) {
-    CANVASSSCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  function newFilter (base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(CANVASSSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object}   reslist    Address ResourceList object to filter
-   * @param {object}   filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array}    filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // canvass specific filter function
-    return filterFactory.getFilteredList('filterCanvass', reslist, filter, xtraFilter);
-  }
-  
-  function filterFunction (addrList, filter) {
-    // canvass specific filter function
-    addrList.filterList = getFilteredList(addrList, filter);
-  }
-  
-  
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
     if (typeof sortFxn === 'object') {
@@ -7795,7 +10268,6 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     return sortFxn;
   }
 
-
 }
 
 
@@ -7805,446 +10277,13 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'CANVASSSCHEMA', 'USERSCHEMA', 'ADDRSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, CANVASSSCHEMA, USERSCHEMA, ADDRSCHEMA) {
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'AVAILABLE', modelName: 'available',
-        dfltValue: true, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN
-      },
-      {
-        field: 'DONTCANVASS', modelName: 'dontCanvass',
-        dfltValue: false, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN
-      },
-      {
-        field: 'TRYAGAIN', modelName: 'tryAgain',
-        dfltValue: false, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN
-      },
-      {
-        field: 'SUPPORT', modelName: 'support',
-        dfltValue: -1, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
-      },
-      {
-        field: 'DATE', modelName: 'date',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
-      },
-      {
-        field: 'ANSWERS', modelName: 'answers',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      },
-      {
-        field: 'CANVASSER', modelName: 'canvasser', factory: 'userFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'VOTER', modelName: 'voter', factory: 'peopleFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'ADDRESS', modelName: 'address', factory: 'addressFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      SCHEMA_CONST.CREATEDAT,
-      SCHEMA_CONST.UPDATEDAT
-    ],
-      ids = {},
-      modelProps = [];
-
-    for (var i = 0; i < details.length; ++i) {
-      ids[details[i].field] = i;          // id is index
-
-      var args = angular.copy(details[i]);
-      args.id = i;
-      modelProps.push(schemaProvider.getModelPropObject(args));
-    }
-
-    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('canvassresult'),
-      schema = schemaProvider.getSchema('CanvassResult', modelProps, ids, ID_TAG),
-      CANVASSRES_AVAILABLE_IDX =
-        schema.addFieldFromModelProp('available', 'Available', ids.AVAILABLE),
-      CANVASSRES_DONTCANVASS_IDX =
-        schema.addFieldFromModelProp('dontCanvass', 'Don\'t Canvass', ids.DONTCANVASS),
-      CANVASSRES_TRYAGAIN_IDX =
-        schema.addFieldFromModelProp('tryAgain', 'Try Again', ids.TRYAGAIN),
-      CANVASSRES_SUPPORT_IDX =
-        schema.addFieldFromModelProp('support', 'Support', ids.SUPPORT),
-      CANVASSRES_DATE_IDX =
-        schema.addFieldFromModelProp('date', 'Date', ids.DATE),
-
-      // generate list of sort options
-      sortOptions = schemaProvider.makeSortList(schema, 
-                      [CANVASSRES_AVAILABLE_IDX, CANVASSRES_DONTCANVASS_IDX, CANVASSRES_TRYAGAIN_IDX, CANVASSRES_SUPPORT_IDX, CANVASSRES_DATE_IDX],
-                      ID_TAG);
-
-    $provide.constant('CANVASSRES_SCHEMA', {
-      IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      MODELPROPS: modelProps,
-
-      SCHEMA: schema,
-      // row indices
-      CANVASSRES_AVAILABLE_IDX: CANVASSRES_AVAILABLE_IDX,
-      CANVASSRES_DONTCANVASS_IDX: CANVASSRES_DONTCANVASS_IDX,
-      CANVASSRES_TRYAGAIN_IDX: CANVASSRES_TRYAGAIN_IDX,
-      CANVASSRES_SUPPORT_IDX: CANVASSRES_SUPPORT_IDX,
-      CANVASSRES_DATE_IDX: CANVASSRES_DATE_IDX,
-
-      SORT_OPTIONS: sortOptions,
-      ID_TAG: ID_TAG,
-
-      SUPPORT_UNKNOWN: -1,  // -1 represents unknown
-      SUPPORT_MIN: 0,
-      SUPPORT_MAX: 10       // 0-10 represents none to full support
-
-    });
-  }])
-
-  .filter('filterCanvassResult', ['SCHEMA_CONST', 'utilFactory', 'miscUtilFactory', function (SCHEMA_CONST, utilFactory, miscUtilFactory) {
-
-    function filterCanvassResultFilter(input, schema, filterBy) {
-
-      // canvass result specific filter function
-
-      // TODO filter canvass result function
-      return input;
-    }
-
-    return filterCanvassResultFilter;
-  }])
-
-  .factory('canvassResultFactory', canvassResultFactory);
-
-/* Manually Identify Dependencies
-  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
-*/
-
-canvassResultFactory.$inject = ['$resource', '$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory',
-  'addressFactory', 'electionFactory', 'userFactory', 'SCHEMA_CONST', 'CANVASSRES_SCHEMA', 'consoleService'];
-function canvassResultFactory($resource, $injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, surveyFactory,
-  addressFactory, electionFactory, userFactory, SCHEMA_CONST, CANVASSRES_SCHEMA, consoleService) {
-
-  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
-  var factory = {
-      NAME: 'canvassResultFactory',
-      getCanvassResult: getCanvassResult,
-      readRspObject: readRspObject,
-      readResponse: readResponse,
-      storeRspObject: storeRspObject,
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachCanvassResSchemaField,
-      getSortOptions: getSortOptions,
-      getSortFunction: getSortFunction
-    },
-    con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: CANVASSRES_SCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
-  
-  return factory;
-
-  /* function implementation
-    -------------------------- */
-
-  function getCanvassResult() {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update & multiple save methods
-    */
-    return $resource(baseURL + 'canvassresult/:id', { id: '@id' },
-                      {'update': {method: 'PUT'},
-                       'saveMany': {method: 'POST', isArray: true}
-                      });
-  }
-  
-  
-  /**
-   * Read a server response canvass result object
-   * @param {object} response   Server response
-   * @param {object} args       arguments object
-   *                            @see Schema.readProperty() for details
-   * @returns {object}  Canvass object
-   */
-  function readRspObject (response, args) {
-    if (!args) {
-      args = {};
-    }
-    if (!args.convert) {
-      args.convert = readRspObjectValueConvert;
-    }
-    // add resources required by Schema object
-    resourceFactory.addResourcesToArgs(args);
-
-    var stdArgs = resourceFactory.standardiseArgs(args),
-      object = CANVASSRES_SCHEMA.SCHEMA.read(response, stdArgs);
-
-    con.debug('Read canvass result rsp object: ' + object);
-
-    return object;
-  }
-
-  /**
-   * Convert values read from a server canvass result response
-   * @param {number}    schema id 
-   * @param {object}    read value
-   * @returns {object}  Converted value
-   */
-  function readRspObjectValueConvert(id, value) {
-    switch (id) {
-      case CANVASSRES_SCHEMA.IDs.DATE:
-      case CANVASSRES_SCHEMA.IDs.CREATED:
-      case CANVASSRES_SCHEMA.IDs.UPDATED:
-        value = new Date(value);
-        break;
-      default:
-        // other fields require no conversion
-        break;
-    }
-    return value;
-  }
-
-  /**
-   * Read a canvass result response from the server
-   * @param {object}   response   Server response
-   * @param {object}   args       process arguments object with following properties
-   *    {string|Array}  objId       id/array of ids of canvass & survey objects to save response data to
-   *    {string|Array}  addrId      id/array of ids of list object(s) to save address data to
-   *    {string|Array}  userId      id/array of ids of list object to save canvasser data to
-   *    {number}        flags       storefactory flags
-   *    {object}        surveyArgs  arguments to process embedded survey sub doc, 
-   *                                @see surveyFactory.readResponse() for details
-   *    {object}        electionArgs arguments to process embedded election sub doc, 
-   *                                @see electionFactory.readResponse() for details
-   *    {function}      next        function to call after processing
-   * @return {object}   Canvass object
-   */
-  function readResponse (response, args) {
-
-    var result = readRspObject(response, args);
-    return storeRspObject(result, args);
-  }
-
-  /**
-   * Store a canvass result response from the server
-   * @param {object}   response   Server response
-   * @param {object}   args       process arguments object with following properties
-   *    {string|Array}  objId       id/array of ids of canvass & survey objects to save response data to
-   *    {string|Array}  addrId      id/array of ids of list object(s) to save address data to
-   *    {string|Array}  userId      id/array of ids of list object to save canvasser data to
-   *    {number}        flags       storefactory flags
-   *    {object}        surveyArgs  arguments to process embedded survey sub doc, 
-   *                                @see surveyFactory.readResponse() for details
-   *    {object}        electionArgs arguments to process embedded election sub doc, 
-   *                                @see electionFactory.readResponse() for details
-   *    {function}      next        function to call after processing
-   * @return {object}   Canvass object
-   */
-  function storeRspObject(canvassRes, args) {
-
-    con.debug('Store canvass result response: ' + canvassRes);
-
-    // just basic storage args as subdocs have been processed above
-    var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
-        factory: $injector.get(factory.NAME)
-      });
-
-    return resourceFactory.storeServerRsp(canvassRes, storeArgs);
-  }
-
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId (id) {
-    return CANVASSRES_SCHEMA.ID_TAG + id;
-  }
-  
-  /**
-   * Set the filter for a canvass result ResourceList object
-   * @param {string} id     Factory id of object
-   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  function setFilter(id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  /**
-   * Get the default sort options for a canvass result ResourceList object
-   * @returns {object} canvass result ResourceList sort options
-   */
-  function getSortOptions() {
-    return CANVASSRES_SCHEMA.SORT_OPTIONS;
-  }
-
-  /**
-   * Execute the callback on each of the schema fields
-   */
-  function forEachCanvassResSchemaField(callback) {
-    CANVASSRES_SCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  /**
-   * Get a new filter object
-   * @param {object} base           filter base object
-   * @param {function} customFilter custom filter function
-   * @returns {object} canvass result ResourceList filter object
-   */
-  function newFilter(base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(CANVASSRES_SCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object} reslist    canvass result ResourceList object to filter
-   * @param {object} filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array} filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // canvass result specific filter function
-    return filterFactory.getFilteredList('filterCanvassResult', reslist, filter, xtraFilter);
-  }
-  
-  /**
-   * Default canvass result ResourceList custom filter function
-   * @param {object} reslist    canvass result ResourceList object to filter
-   * @param {object} filter     filter to apply
-   */
-  function filterFunction(reslist, filter) {
-    // canvass result specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
-  }
-  
-  /**
-   * Get the sort function for a canvass result ResourceList
-   * @param   {object} sortOptions  List of possible sort option
-   * @param   {object} sortBy       Key to sort by
-   * @returns {function} sort function
-   */
-  function getSortFunction(options, sortBy) {
-    var sortFxn = resourceFactory.getSortFunction(options, sortBy);
-    if (typeof sortFxn === 'object') {
-      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
-      if (sortItem.idTag === CANVASSRES_SCHEMA.ID_TAG) {
-        switch (sortItem.index) {
-          case CANVASSRES_SCHEMA.CANVASSRES_AVAILABLE_IDX:
-            sortFxn = compareAvailable;
-            break;
-          case CANVASSRES_SCHEMA.CANVASSRES_DONTCANVASS_IDX:
-            sortFxn = compareDontCanvass;
-            break;
-          case CANVASSRES_SCHEMA.CANVASSRES_TRYAGAIN_IDX:
-            sortFxn = compareTryAgain;
-            break;
-          case CANVASSRES_SCHEMA.CANVASSRES_SUPPORT_IDX:
-            sortFxn = compareSupport;
-            break;
-          case CANVASSRES_SCHEMA.CANVASSRES_DATE_IDX:
-            sortFxn = compareDate;
-            break;
-          default:
-            sortFxn = undefined;
-            break;
-        }
-      }
-    }
-    return sortFxn;
-  }
-
-  /**
-   * Compare objects based on 'available' property
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  function compareAvailable (a, b) {
-    return compareFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_AVAILABLE_IDX, a, b);
-  }
-
-  /**
-   * Compare objects based on 'dont canvass' property
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  function compareDontCanvass (a, b) {
-    return compareFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_DONTCANVASS_IDX, a, b);
-  }
-
-  /**
-   * Compare objects based on 'try again' property
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  function compareTryAgain (a, b) {
-    return compareFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_TRYAGAIN_IDX, a, b);
-  }
-
-  /**
-   * Compare objects based on 'support' property
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  function compareSupport (a, b) {
-    return compareFactory.compareNumberFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_SUPPORT_IDX, a, b);
-  }
-  
-  /**
-   * Compare objects based on 'date' property
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  function compareDate (a, b) {
-    return compareFactory.compareDateFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_DATE_IDX, a, b);
-  }
-  
-}
-
-
-/*jslint node: true */
-/*global angular */
-'use strict';
-
-angular.module('ct.clientCommon')
-
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
-
-    var details = [
-      SCHEMA_CONST.ID,
-      {
-        field: 'CANVASS', modelName: 'canvass', factory: 'canvassFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'CANVASSER', modelName: 'canvasser', factory: 'userFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'ADDRESSES', modelName: 'addresses', factory: 'addressFactory',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      },
+      schemaProvider.getObjectIdModelPropArgs('canvass', 'canvassFactory', 'canvass', CANVASSSCHEMA, CANVASSSCHEMA.IDs.ID, { field: 'CANVASS' }),
+      schemaProvider.getObjectIdModelPropArgs('canvasser', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSER' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('addresses', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESSES' }),
       SCHEMA_CONST.CREATEDAT,
       SCHEMA_CONST.UPDATEDAT
     ],
@@ -8285,44 +10324,30 @@ angular.module('ct.clientCommon')
     });
   }])
 
-  .filter('filterCanvassAssignment', ['SCHEMA_CONST', 'utilFactory', 'miscUtilFactory', function (SCHEMA_CONST, utilFactory, miscUtilFactory) {
-
-    function filterCanvassAssignmentFilter(input, schema, filterBy) {
-
-      // canvass assignment specific filter function
-
-      // TODO filter canvass assignment function
-      return input;
-    }
-
-    return filterCanvassAssignmentFilter;
-  }])
-
   .factory('canvassAssignmentFactory', canvassAssignmentFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassAssignmentFactory.$inject = ['$resource', '$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'canvassFactory',
-  'addressFactory', 'electionFactory', 'userFactory', 'SCHEMA_CONST', 'CANVASSASSIGN_SCHEMA', 'consoleService'];
-function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, surveyFactory, canvassFactory,
-  addressFactory, electionFactory, userFactory, SCHEMA_CONST, CANVASSASSIGN_SCHEMA, consoleService) {
+canvassAssignmentFactory.$inject = ['$injector', '$filter', '$q', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'canvassFactory',
+  'addressFactory', 'electionFactory', 'userFactory', 'SCHEMA_CONST', 'CANVASSASSIGN_SCHEMA', 'consoleService', 'undoFactory'];
+function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, surveyFactory, canvassFactory,
+  addressFactory, electionFactory, userFactory, SCHEMA_CONST, CANVASSASSIGN_SCHEMA, consoleService, undoFactory) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'canvassAssignmentFactory',
-      getCanvassAssignment: getCanvassAssignment,
-      getAssignmentCanvasses: getAssignmentCanvasses,
       readRspObject: readRspObject,
       readResponse: readResponse,
       storeRspObject: storeRspObject,
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachCanvassAssignSchemaField,
-      getSortOptions: getSortOptions,
+
       getSortFunction: getSortFunction,
+
+      linkCanvasserToAddr: linkCanvasserToAddr,
+      unlinkAddrFromCanvasser: unlinkAddrFromCanvasser,
+      unlinkAddrListFromCanvasser: unlinkAddrListFromCanvasser,
+      setLabeller: setLabeller,
 
       // objects to be extracted from response
       ADDR_CANVSR_LINKCANVASSER: 'addrCanvsrlinkCanvasser',   // canvasser whose allocation it is
@@ -8334,53 +10359,37 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
       ADDR_CANVSR_ADDRESSLIST: 'addrCanvsrAddressList'        // ResourceList of addresses
 
     },
-    con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: CANVASSASSIGN_SCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    }),
     addrCanvsrLinkArgs = [factory.ADDR_CANVSR_LINKCANVASSER, factory.ADDR_CANVSR_LINKADDRESS],
     addrCanvsrCanvsrsArgs = [factory.ADDR_CANVSR_CANVASSERARRAY, factory.ADDR_CANVSR_CANVASSERLIST],
     addrCanvsrAddrsArgs = [factory.ADDR_CANVSR_ADDRESSARRAY, factory.ADDR_CANVSR_ADDRESSLIST],
-    addrCanvsrObjArgs = addrCanvsrLinkArgs.concat(factory.ADDR_CANVSR_ADDRESSARRAY, factory.ADDR_CANVSR_CANVASSERARRAY),
+    addrCanvsrArrayArgs = [factory.ADDR_CANVSR_ADDRESSARRAY, factory.ADDR_CANVSR_CANVASSERARRAY],
+    addrCanvsrObjArgs = addrCanvsrLinkArgs.concat(addrCanvsrArrayArgs),
     addrCanvsrListArgs = [factory.ADDR_CANVSR_CANVASSERLIST, factory.ADDR_CANVSR_ADDRESSLIST],
-    addrCanvsrAllArgs = addrCanvsrObjArgs.concat(addrCanvsrListArgs);
-  
+    addrCanvsrAllArgs = addrCanvsrObjArgs.concat(addrCanvsrListArgs),
+    dfltLabeller,
+    con;  // console logger
+
+  if (consoleService.isEnabled(factory.NAME)) {
+    con = consoleService.getLogger(factory.NAME);
+  }
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: CANVASSASSIGN_SCHEMA.ID_TAG,
+    schema: CANVASSASSIGN_SCHEMA.SCHEMA,
+    sortOptions: CANVASSASSIGN_SCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      assignment: resourceFactory.getResourceConfigWithId('canvassassignment', {
+                        saveMany: { method: 'POST', isArray: true }
+                      }),
+      canvasses: resourceFactory.getResourceConfig('canvassassignment/canvasses')
+    }
+  });
+
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getCanvassAssignment () {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update & multiple save methods
-    */
-    return $resource(baseURL + 'canvassassignment/:id', { id: '@id' },
-                      {
-                        'update': { method: 'PUT' },
-                        'saveMany': { method: 'POST', isArray: true }
-                      });
-  }
-
-  function getAssignmentCanvasses() {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-    */
-    return $resource(baseURL + 'canvassassignment/canvasses');
-  }
 
   /**
    * Read a server response canvass assignment object
@@ -8406,7 +10415,9 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
 
     processAddressCanvasserLink(object, stdArgs);
 
-    con.debug('Read canvass assignment rsp object: ' + object);
+    if (con) {
+      con.debug('Read canvass assignment rsp object: ' + object);
+    }
 
     return object;
   }
@@ -8473,33 +10484,35 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
   /**
    * Store a canvass assignment response from the server
    * @param {object}   response   Server response
-   * @param {object}   args       process arguments object with following properties
-   *    {string|Array}  objId       id/array of ids of canvass & survey objects to save response data to
-   *    {string|Array}  addrId      id/array of ids of list object(s) to save address data to
-   *    {string|Array}  userId      id/array of ids of list object to save canvasser data to
-   *    {number}        flags       storefactory flags
-   *    {object}        surveyArgs  arguments to process embedded survey sub doc, 
-   *                                @see surveyFactory.readResponse() for details
-   *    {object}        electionArgs arguments to process embedded election sub doc, 
-   *                                @see electionFactory.readResponse() for details
-   *    {function}      next        function to call after processing
+   * @param {object}   args       process arguments object, @see resourceFactory.storeServerRsp() for details
    * @return {object}   Canvass object
    */
   function storeRspObject (obj, args) {
 
-    var subObjects, i, stdArgs;
+    // async version
+    //factory.storeRspObjectTest(factory.NAME, resourceFactory, obj, args, con, 'canvass assignment');
+
+    var subObjects, i, ll;
 
     // store sub objects first
     if (args.subObj) {
       subObjects = miscUtilFactory.toArray(args.subObj);
-      for (i = 0; i < subObjects.length; ++i) {
-        stdArgs = resourceFactory.standardiseArgs(subObjects[i]);
 
-        resourceFactory.storeSubDoc(obj, stdArgs, args);
+      if (con) {
+        con.debug('Store canvass assignment subobjs: ' + subObjects.length);
+      }
+
+      for (i = 0, ll = subObjects.length; i < ll; ++i) {
+        resourceFactory.storeSubDoc(obj, subObjects[i], args);
+        if (con) {
+          con.debug('Stored canvass assignment subobj[' + i + ']: ' + subObjects[i].objId);
+        }
       }
     }
 
-    con.debug('Store canvass assignment response: ' + obj);
+    if (con) {
+      con.debug('Store canvass assignment response: ' + obj);
+    }
 
     // just basic storage args as subdocs have been processed above
     var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
@@ -8509,80 +10522,6 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId (id) {
-    return CANVASSASSIGN_SCHEMA.ID_TAG + id;
-  }
-  
-  /**
-   * Set the filter for a canvass assignment ResourceList object
-   * @param {string} id     Factory id of object
-   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass assignment ResourceList object
-   */
-  function setFilter(id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  /**
-   * Get the default sort options for a canvass assignment ResourceList object
-   * @returns {object} canvass assignment ResourceList sort options
-   */
-  function getSortOptions() {
-    return CANVASSASSIGN_SCHEMA.SORT_OPTIONS;
-  }
-
-  /**
-   * Execute the callback on each of the schema fields
-   */
-  function forEachCanvassAssignSchemaField (callback) {
-    CANVASSASSIGN_SCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  /**
-   * Get a new filter object
-   * @param {object} base           filter base object
-   * @param {function} customFilter custom filter function
-   * @returns {object} canvass assignment ResourceList filter object
-   */
-  function newFilter(base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(CANVASSASSIGN_SCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object} reslist    canvass assignment ResourceList object to filter
-   * @param {object} filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array} filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // canvass assignment specific filter function
-    return filterFactory.getFilteredList('filterCanvassAssignment', reslist, filter, xtraFilter);
-  }
-  
-  /**
-   * Default canvass assignment ResourceList custom filter function
-   * @param {object} reslist    canvass assignment ResourceList object to filter
-   * @param {object} filter     filter to apply
-   */
-  function filterFunction(reslist, filter) {
-    // canvass assignment specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
-  }
-  
   /**
    * Get the sort function for a canvass assignment ResourceList
    * @param   {object} sortOptions  List of possible sort option
@@ -8618,119 +10557,179 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
    * @param   {function} labeller Function to generate label classes
    */
   function linkAddressAndCanvasser(linkArg, response, labeller) {
-    if (linkArg) {
-      var i = 0,
-        link = countProperties(addrCanvsrLinkArgs, linkArg),
-        canvsrs = countProperties(addrCanvsrCanvsrsArgs, linkArg),
-        addrs = countProperties(addrCanvsrAddrsArgs, linkArg),
-        lists = {},
-        addressToLink;
-      
-      // check have all the args
-      if ((link === addrCanvsrLinkArgs.length) && (canvsrs >= 1) && (addrs >= 1)) {
-        // have all link args and, canvassers & addresses to connect
-        // response may be an array depending on query params
-        miscUtilFactory.toArray(response).forEach(function (canvasserAssignment) {
+    var linkCanvasser,    // canvasser whose allocation it is
+      linkAddressList,    // canvasser's address allocation 
+      linkCanvasserListArray,   // array of array's of canvassers
+      linkAddressListArray;     // array of array's of addresses
 
-          // get the objects
-          addrCanvsrObjArgs.forEach(function (flag) {
-            lists[flag] = [];
-            miscUtilFactory.toArray(linkArg[flag]).forEach(function (objArg) {
-              lists[flag].push(resourceFactory.getObjectInfo(canvasserAssignment, objArg).object);
-            });
-          });
-          // get the lists
-          addrCanvsrListArgs.forEach(function (flag) {
-            lists[flag] = [];
-            miscUtilFactory.toArray(linkArg[flag]).forEach(function (listArg) {
-              miscUtilFactory.toArray(listArg.objId).forEach(function (objId) {
-                lists[flag].push(listArg.factory.getList(objId));
+    if (linkArg) {
+      // response may be an array depending on query params
+      miscUtilFactory.toArray(response).forEach(function (canvasserAssignment) {
+
+        var artifacts = getLinkAddressAndCanvasserArtifacts(linkArg, canvasserAssignment);
+        if (artifacts) {
+          // get canvasser arrays & resource lists
+          linkCanvasserListArray = getPropertiesWithLength(addrCanvsrCanvsrsArgs, artifacts);
+          // get address arrays & resource lists
+          linkAddressListArray = getPropertiesWithLength(addrCanvsrAddrsArgs, artifacts);
+
+          // have all the info i.e. canvasser whose alloc it is and the allocations in the canvass subdoc
+          linkCanvasser = getFirstOfOne(artifacts[factory.ADDR_CANVSR_LINKCANVASSER], // array of link canvasser
+            'Multiple link canvassers specified', 'Invalid link canvasser');
+          if (con) {
+            con.debug('Link canvasser: ' + JSON.stringify(linkCanvasser));
+          }
+
+          linkAddressList = getFirstOfOne(artifacts[factory.ADDR_CANVSR_LINKADDRESS],  // array of link canvasser's addresses
+            'Multiple link addresses specified', 'Invalid link canvasser address list');
+
+          if (linkCanvasser && linkAddressList) {
+            // find canvasser whose allocation it is in list of assigned canvassers
+            searchMap(linkCanvasserListArray, linkCanvasser._id, function (canvasserToLink) {
+
+              if (con) {
+                con.debug('Canvasser to link: ' + JSON.stringify(canvasserToLink));
+              }
+
+              // save id of canvasser's allocation record
+              canvasserToLink.allocId = canvasserAssignment._id;
+
+              // find the allocated address in the list of assigned addresses
+              linkAddressList.forEach(function (linkAddress) {
+                // find address to link in list of addresses
+                searchMap(linkAddressListArray, linkAddress._id, function (addressToLink) {
+
+                  if (con) {
+                    con.debug('Address to link: ' + JSON.stringify(addressToLink));
+                  }
+                  linkCanvasserToAddr(canvasserToLink, addressToLink, labeller);
+                });
               });
             });
-          });
-
-          // check have all the data
-          link = countPropertiesLength(addrCanvsrLinkArgs, linkArg);
-          canvsrs = countPropertiesLength(addrCanvsrCanvsrsArgs, linkArg);
-          addrs = countPropertiesLength(addrCanvsrAddrsArgs, linkArg);
-          if ((link === addrCanvsrLinkArgs.length) && (canvsrs >= 1) && (addrs >= 1)) {
-            // have all the info i.e. canvasser whose alloc it is and the allocations in the canvass subdoc
-            var canvasserToLink,
-              linkCanvasserData = lists[factory.ADDR_CANVSR_LINKCANVASSER], // array of link canvasser
-              linkAddressData = lists[factory.ADDR_CANVSR_LINKADDRESS],     // array of link canvasser's addresses
-              linkCanvasserListArray = [],   // array of array's of canvassers
-              linkAddressListArray = [];     // array of array's of addresses
-            if (linkCanvasserData.length > 1) {
-              throw new Error('Multiple link canvassers specified');
-            }
-            if (linkAddressData.length > 1) {
-              throw new Error('Multiple link addresses specified');
-            }
-
-            addrCanvsrCanvsrsArgs.forEach(function (canvsrs) {
-              if (lists[canvsrs].length) {
-                linkCanvasserListArray.push(lists[canvsrs]);
-              }
-            });
-            addrCanvsrAddrsArgs.forEach(function (addrs) {
-              if (lists[addrs].length) {
-                linkAddressListArray.push(lists[addrs]);
-              }
-            });
-
-            linkCanvasserData.forEach(function (linkCanvasser) {
-              if (linkCanvasser) {
-                // find canvasser whose allocation it is in list of assigned canvassers
-                linkCanvasserListArray.forEach(function (linkCanvasserListData) {
-                  linkCanvasserListData.forEach(function (canvasserList) {
-                    var canvsrFind;
-                    if (canvasserList.isResourceList) {
-                      canvsrFind = 'findInList';  // resource list find function
-                    } else {
-                      canvsrFind = 'find';        // Array find function
-                    }
-                    canvasserToLink = canvasserList[canvsrFind](function (canvsr) {
-                      return (canvsr._id === linkCanvasser._id);
-                    });
-                    if (canvasserToLink) {
-
-                      // save id of canvasser's allocation record
-                      canvasserToLink.allocId = canvasserAssignment._id;
-
-                      // find the allocated address in the list of assigned addresses
-                      linkAddressData.forEach(function (linkAddressList) {
-                        if (linkAddressList) {
-                          linkAddressList.forEach(function (linkAddress) {
-                            // find address to link in list of addresses
-                            linkAddressListArray.forEach(function (linkAddressListData) {
-                              linkAddressListData.forEach(function (addressList) {
-                                var addrFind;
-                                if (addressList.isResourceList) {
-                                  addrFind = 'findInList';  // resource list find function
-                                } else {
-                                  addrFind = 'find';        // Array find function
-                                }
-                                addressToLink = addressList[addrFind](function (addr) {
-                                  return (addr._id === linkAddress._id);
-                                });
-                                if (addressToLink) {
-                                  linkCanvasserToAddr(canvasserToLink, addressToLink, labeller);
-                                }
-                              });
-                            });
-                          });
-                        }
-                      });
-                    }
-                  });
-                });
-              }
-            });
           }
-        });
-      }
+        }
+      });
     }
   }
+
+  /**
+    * Get the link addresses & canvasser
+    * @param {object} linkArg             Link arguments
+    * @param {object} canvasserAssignment Assignment response from server
+    * @return {object}  Artifacts object
+    */
+  function getLinkAddressAndCanvasserArtifacts(linkArg, canvasserAssignment) {
+    var artifacts;
+    if (linkArg) {
+      var link = countProperties(addrCanvsrLinkArgs, linkArg),      // count number of link args
+        canvsrs = countProperties(addrCanvsrCanvsrsArgs, linkArg),  // count number of canvasser args
+        addrs = countProperties(addrCanvsrAddrsArgs, linkArg);      // count number of address args
+
+      // check have all the args
+      if ((link === addrCanvsrLinkArgs.length) && (canvsrs >= 1) && (addrs >= 1)) {
+        // have all link args and, canvassers & addresses to connect args
+
+        // check have all the data, i.e. array lengths > 0
+        link = countPropertiesLength(addrCanvsrLinkArgs, linkArg);
+        canvsrs = countPropertiesLength(addrCanvsrCanvsrsArgs, linkArg);
+        addrs = countPropertiesLength(addrCanvsrAddrsArgs, linkArg);
+        if ((link === addrCanvsrLinkArgs.length) && (canvsrs >= 1) && (addrs >= 1)) {
+          // have everything
+          var addToArtifacts = function (obj, prop) {
+            if (obj) {
+              if (!artifacts[prop]) {
+                artifacts[prop] = [];
+              }
+              artifacts[prop].push(obj);
+            }
+          },
+          addIdMap = function (obj, prop) {
+            if (obj) {
+              addToArtifacts(miscUtilFactory.arrayToMap(obj, '_id'), prop);
+            }
+          };
+
+          artifacts = {};
+
+          // get the link args and put into result
+          processPropertiesFromArgs(addrCanvsrLinkArgs, linkArg, function (objId, prop, arg) {
+            // save link canvasser & their allocated addresses as it
+            addToArtifacts(resourceFactory.getObjectInfo(canvasserAssignment, arg).object, prop);
+          });
+          // get the link arrays and put into result
+          processPropertiesFromArgs(addrCanvsrArrayArgs, linkArg, function (objId, prop, arg) {
+            // convert to map for easy lookup
+            addIdMap(resourceFactory.getObjectInfo(canvasserAssignment, arg).object, prop);
+          });
+          // get the lists & put into result
+          processPropertiesFromArgs(addrCanvsrListArgs, linkArg, function (objId, prop, arg) {
+            // convert to map for easy lookup
+            addIdMap(arg.factory.getList(objId), prop);
+          });
+        }
+      }
+    }
+    return artifacts;
+  }
+
+  function processPropertiesFromArgs(properties, linkArg, processFunc) {
+    properties.forEach(function (prop) {
+      miscUtilFactory.toArray(linkArg[prop]).forEach(function (arg) {
+        var objId = arg.objId;
+        // if object is being saved it'll be a string or array of strings
+        if (!objId || (Array.isArray(objId) && !objId.length)) {
+          // object is not being saved
+          objId = 'nosave'; // dummy objId
+        }
+        miscUtilFactory.toArray(objId).forEach(function (objId) {
+          processFunc(objId, prop, arg);
+        });
+      });
+    });
+  }
+
+
+  function searchMap(arrayOfArrayOfMap, id, processFunc) {
+    var result;
+
+    arrayOfArrayOfMap.forEach(function (arrayOfMap) {
+      arrayOfMap.forEach(function (map) {
+        result = map[id];
+        if (result) {
+          processFunc(result);
+        }
+      });
+    });
+  }
+
+  function getFirstOfOne(array, tooManyErr, invalidErr) {
+    var result;
+    if (array) {
+      if (array.length > 1) {
+        throw new Error(tooManyErr);
+      } else {
+        // should only be linking 1 canvasser
+        result = array[0];
+        if (!result) {
+          throw new Error(invalidErr);
+        }
+      }
+    }
+    return result;
+  }
+
+  function getPropertiesWithLength(properties, arrayOfArrays) {
+    var result = [];
+    properties.forEach(function (prop) {
+      if (arrayOfArrays[prop] && arrayOfArrays[prop].length) {
+        result.push(arrayOfArrays[prop]);
+      }
+    });
+    return result;
+  }
+
+
+
 
   /**
    * Count the number of specified properties in an object
@@ -8766,10 +10765,20 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
 
   /**
    * Link the specified canvasser and address
-   * @param {object}   canvasser  Canvasser object to link
-   * @param {object}   addr       Address object to link
+   * @param {object}   canvasser Canvasser object to link
+   * @param {object}   addr      Address object to link
+   * @param {function} labeller  Label class generator function
+   * @param {boolean}  rtnUndo   Generate undo  object
+   * @return {object}   undo object
    */
-  function linkCanvasserToAddr (canvasser, addr, labeller) {
+  function linkCanvasserToAddr (canvasser, addr, labeller, rtnUndo) {
+    var undo;
+    
+    if (typeof labeller === 'boolean') {
+      rtnUndo = labeller;
+      labeller = undefined;
+    }
+
     if (!canvasser.addresses) {
       canvasser.addresses = [];
     }
@@ -8778,13 +10787,27 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
     }
 
     addr.canvasser = canvasser._id;
-    addr.badge = getFirstLetters(canvasser.person.firstname) + 
-                  getFirstLetters(canvasser.person.lastname);
+    if (!canvasser.badge) {
+      angular.extend(canvasser, makeCanvasserBadge(canvasser));
+    }
+    copyCanvasserBadge(canvasser, addr);
 
     if (!canvasser.labelClass) {
-      canvasser.labelClass = labeller();
+      if (labeller) {
+        canvasser.labelClass = labeller();
+      } else if (dfltLabeller) {
+        canvasser.labelClass = dfltLabeller();
+      }
     }
     addr.labelClass = canvasser.labelClass;
+    
+    if (rtnUndo) {
+      undo = undoFactory.newUndoStep(
+        factory.unlinkAddrFromCanvasser.bind(factory, canvasser, addr)
+      );
+    }
+    
+    return undo;
   }
 
   /**
@@ -8798,6 +10821,39 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
                                           }, addr);
   }
 
+  /**
+   * Generate a canvasser badge
+   * @param   {object} canvasser Canvasser object
+   * @returns {string} badge
+   */
+  function makeCanvasserBadge (canvasser) {
+    return {
+      badge: getFirstLetters(canvasser.person.firstname) +
+              getFirstLetters(canvasser.person.lastname),
+      canvasserTip: 'Canvasser: ' + canvasser.person.firstname + ' ' +
+                                      canvasser.person.lastname
+    };
+  }
+  
+  /**
+   * Copy cnavasser badge properties
+   * @param {object} src Source object
+   * @param {object} dst Destination object
+   */
+  function copyCanvasserBadge (src, dst) {
+    dst.badge = src.badge;
+    dst.canvasserTip = src.canvasserTip;
+  }
+  
+  /**
+   * Remove cnavasser badge properties
+   * @param {object} from Object to remove from
+   */
+  function removeCanvasserBadge (from) {
+    delete from.badge;
+    delete from.canvasserTip;
+  }
+  
   /**
    * Get the first letters of all words in a string
    * @param {string}   str  String to get leading letter from
@@ -8817,22 +10873,70 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
 
   /**
    * Unlink the specified canvasser and address
-   * @param {object}   canvasser  Canvasser object to unlink
-   * @param {object}   addr       Address object to unlink
+   * @param {object}  canvasser Canvasser object to unlink
+   * @param {object}  addr      Address object to unlink
+   * @param {boolean} rtnUndo   Generate undo  object
+   * @return {object}  undo object
    */
-  function unlinkAddrFromCanvasser (canvasser, addr) {
+  function unlinkAddrFromCanvasser (canvasser, addr, rtnUndo) {
+    var undo,
+      idx;
     if (canvasser.addresses) {
-      var idx = findAddrIndex(canvasser, addr);
+      idx = findAddrIndex(canvasser, addr);
       if (idx >= 0) {
-        canvasser.addresses.splice(idx, 1); // remove from list
+        canvasser.addresses.splice(idx, 1);
+        
+        if (rtnUndo) {
+          undo = undoFactory.newUndoStep(
+            factory.linkCanvasserToAddr.bind(factory, canvasser, addr)
+          );
+        }
       }
     }
     delete addr.canvasser;
-    delete addr.badge;
+    removeCanvasserBadge(addr);
+
+    return undo;
   }
 
+  /**
+   * Unlink the specified canvasser and all addresses in a list
+   * @param {object}   canvasser  Canvasser object to unlink
+   * @param {array}   addrArray   List of address objects to unlink
+   * @param {boolean} rtnUndo   Generate undo  object
+   * @return {array} array of undo objects
+   */
+  function unlinkAddrListFromCanvasser (canvasser, addrArray, rtnUndo) {
+    var undo = [];
+    if (canvasser.addresses) {
+      canvasser.addresses.forEach(function (addrId) {
+        var addr = addrArray.find(function (entry) {
+                                    return (entry._id === this);
+                                  }, addrId);
+        if (addr) {
+          delete addr.canvasser;
+          removeCanvasserBadge(addr);
+          
+          if (rtnUndo) {
+            undo.push(undoFactory.newUndoStep(
+              factory.linkCanvasserToAddr.bind(factory, canvasser, addr)
+            ));
+          }
+        }
+      });
+    }
+    canvasser.addresses = [];
 
+    return (undo.length ? undo : undefined);
+  }
 
+  /**
+   * Set the labeling function
+   * @param {function} labelfunc Function to return label class
+   */
+  function setLabeller (labelfunc) {
+    dfltLabeller = labelfunc;
+  }
 
 }
 
@@ -8841,9 +10945,172 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
 /*global angular */
 'use strict';
 
-angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordova', 'ui.bootstrap', 'NgDialogUtil', 'ct.clientCommon', 'chart.js'])
+angular.module('ct.clientCommon')
 
-  .config(['$stateProvider', '$urlRouterProvider', 'STATES', 'MENUS', function ($stateProvider, $urlRouterProvider, STATES, MENUS) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+
+    var details = [
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('type', { field: 'TYPE' }),
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('email', { field: 'EMAIL' }),
+      schemaProvider.getStringModelPropArgs('comment', { field: 'COMMENT' }),
+      SCHEMA_CONST.CREATEDAT,
+      SCHEMA_CONST.UPDATEDAT
+    ],
+      ids = {},
+      modelProps = [];
+
+    for (var i = 0; i < details.length; ++i) {
+      ids[details[i].field] = i;          // id is index
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
+    }
+
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('message'),
+      schema = schemaProvider.getSchema('Message', modelProps, ids, ID_TAG),
+      TYPE_IDX = 
+        schema.addFieldFromModelProp('type', 'Type', ids.NAME),
+      NAME_IDX = 
+        schema.addFieldFromModelProp('name', 'Name', ids.NAME),
+      EMAIL_IDX =
+        schema.addFieldFromModelProp('email', 'Email', ids.EMAIL),
+
+      // generate list of sort options
+      sortOptions = schemaProvider.makeSortList(schema, 
+                      [TYPE_IDX, NAME_IDX, EMAIL_IDX], 
+                      ID_TAG);
+
+      $provide.constant('MESSAGESCHEMA', {
+        IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
+        MODELPROPS: modelProps,
+
+        SCHEMA: schema,
+        // row indices
+        TYPE_IDX: TYPE_IDX,
+        NAME_IDX: NAME_IDX,
+        EMAIL_IDX: EMAIL_IDX,
+
+        SORT_OPTIONS: sortOptions,
+        ID_TAG: ID_TAG
+      });
+  }])
+
+  .factory('messageFactory', messageFactory);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+messageFactory.$inject = ['$filter', '$injector', 'baseURL', 'consoleService', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'SCHEMA_CONST', 'MESSAGESCHEMA'];
+
+function messageFactory($filter, $injector, baseURL, consoleService, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, SCHEMA_CONST, MESSAGESCHEMA) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  var factory = {
+      NAME: 'messageFactory',
+
+      readRspObject: readRspObject,
+
+      getSortFunction: getSortFunction,
+    },
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: MESSAGESCHEMA.ID_TAG,
+    schema: MESSAGESCHEMA.SCHEMA,
+    sortOptions: MESSAGESCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      message: resourceFactory.getResourceConfigWithId('message'),
+      feedback: resourceFactory.getResourceConfigWithId('message/feedback'),
+      support: resourceFactory.getResourceConfigWithId('message/support')
+    }
+  });
+  
+  return factory;
+
+  /* function implementation
+    -------------------------- */
+
+  /**
+   * Read a server response message object
+   * @param {object} response   Server response
+   * @param {object} args       arguments object
+   *                            @see Schema.readProperty() for details
+   * @returns {object}  message object
+   */
+  function readRspObject (response, args) {
+    if (!args) {
+      args = {};
+    }
+    // no conversions required by default
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
+
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = MESSAGESCHEMA.SCHEMA.read(response, stdArgs);
+
+    con.debug('Read message rsp object: ' + object);
+
+    return object;
+  }
+
+  
+  function getSortFunction (options, sortBy) {
+    var sortFxn = resourceFactory.getSortFunction(options, sortBy);
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === MESSAGESCHEMA.ID_TAG) {
+        switch (sortItem.index) {
+          case MESSAGESCHEMA.TYPE_IDX:
+            sortFxn = compareType;
+            break;
+          case MESSAGESCHEMA.NAME_IDX:
+            sortFxn = compareName;
+            break;
+          case MESSAGESCHEMA.EMAIL_IDX:
+            sortFxn = compareEmail;
+            break;
+          default:
+            sortFxn = undefined;
+            break;
+        }
+      }
+    }
+    return sortFxn;
+  }
+
+  function compareType (a, b) {
+    return compareFactory.compareStringFields(MESSAGESCHEMA.SCHEMA, MESSAGESCHEMA.TYPE_IDX, a, b);
+  }
+
+  function compareName (a, b) {
+    return compareFactory.compareStringFields(MESSAGESCHEMA.SCHEMA, MESSAGESCHEMA.NAME_IDX, a, b);
+  }
+
+  function compareEmail (a, b) {
+    return compareFactory.compareStringFields(MESSAGESCHEMA.SCHEMA, MESSAGESCHEMA.EMAIL_IDX, a, b);
+  }
+
+}
+
+
+
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordova', 'ui.bootstrap', 'NgDialogUtil', 'ct.clientCommon', 'chart.js', 'ngIdle', 'timer'])
+
+  .config(['$stateProvider', '$urlRouterProvider', 'STATES', function ($stateProvider, $urlRouterProvider, STATES) {
 
     var getUrl = function (state, param) {
         var splits = state.split('.'),
@@ -8926,7 +11193,7 @@ angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordov
             views: {
               'content@': {
                 templateUrl : 'users/userdash.html',
-                controller  : 'UserController'
+                controller  : 'UserDashController'
               }
             }
           }
@@ -8986,7 +11253,7 @@ angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordov
             views: {
               'content@': {
                 templateUrl : 'elections/electiondash.html',
-                controller  : 'ElectionController'
+                controller  : 'ElectionDashController'
               }
             }
           }
@@ -9102,7 +11369,8 @@ angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordov
             controller  : 'HeaderController'
           },
           'content': {
-            templateUrl : 'views/home.html'
+            templateUrl : 'views/home.html',
+            controller  : 'HomeController'
           },
           'footer': {
             templateUrl : 'layout/footer.html',
@@ -9144,6 +11412,17 @@ angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordov
             controller  : 'ContactController'
           }
         }
+      })
+
+      // route for the support page
+      .state(STATES.SUPPORT, {
+        url: getUrl(STATES.SUPPORT),
+        views: {
+          'content@': {
+            templateUrl : 'views/contactus.html',
+            controller  : 'ContactController'
+          }
+        }
       });
 
     routes.forEach(function (route) {
@@ -9153,6 +11432,12 @@ angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordov
     });
 
     $urlRouterProvider.otherwise(otherwisePath);
+  }])
+  .config(['IdleProvider', 'KeepaliveProvider', 'CONFIG', function(IdleProvider, KeepaliveProvider, CONFIG) {
+    // configure Idle settings
+    IdleProvider.idle(CONFIG.AUTOLOGOUT); // in seconds
+    IdleProvider.timeout(CONFIG.AUTOLOGOUTCOUNT); // in seconds
+    KeepaliveProvider.interval(CONFIG.TOKENREFRESH); // in seconds
   }]);
 
 /*jslint node: true */
@@ -9161,64 +11446,36 @@ angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordov
 
 angular.module('canvassTrac')
 
-  .controller('ContactController', ['$scope', function ($scope) {
+  .controller('ContactController', ContactController)
 
-    // function to initialise feedback object
-    $scope.initFeedback = function () {
-      $scope.feedback = {
-        mychannel: '',
-        firstName: '',
-        lastName: '',
-        agree: false,
-        email: ''
-      };
+  .controller('FeedbackController', ['$scope', '$state', 'messageFactory' ,'NgDialogFactory', 'STATES', function ($scope, $state, messageFactory, NgDialogFactory, STATES) {
 
-      $scope.invalidChannelSelection = false;
-    };
 
-    $scope.initFeedback();
+    $scope.sendMessage = function () {
 
-    // function to log feedback object to console
-    $scope.logFeedback = function (message) {
-      console.log(message + ':');
-      console.log($scope.feedback);
-    };
+      var resource;
+      if ($state.is(STATES.CONTACTUS)) {
+        resource = 'feedback';
+      } else if ($state.is(STATES.SUPPORT)) {
+        resource = 'support';
+      }
 
-    $scope.channels = [{value: 'tel', label: 'Tel.'}, {value: 'Email', label: 'Email'}];
-  }])
+      if (resource) {
+        // post message to server
+        messageFactory.save(resource, $scope.message,
+          // success function
+          function (/*response*/) {
+            // re-init for next comment entry
+            $scope.initMessage(true);
 
-  .controller('FeedbackController', ['$scope', 'feedbackFactory', function ($scope, feedbackFactory) {
-
-    $scope.sendFeedback = function () {
-
-      $scope.logFeedback('sendFeedback');
-
-      if ($scope.feedback.agree && ($scope.feedback.mychannel === '')) {
-        $scope.invalidChannelSelection = true;
-        console.log('invalidChannelSelection');
-      } else {
-        // post comment to server
-        feedbackFactory.putFeedback().save($scope.feedback)
-          .$promise.then(
-            // success function
-            function (response) {
-              // response is actual data
-
-              // re-init for next comment entry
-              $scope.initFeedback();
-
-              $scope.feedbackForm.$setPristine();
-
-              $scope.logFeedback('clearFeedback');
-            },
-            // error function
-            function (response) {
-              // reponse is message
-              var message = 'Error saving feedback\n\n' +
-                  'Error: ' + response.status + ' ' + response.statusText;
-              alert(message);
-            }
-          );
+            $scope.messageForm.$setPristine();
+          },
+          // error function
+          function (response) {
+            // response is message
+            NgDialogFactory.error(response, 'Error saving');
+          }
+        );
       }
     };
   }])
@@ -9230,55 +11487,28 @@ angular.module('canvassTrac')
   }]);
 
 
+ContactController.$inject = ['$scope', '$state', 'STATES', 'MESSAGESCHEMA'];
 
+function ContactController ($scope, $state, STATES, MESSAGESCHEMA) {
 
-/*jslint node: true */
-/*global angular */
-'use strict';
+  // function to initialise feedback object
+  $scope.initMessage = function (submitted) {
+    $scope.message = MESSAGESCHEMA.SCHEMA.getObject();
+    $scope.message.submitted = submitted;
+  };
 
-angular.module('canvassTrac')
+  if ($state.is(STATES.CONTACTUS)) {
+    $scope.title = 'Send Feedback';
+    $scope.thanks = 'Thank you for your feedback';
+    $scope.entryPrompt = 'Your Feedback';
+  } else if ($state.is(STATES.SUPPORT)) {
+    $scope.title = 'Support Request';
+    $scope.thanks = 'Thank you for your request, you will receive a response as soon as possible.';
+    $scope.entryPrompt = 'Details';
+  }
 
-  .service('menuFactory', ['$resource', 'baseURL', function ($resource, baseURL) {
-
-    this.getDishes = function () {
-      // need to update dishes with new comments, so need a custom PUT action as the default resource "class" object doesn't have one
-      return $resource(baseURL + 'dishes/:id', null, {'update': {method: 'PUT'}});
-    };
-
-
-    // implement a function named getPromotion
-    // that returns a selected promotion.
-
-    this.getPromotion = function () {
-      // only getting promos, so no need for a custom action as the default resource "class" object has get/query
-      return $resource(baseURL + 'promotions/:id', null, null);
-    };
-
-  }])
-
-  .factory('corporateFactory', ['$resource', 'baseURL', function ($resource, baseURL) {
-
-    var corpfac = {};
-
-    corpfac.getLeader = function () {
-      // only getting leaders, so no need for a custom action as the default resource "class" object has get/query
-      return $resource(baseURL + 'leadership/:id', null, null);
-    };
-
-    return corpfac;
-  }])
-
-  .factory('feedbackFactory', ['$resource', 'baseURL', function ($resource, baseURL) {
-
-    var feedbackfac = {};
-
-    feedbackfac.putFeedback = function () {
-      // default resource "class" object contains a save method so no need for a custom action
-      return $resource(baseURL + 'feedback/', null, null);
-    };
-
-    return feedbackfac;
-  }]);
+  $scope.initMessage();
+}
 
 
 
@@ -9292,10 +11522,6 @@ angular.module('canvassTrac')
     var and = 'And',
       or = 'Or';
     return {
-      SET_SEL: 's',
-      CLR_SEL: 'c',
-      TOGGLE_SEL: 't',
-
       OP_AND: and,
       OP_OR: or,
       OP_LIST: [and, or]
@@ -9309,18 +11535,13 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-utilFactory.$inject = ['$rootScope', 'miscUtilFactory', 'UTIL'];
+utilFactory.$inject = ['$rootScope', 'miscUtilFactory'];
 
-function utilFactory ($rootScope, miscUtilFactory, UTIL) {
+function utilFactory ($rootScope, miscUtilFactory) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     formatDate: formatDate,
-    initSelected: initSelected,
-    setSelected: setSelected,
-    getSelectedList: getSelectedList,
-    countSelected: countSelected,
-    toggleSelection: toggleSelection,
     arrayAdd: arrayAdd,
     arrayRemove: arrayRemove
   };
@@ -9334,101 +11555,6 @@ function utilFactory ($rootScope, miscUtilFactory, UTIL) {
     return new Date(date).toDateString();
   }
 
-  /**
-   * Initialise the 'selected' property of all objects in an array
-   * @param {Array}    list     Array of objects to initialise
-   * @param {function} callback Optional function to call with each element
-   */
-  function initSelected(list, callback) {
-    return setSelected(list, UTIL.CLR_SEL, callback);
-  }
-  
-  /**
-   * Set the 'selected' state of all the entries in the array
-   * @param {Array}    list     Array to set
-   * @param {boolean}  set      Value to set; one of UTIL.SET_SEL, UTIL.CLR_SEL or UTIL.TOGGLE_SEL
-   * @param {function} callback Optional function to call with each element
-   */
-  function setSelected(list, set, callback) {
-    var selCount = 0;
-    if (list) {
-      var forceSet = (set === UTIL.SET_SEL),
-        forceClr = (set === UTIL.CLR_SEL),
-        toggle = (set === UTIL.TOGGLE_SEL);
-      if (forceSet || forceClr || toggle) {
-        angular.forEach(list, function (entry) {
-          if (forceSet || (toggle && !entry.isSelected)) {
-            entry.isSelected = true;
-          } else if (entry.isSelected) {
-            delete entry.isSelected;
-          }
-          if (entry.isSelected) {
-            ++selCount;
-          }
-          if (callback) {
-            callback(entry);
-          }
-        });
-      }
-    }
-    return selCount;
-  }
-  
-  /**
-   * Return an array of 'selected' entries 
-   * @param   {Array} fullList Array to extract selected items from
-   * @returns {Array} Array of selected items
-   */
-  function getSelectedList (fullList) {
-    var selectedList = [];
-
-    angular.forEach(fullList, function (entry) {
-      if (entry.isSelected) {
-        selectedList.push(entry);
-      }
-    });
-    return selectedList;
-  }
-
-  
-  /**
-   * Return number of 'selected' entries
-   * @param   {Array} fullList Array to count selected items from
-   * @returns {number} Number of selected items
-   */
-  function countSelected (fullList) {
-    var count = 0;
-
-    angular.forEach(fullList, function (entry) {
-      if (entry.isSelected) {
-        ++count;
-      }
-    });
-    return count;
-  }
-
-
-  /**
-   * Toggle an object's 'selected' state
-   * @param   {object} entry Object to toggle state of
-   * @param   {number} count Current selected count
-   * @returns {number} Updated selected count
-   */
-  function toggleSelection (entry, count) {
-    if (count === undefined) {
-      count = 0;
-    }
-    if (!entry.isSelected) {
-      entry.isSelected = true;
-      count += 1;
-    } else {
-      entry.isSelected = false;
-      count -= 1;
-    }
-    return count;
-  }
-
-  
   /**
    * Add item(s) to an array based on the result of a test function
    * @throws {TypeError} Thrown when incorrect arguments provided
@@ -9528,6 +11654,536 @@ function utilFactory ($rootScope, miscUtilFactory, UTIL) {
 
 angular.module('canvassTrac')
 
+  .constant('DECOR', (function () {
+    return {
+      DASH: { icon: 'fa fa-tachometer fa-fw', class: 'btn btn-default' },
+      NEW: { icon: 'fa fa-plus-square-o fa-fw', class: 'btn btn-primary' },
+      VIEW: { icon: 'fa fa-eye fa-fw', class: 'btn btn-info' },
+      EDIT: { icon: 'fa fa-pencil-square-o fa-fw', class: 'btn btn-warning' },
+      DEL: { icon: 'fa fa-trash-o fa-fw', class: 'btn btn-danger' },
+      SEL: { icon: 'fa fa-check-square-o fa-fw', class: 'btn btn-default' },
+      UNSEL: { icon: 'fa fa-square-o fa-fw', class: 'btn btn-default' }
+    };
+  })())
+
+  .factory('controllerUtilFactory', controllerUtilFactory);
+
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+controllerUtilFactory.$inject = ['authFactory', 'miscUtilFactory', 'utilFactory', 'STATES', 'ACCESS', 'DECOR'];
+
+function controllerUtilFactory (authFactory, miscUtilFactory, utilFactory, STATES, ACCESS, DECOR) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  var factory = {
+    setScopeVars: setScopeVars,
+    getStateButton: getStateButton,
+    setSelect: setSelect,
+    toggleSelection: toggleSelection,
+    moveListSelected: moveListSelected
+  },
+
+  dashTxt = 'Dash',
+  newTxt = 'New',
+  viewTxt = 'View',
+  editTxt = 'Edit',
+  delTxt = 'Delete',
+  buttons = [
+    { txt: dashTxt, icon: DECOR.DASH.icon, tip: 'Go to dashboard', class: DECOR.DASH.class },
+    { txt: newTxt, icon: DECOR.NEW.icon, tip: 'Create new', class: DECOR.NEW.class },
+    { txt: viewTxt, icon: DECOR.VIEW.icon, tip: 'View selected', class: DECOR.VIEW.class },
+    { txt: editTxt, icon: DECOR.EDIT.icon, tip: 'Edit selected', class: DECOR.EDIT.class },
+    { txt: delTxt, icon: DECOR.DEL.icon, tip: 'Delete selected', class: DECOR.DEL.class }
+  ];
+
+  return factory;
+
+  /* function implementation
+    -------------------------- */
+
+  function setScopeVars (menu, scope) {
+    var states = STATES.SET_SCOPE_VARS(menu),
+      props = Object.getOwnPropertyNames(states),
+      access;
+
+    props.forEach(function (prop) {
+      switch (prop) {
+        case 'dashState':
+          access = { group: 'a', privilege: 'r' };
+          break;
+        case 'newState':
+          access = { group: '1', privilege: 'c' };
+          break;
+        case 'viewState':
+          access = { group: '1', privilege: 'r' };
+          break;
+        case 'editState':
+          access = { group: '1', privilege: 'u' };
+          break;
+        case 'delState':
+          access = { group: 'a1', privilege: 'd' };
+          break;
+        default:
+          access = undefined;
+          break;
+      }
+      if (access) {
+        if (!authFactory.isAccess(ACCESS.CANVASSES, access.group, access.privilege)) {
+          // no access so remove state
+          states[prop] = undefined;
+        }
+      }
+    });
+    props.forEach(function (prop) {
+      scope[prop] = states[prop];
+    });
+  }
+
+  function getStateButton(state, scope) {
+    var button,
+      txt;
+    if (state === 'all') {
+      button = angular.copy(buttons);
+    } else {
+      if (state === scope.dashState) {
+        txt = dashTxt;
+      } else if (state === scope.newState) {
+        txt = newTxt;
+      } else if (state === scope.viewState) {
+        txt = viewTxt;
+      } else if (state === scope.editState) {
+        txt = editTxt;
+      } else if (state === scope.newState) {
+        txt = delTxt;
+      }
+      if (txt) {
+        button = angular.copy(buttons.find(function (element) {
+          return (element.txt === txt);
+        }));
+      }
+    }
+
+    // add state to button(s)
+    if (button) {
+      miscUtilFactory.toArray(button).forEach(function (element) {
+        var btnState;
+        switch (element.txt) {
+          case dashTxt:
+            btnState = scope.dashState;
+            break;
+          case newTxt:
+            btnState = scope.newState;
+            break;
+          case viewTxt:
+            btnState = scope.viewState;
+            break;
+          case editTxt:
+            btnState = scope.editState;
+            break;
+          case delTxt:
+            btnState = scope.delState;
+            break;
+        }
+        element.state = btnState;
+      });
+    }
+
+    return button;
+  }
+
+  /**
+   * Select/unselect all items in an array
+   * @param   {object}  scope Scope to set selected count in
+   * @param   {Array}   list  Array of items
+   * @param   {number}  sel   Flag; truthy = set, falsy = unset
+   * @returns {boolean} true if all set
+   */
+  function setSelect (scope, list, sel) {
+    var allSel = false;
+    if (sel) {
+      scope.selectedCnt = miscUtilFactory.selectAll(list);
+    } else {
+      scope.selectedCnt = miscUtilFactory.initSelected(list);
+    }
+    if (list) {
+      allSel = (scope.selectedCnt === list.length);
+    }
+    return allSel;
+  }
+
+
+  function toggleSelection (scope, entry, list, dlftFunc) {
+    var oldCnt = scope.selectedCnt,
+      singleSel;
+
+    scope.selectedCnt = miscUtilFactory.toggleSelection(entry, oldCnt);
+    switch (scope.selectedCnt) {
+      case 1:
+        if (entry.isSelected) {
+          singleSel = entry;
+          break;
+        } else if (oldCnt === 2) {
+          // deselected an entry
+          singleSel = miscUtilFactory.findSelected(list);
+          break;
+        }
+        /* falls through */
+      default:
+        if (dlftFunc) {
+          dlftFunc();
+        }
+        break;
+    }
+
+    return singleSel;
+  }
+
+
+  /**
+   * Move the selected elements of a ResourceList to another ResourceList
+   * @param {ResourceList} fromList Source list
+   * @param {ResourceList} toList   Destination list
+   * @param {function}     testFunc Function to test if itema are the same
+   * @returns {boolean}      [[Description]]
+   */
+  function moveListSelected (fromList, toList, testFunc) {
+    var selList;      // selected items
+
+    selList = miscUtilFactory.getSelectedList(fromList, function (element) {
+      miscUtilFactory.toggleSelection(element);
+      return element;
+    });
+    fromList.selCount = 0;
+
+    if (selList.length > 0) {
+      fromList.removeFromList(selList, testFunc);
+      toList.addToList(selList, true, testFunc);
+    }
+
+    [fromList, toList].forEach(function (resList) {
+      resList.sort();
+      resList.applyFilter();
+    });
+  }
+
+}
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .controller('StateButtonsController', StateButtonsController);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+StateButtonsController.$inject = ['$scope', '$state', 'controllerUtilFactory', 'DECOR'];
+
+function StateButtonsController($scope, $state, controllerUtilFactory, DECOR) {
+
+  var allSelected = false,
+    buttons;
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  $scope.showButton = showButton;
+  $scope.disableButton = disableButton;
+  $scope.changeState = changeState;
+
+  if ($state.is($scope.dashState)) {
+    $scope.btnvert = true;
+  } else {
+    $scope.btnhorz = true;
+  }
+  if ($scope.getStateButton) {
+    buttons = $scope.getStateButton('all');
+  } else {
+    buttons = controllerUtilFactory.getStateButton('all', $scope);
+  }
+  if ($state.is($scope.dashState)) {
+    // add select/unselect all in dash state
+    buttons = buttons.concat([
+      { txt: 'Unselect', state: 'unsel', icon: DECOR.UNSEL.icon, tip: 'Unselect all',
+        class: DECOR.UNSEL.class },
+      { txt: 'Select', state: 'sel', icon: DECOR.SEL.icon, tip: 'Select all',
+        class: DECOR.SEL.class }
+    ]);
+  }
+
+  $scope.stateButtons = buttons;
+
+  /* function implementation
+  -------------------------- */
+
+  function showButton (forState) {
+    var show = false,
+      array;
+    if (forState) {
+      if ($state.is($scope.dashState)) {
+        array = [ 'unsel', 'sel' ];
+      } else {
+        array = [];
+      }
+
+      if ($state.is($scope.newState)) {
+        // no buttons in newState
+      } else if ($state.is($scope.viewState)) {
+        array = array.concat([
+          $scope.dashState,
+          $scope.newState,
+          $scope.editState,
+          $scope.delState
+        ]);
+      } else if ($state.is($scope.editState)) {
+        array = array.concat([
+          $scope.dashState,
+          $scope.newState,
+          $scope.viewState,
+          $scope.delState
+        ]);
+      } else if ($state.is($scope.dashState)) {
+        array = array.concat([
+          $scope.newState,
+          $scope.viewState,
+          $scope.editState,
+          $scope.delState
+        ]);
+      }
+      if (array.length) {
+        show = array.find(function (state) {
+          return (state === forState);
+        });
+        show = (show ? true : false);
+      }
+    }
+    return show;
+  }
+
+
+function disableButton (forState) {
+    var disable = false;
+    if (forState) {
+      if ($state.is($scope.newState)) {
+        disable = true; // no buttons
+      } else if ($state.is($scope.viewState) ||
+              $state.is($scope.editState)) {
+        disable = !showButton(forState);  // if its shown enable it
+      } else if ($state.is($scope.dashState)) {
+        if ((forState === $scope.viewState) ||
+              (forState === $scope.editState)) {
+          disable = ($scope.selectedCnt !== 1); // only one selected item allowed
+        } else if (forState === $scope.delState) {
+          disable = ($scope.selectedCnt < 1); // must be at least one selected
+        } else if (forState === 'unsel') {
+          disable = ($scope.selectedCnt < 1); // must be at least one selected
+        } else if (forState === 'sel') {
+          disable = allSelected;
+        } // else always enable new
+      } else {
+        disable = true;
+      }
+    }
+    return disable;
+  }
+
+
+  function changeState (toState) {
+    var to = toState,
+      params;
+    if (to) {
+      if (to === $scope.newState) {
+        // TODO add save changes check
+      } else if (to === $scope.viewState) {
+        // TODO add save changes check
+        params = $scope.changeStateParam();
+      } else if (to === $scope.editState) {
+        params = $scope.changeStateParam();
+      } else if (to === $scope.delState) {
+        if ($state.is($scope.dashState)) {
+          $scope.dashDelete();
+        } else {
+          $scope.singleDelete();
+        }
+        to = undefined;
+      } else if ((to === 'unsel') || (to === 'sel')) {
+        allSelected = $scope.setSelect((to === 'unsel') ? 0 : 1);
+        to = undefined;
+      } else if (to !== $scope.dashState) {
+        to = undefined;
+      }
+      if (to) {
+        $state.go(to, params);
+      }
+    }
+  }
+
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .service('menuService', menuService);
+
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+menuService.$inject = ['authFactory', 'MENUS', 'CONFIG', 'USER'];
+
+function menuService(authFactory, MENUS, CONFIG, USER) {
+
+  /*jshint validthis:true */
+  this.configMenus = function (scope, loggedIn) {
+    var showMenus,
+      override,
+      doConfigMenu,
+      doCampaignMenu;
+
+    if (!loggedIn) {
+      showMenus = CONFIG.NOAUTH;  // show menus if authentication disabled
+      override = CONFIG.NOAUTH;   // override access check if authentication disabled
+    } else {
+      showMenus = USER.authenticated;
+    }
+    // config menu's if need to show, or menu exists and not showing
+    doConfigMenu = doCampaignMenu = showMenus;
+    if (!showMenus) {
+      doConfigMenu = scope.configMenu;
+      doCampaignMenu = scope.campaignMenu;
+    }
+    if (doConfigMenu) {
+      scope.configMenu = this.configMenuAccess(MENUS.CONFIG, override);
+    }
+    if (doCampaignMenu) {
+      scope.campaignMenu = this.configMenuAccess(MENUS.CAMPAIGN, override);
+    }
+  };
+
+  /*jshint validthis:true */
+  this.configMenuAccess = function (baseMenu, override) {
+    var menu = {
+      root: baseMenu.root // copy root
+    },
+    substate,
+    entry,
+    count = 0;  // count of menu entries
+
+    Object.getOwnPropertyNames(baseMenu).forEach(function (name) {
+      if (name !== 'root') {
+        // NOTE: name is the property value from the MENUS config phase & matches the access property in the login response
+        menu[name] = {
+          header: baseMenu[name].header,
+          items: []
+        };
+        // add items to the menu if user has access
+        baseMenu[name].items.forEach(function (item) {
+          substate = menu.root.substates.find(function (state) {
+            return (state.state === item.sref);
+          });
+          if (substate) {
+            if (override ||
+                authFactory.hasAccess(name, substate.access.group, substate.access.privilege)) {
+
+              entry = angular.copy(item);
+              entry.name = entry.name.trim(); // remove any whitespace used to set alignment in dropdown menu
+
+              menu[name].items.push(entry);
+              ++count;
+            }
+          }
+        });
+      }
+    });
+    if (!count) {
+      menu = undefined; // no menu items so no need for menu
+    }
+    return menu;
+  };
+
+
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .value('HOMESCRN', {
+    message: undefined  // message to display on hmoe screen
+  })
+  .controller('HomeController', HomeController);
+
+
+HomeController.$inject = ['$scope', '$rootScope', 'menuService', 'HOMESCRN', 'CONFIG'];
+
+function HomeController ($scope, $rootScope, menuService, HOMESCRN, CONFIG) {
+
+
+  $scope.message = HOMESCRN.message;
+
+  /* need to use the function for the watch as the message is displayed inside an ng-if
+   * which means a child scope & as the message is a primitive (e.g., number, string, boolean)
+   * the child scope hides/shadows the parent scope value */
+  $scope.$watch(function () {
+    return HOMESCRN.message;
+  }, function(newValue, oldValue, scope) {
+    scope.message = newValue;
+  }, true /* object equality */);
+
+  setMenus(CONFIG.NOAUTH ? false : true);
+
+  $rootScope.$on('login:Successful', function () {
+    setMenus(true);
+  });
+
+  $rootScope.$on('registration:Successful', function () {
+    setMenus(true);
+  });
+
+  $rootScope.$on('logout:', function () {
+    setMenus(false);
+  });
+
+
+  function setMenus (loggedIn) {
+    var menus = {},
+      menuEntries = [];
+
+    menuService.configMenus(menus, loggedIn);
+    for (var menu in menus) {
+      for (var entry in menus[menu]) {
+        if (entry !== 'root') {
+          menuEntries.push(menus[menu][entry]);
+        }
+      }
+    }
+    $scope.menuEntries = menuEntries;
+  }
+
+}
+
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
   .constant('MENUS', (function () {
     /* can't inject a contant into a constant but can modify (at least in angular 1.x)
        a constant in the config stage, hence this roundabout way of setting up MENUS */
@@ -9540,12 +12196,12 @@ angular.module('canvassTrac')
       CRUMBS: []
     };
   })())
-  .config(['MENUS', 'STATES', function (MENUS, STATES) {
+  .config(['$provide', 'MENUS', 'STATES', 'ACCESS', 'CONFIG', 'DECOR', function ($provide, MENUS, STATES, ACCESS, CONFIG, DECOR) {
     /* Unicode code point   UTF-8 literal   html
       U+00A0	             \xc2\xa0	       &nbsp; */
     var prop,
       tree, toCheck,
-      dropdownNew = '\xA0\xA0\xA0New',
+      dropdownNew = '\xA0\xA0\xA0New',  // add nbsp
       configuration = 'Configuration',
       votingSysDash = 'Voting Systems',
       rolesDash = 'Roles',
@@ -9554,6 +12210,10 @@ angular.module('canvassTrac')
       electionDash = 'Elections',
       candidateDash = 'Candidates',
       canvassDash = 'Canvasses',
+      accessAllRead = { group: 'a', privilege: 'r' },
+      access1Read = { group: '1', privilege: 'r' },
+      access1Update = { group: '1', privilege: 'u' },
+      access1Create = { group: '1', privilege: 'c' },
 
       addToTree = function (entry) {
         if (!STATES.ISDISABLED(entry.sref)) {
@@ -9587,12 +12247,13 @@ angular.module('canvassTrac')
               property: 'root',
               value: {
                 name: configuration,
+                icon: 'fa fa-cog fa-fw',
                 sref: STATES.CONFIG,
                 substates: []
               }
             },
             { sref: STATES.VOTINGSYS,
-              property: 'votingsys',
+              property: ACCESS.VOTINGSYS,  // NOTE: matches access property in login response
               value: {
                 header: votingSysDash,
                 items: [
@@ -9602,7 +12263,7 @@ angular.module('canvassTrac')
               }
             },
             { sref: STATES.ROLES,
-              property: 'roles',
+              property: ACCESS.ROLES,  // NOTE: matches access property in login response
               value: {
                 header: rolesDash,
                 items: [
@@ -9612,12 +12273,18 @@ angular.module('canvassTrac')
               }
             },
             { sref: STATES.USERS,
-              property: 'users',
+              property: ACCESS.USERS,  // NOTE: matches access property in login response
               value: {
                 header: userDash,
                 items: [
-                  { name: userDash, sref: STATES.USERS },
-                  { name: dropdownNew, sref: STATES.USERS_NEW }
+                  { name: userDash,
+                    icon: 'fa fa-users fa-fw',
+                    class: DECOR.DASH.class,
+                    sref: STATES.USERS },
+                  { name: dropdownNew,
+                    icon: 'fa fa-user-plus fa-fw',
+                    class: DECOR.NEW.class,
+                    sref: STATES.USERS_NEW }
                 ]
               }
             }
@@ -9629,22 +12296,29 @@ angular.module('canvassTrac')
               property: 'root',
               value: {
                 name: campaign,
+                icon: 'fa fa-pencil-square fa-fw',
                 sref: STATES.CAMPAIGN,
                 substates: []
               }
             },
             { sref: STATES.ELECTION,
-              property: 'elections',
+              property: ACCESS.ELECTIONS,  // NOTE: matches access property in login response
               value: {
                 header: electionDash,
                 items: [
-                  { name: electionDash, sref: STATES.ELECTION },
-                  { name: dropdownNew, sref: STATES.ELECTION_NEW }
+                  { name: electionDash,
+                    icon:'fa fa-bullhorn fa-fw',
+                    class: DECOR.DASH.class,
+                    sref: STATES.ELECTION },
+                  { name: dropdownNew,
+                    icon: DECOR.NEW.icon,
+                    class: DECOR.NEW.class,
+                    sref: STATES.ELECTION_NEW }
                 ]
               }
             },
             { sref: STATES.CANDIDATE,
-              property: 'candidates',
+              property: ACCESS.CANDIDATES,  // NOTE: matches access property in login response
               value: {
                 header: candidateDash,
                 items: [
@@ -9654,12 +12328,18 @@ angular.module('canvassTrac')
               }
             },
             { sref: STATES.CANVASS,
-              property: 'canvass',
+              property: ACCESS.CANVASSES,  // NOTE: matches access property in login response
               value: {
                 header: canvassDash,
                 items: [
-                  { name: canvassDash, sref: STATES.CANVASS },
-                  { name: dropdownNew, sref: STATES.CANVASS_NEW }
+                  { name: canvassDash,
+                    icon: 'fa fa-clipboard fa-fw',
+                    class: DECOR.DASH.class,
+                    sref: STATES.CANVASS },
+                  { name: dropdownNew,
+                    icon: DECOR.NEW.icon,
+                    class: DECOR.NEW.class,
+                    sref: STATES.CANVASS_NEW }
                 ]
               }
             }
@@ -9685,7 +12365,10 @@ angular.module('canvassTrac')
       self.processEntry = function (entry) {
         if (entry.state) {
           if (entry.state.indexOf(self.root.sref) === 0) {
-            self.root.substates.push(entry.state);
+            self.root.substates.push({
+              state: entry.state,
+              access: entry.access
+            });
           }
         }
       };
@@ -9693,7 +12376,8 @@ angular.module('canvassTrac')
     // start with basic entries
     tree = [
       { state: STATES.APP, name: 'Home' },
-      { state: STATES.ABOUTUS, name: 'About' }
+      { state: STATES.ABOUTUS, name: 'About' },
+      { state: STATES.CONTACTUS, name: 'Contact' }
     ];
     if (!STATES.ISDISABLED(STATES.CAMPAIGN)) {
       tree.push({ state: STATES.CAMPAIGN, name: campaign });
@@ -9704,45 +12388,45 @@ angular.module('canvassTrac')
     // add entries from dropdown menus
     [
       { state: STATES.ELECTION, entries: [
-          { state: STATES.ELECTION, name: electionDash },
-          { state: STATES.ELECTION_VIEW, name: 'View Election' },
-          { state: STATES.ELECTION_EDIT, name: 'Update Election' },
-          { state: STATES.ELECTION_NEW, name: 'New Election' }
+          { state: STATES.ELECTION, name: electionDash, access: accessAllRead },
+          { state: STATES.ELECTION_VIEW, name: 'View Election', access: access1Read },
+          { state: STATES.ELECTION_EDIT, name: 'Update Election', access: access1Update },
+          { state: STATES.ELECTION_NEW, name: 'New Election', access: access1Create }
         ]
       },
       { state: STATES.CANDIDATE, entries: [
-          { state: STATES.CANDIDATE, name: candidateDash },
-          { state: STATES.CANDIDATE_VIEW, name: 'View Candidate' },
-          { state: STATES.CANDIDATE_EDIT, name: 'Update Candidate' },
-          { state: STATES.CANDIDATE_NEW, name: 'New Candidate' }
+          { state: STATES.CANDIDATE, name: candidateDash, access: accessAllRead },
+          { state: STATES.CANDIDATE_VIEW, name: 'View Candidate', access: access1Read },
+          { state: STATES.CANDIDATE_EDIT, name: 'Update Candidate', access: access1Update},
+          { state: STATES.CANDIDATE_NEW, name: 'New Candidate', access: access1Create }
         ]
       },
       { state: STATES.CANVASS, entries: [
-          { state: STATES.CANVASS, name: canvassDash },
-          { state: STATES.CANVASS_VIEW, name: 'View Canvass' },
-          { state: STATES.CANVASS_EDIT, name: 'Update Canvass' },
-          { state: STATES.CANVASS_NEW, name: 'New Canvass' }
+          { state: STATES.CANVASS, name: canvassDash, access: accessAllRead },
+          { state: STATES.CANVASS_VIEW, name: 'View Canvass', access: access1Read },
+          { state: STATES.CANVASS_EDIT, name: 'Update Canvass', access: access1Update },
+          { state: STATES.CANVASS_NEW, name: 'New Canvass', access: access1Create }
         ]
       },
       { state: STATES.VOTINGSYS, entries: [
-          { state: STATES.VOTINGSYS, name: votingSysDash },
-          { state: STATES.VOTINGSYS_VIEW, name: 'View Voting System' },
-          { state: STATES.VOTINGSYS_EDIT, name: 'Update Voting System' },
-          { state: STATES.VOTINGSYS_NEW, name: 'New Voting System' }
+          { state: STATES.VOTINGSYS, name: votingSysDash, access: accessAllRead },
+          { state: STATES.VOTINGSYS_VIEW, name: 'View Voting System', access: access1Read },
+          { state: STATES.VOTINGSYS_EDIT, name: 'Update Voting System', access: access1Update },
+          { state: STATES.VOTINGSYS_NEW, name: 'New Voting System', access: access1Create }
         ]
       },
       { state: STATES.ROLES, entries: [
-          { state: STATES.ROLES, name: rolesDash },
-          { state: STATES.ROLES_VIEW, name: 'View Role' },
-          { state: STATES.ROLES_EDIT, name: 'Update Role' },
-          { state: STATES.ROLES_NEW, name: 'New Role' }
+          { state: STATES.ROLES, name: rolesDash, access: accessAllRead },
+          { state: STATES.ROLES_VIEW, name: 'View Role', access: access1Read },
+          { state: STATES.ROLES_EDIT, name: 'Update Role', access: access1Update },
+          { state: STATES.ROLES_NEW, name: 'New Role', access: access1Create }
         ]
       },
       { state: STATES.USERS, entries: [
-          { state: STATES.USERS, name: userDash },
-          { state: STATES.USERS_VIEW, name: 'View User' },
-          { state: STATES.USERS_EDIT, name: 'Update User' },
-          { state: STATES.USERS_NEW, name: 'New User' }
+          { state: STATES.USERS, name: userDash, access: accessAllRead },
+          { state: STATES.USERS_VIEW, name: 'View User', access: access1Read },
+          { state: STATES.USERS_EDIT, name: 'Update User', access: access1Update },
+          { state: STATES.USERS_NEW, name: 'New User', access: access1Create }
         ]
       }
     ].forEach(function (cfgBlock) {
@@ -9759,6 +12443,19 @@ angular.module('canvassTrac')
       }
     });
     MENUS.CRUMBS = tree;
+
+    // setup show debug flag
+    if (CONFIG.DEV_MODE) {
+      $provide.value('DEBUG', {
+        show: true,   // enabled by default in devmode
+        devmode: true // devmode
+      });
+    } else {
+      $provide.constant('DEBUG', {
+        show: false,    // disable in production
+        devmode: false  // production
+      });
+    }
   }])
   .controller('HeaderController', HeaderController);
 
@@ -9767,38 +12464,38 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-HeaderController.$inject = ['$scope', '$state', '$rootScope', 'authFactory', 'stateFactory', 'NgDialogFactory', 'STATES', 'MENUS'];
+HeaderController.$inject = ['$scope', '$state', '$rootScope', 'Idle', 'authFactory', 'userService', 'consoleService', 'stateFactory', 'NgDialogFactory', 'menuService', 'STATES', 'MENUS', 'USER', 'HOMESCRN', 'DEBUG', 'CONFIG'];
 
-function HeaderController ($scope, $state, $rootScope, authFactory, stateFactory, NgDialogFactory, STATES, MENUS) {
+function HeaderController ($scope, $state, $rootScope, Idle, authFactory, userService, consoleService, stateFactory, NgDialogFactory, menuService, STATES, MENUS, USER, HOMESCRN, DEBUG, CONFIG) {
 
-  $scope.status = {
-    cfgIsOpen: false,
-    cmpgnIsOpen: false
-  };
-  
+  var con = consoleService.getLogger('HeaderController');
+
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
-  $scope.setLoggedIn = setLoggedIn;
   $scope.openLogin = openLogin;
+  $scope.openSupport = openSupport;
   $scope.logOut = logOut;
 
-  stateFactory.addInterface($scope);  // add stateFactory menthod to scope
+  if (CONFIG.DEV_MODE) {
+    $scope.debug = DEBUG;
+    $scope.toggleDebug = toggleDebug;
+    toggleDebug(DEBUG.show);
+  }
+
+  stateFactory.addInterface($scope);  // add stateFactory menthods to scope
 
   $scope.homeMenu = MENUS.HOME;
   $scope.aboutMenu = MENUS.ABOUT;
   $scope.contactMenu = MENUS.CONTACT;
-  $scope.campaignMenu = MENUS.CAMPAIGN;
-  $scope.configMenu = MENUS.CONFIG;
-
 
   makeBreadcrumb();
-  $scope.setLoggedIn(false);
+  setLoggedIn(CONFIG.NOAUTH ? false : true);
 
   $rootScope.$on('login:Successful', function () {
-    $scope.setLoggedIn(true);
+    setLoggedIn(true);
   });
 
   $rootScope.$on('registration:Successful', function () {
-    $scope.setLoggedIn(true);
+    setLoggedIn(true);
   });
 
   $rootScope.$on('$stateChangeSuccess',
@@ -9806,6 +12503,55 @@ function HeaderController ($scope, $state, $rootScope, authFactory, stateFactory
                 event, toState, toParams, fromState, fromParams */){
       makeBreadcrumb();
   });
+
+  $scope.$on('IdleStart', function() {
+		// the user appears to have gone idle
+    log('IdleStart:');
+	});
+
+	$scope.$on('IdleWarn', function(e, countdown) {
+		// follows after the IdleStart event, but includes a countdown until the user is considered timed out
+		// the countdown arg is the number of seconds remaining until then.
+		// you can change the title or display a warning dialog from here.
+		// you can let them resume their session by calling Idle.watch()
+    log('IdleWarn:', countdown);
+
+    if (countdown === CONFIG.AUTOLOGOUTCOUNT) {
+      openIdleTimeout();
+    }
+	});
+
+	$scope.$on('IdleTimeout', function() {
+		// timed out (meaning idleDuration + timeout has passed without any activity)
+    log('IdleTimeout:');
+	});
+
+	$scope.$on('IdleEnd', function() {
+		// the user has come back from AFK and is doing stuff. if you are warning them, you can use this to hide the dialog
+    log('IdleEnd:');
+	});
+
+	$scope.$on('Keepalive', function() {
+		// do something to keep the user's session alive
+    log('Keepalive:');
+
+    doRefresh();
+	});
+
+
+  if (USER.authenticated) {
+    // page reload, start idle watching, also starts the Keepalive service by default.
+    if (!Idle.running()) {
+      Idle.watch();
+
+      var time = Math.floor(USER.sessionLength / 1000); // convert to sec
+      time -= Idle.getIdle() - CONFIG.RELOADMARGIN;
+      if (time < 0) {
+        // session will expire before refresh event, so refresh now
+        doRefresh();
+      }
+    }
+  }
 
 
   /* function implementation
@@ -9815,25 +12561,123 @@ function HeaderController ($scope, $state, $rootScope, authFactory, stateFactory
    * Set logged in state
    * @param {boolean} loggedIn - logged in flag; false: force logged off state, true: state determined by authentication factory
    */
-  function setLoggedIn(loggedIn) {
+  function setLoggedIn(loggedIn, type) {
+
     if (!loggedIn) {
       $scope.loggedIn = false;
       $scope.username = '';
     } else {
-      $scope.loggedIn = authFactory.isAuthenticated();
-      $scope.username = authFactory.getUsername();
+      $scope.loggedIn = USER.authenticated;
+      $scope.username = USER.username;
+    }
+
+    menuService.configMenus($scope, loggedIn);
+
+    if ($scope.loggedIn) {
+      setHomeScrnMsg(undefined);
+
+      userService.getUserDetails(USER.id, false,
+        // success function
+        function (response, user) {
+          USER.person = user.person;
+          setHomeScrnMsg('Welcome ' + USER.person.firstname);
+        }
+      );
+
+    } else if (type === 'auto') {
+      setHomeScrnMsg('Your session has expired, please login again to continue.', true);
     }
   }
 
-  function openLogin() {
+  function setHomeScrnMsg (msg, showAfterLogout) {
+    HOMESCRN.message = msg;
+    $scope.showAfterLogout = (showAfterLogout ? true : false);
+  }
+
+  function openLogin () {
     NgDialogFactory.open({ template: 'login/login.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'LoginController' });
   }
 
-  function logOut() {
-    authFactory.logout(function (/*response*/) {
-      $state.go('app');
+  function openSupport () {
+    $state.go(STATES.SUPPORT);
+  }
+
+  function openIdleTimeout () {
+
+    doRefresh();
+
+    var dialog = NgDialogFactory.open({
+      template: 'login/idlemodal.html',
+      scope: $scope, className: 'ngdialog-theme-default',
+      controller: 'IdleController',
+      data: {}
     });
-    $scope.setLoggedIn(false);
+
+    dialog.closePromise.then(function (data) {
+      if (!NgDialogFactory.isNgDialogCancel(data.value)) {
+        // stay logged in
+        Idle.watch();
+      } else {
+        // logout
+        autoLogOut();
+      }
+    });
+  }
+
+
+  function autoLogOut() {
+    log('autoLogOut:');
+    logOut('auto');
+
+    NgDialogFactory.errormessage('Session expired', 'Please login again.');
+  }
+
+  function logOut(type) {
+    Idle.unwatch();
+    $rootScope.$broadcast('logout:');
+
+    if (!$scope.showAfterLogout) {
+      setHomeScrnMsg(undefined);
+    }
+
+    authFactory.logout(function (/*response*/) {
+      // on success
+      loggedOut();
+    },
+    function (/*response*/) {
+      // on error
+      loggedOut();
+    });
+    setLoggedIn(false, type);
+  }
+
+  function loggedOut () {
+    // stop idle watching
+    if ($state.is(STATES.APP)) {
+      $state.reload();
+    } else {
+      $state.go(STATES.APP);
+    }
+  }
+
+
+  function doRefresh() {
+    if (!$scope.refreshInProgress) {
+      $scope.refreshInProgress = true;
+      $scope.lastRefresh = $scope.thisRefresh;
+      $scope.thisRefresh = Date.now();
+      authFactory.tokenRefresh(function () {
+        // on success
+        $scope.refreshInProgress = false;
+        log('refresh ok:', ($scope.thisRefresh - $scope.lastRefresh));
+      },
+      function (/*response*/) {
+        // on failure
+        $scope.refreshInProgress = false;
+
+        NgDialogFactory.errormessage('Session expired', 'Please login again.');
+      });
+    }
   }
 
   function makeBreadcrumb () {
@@ -9875,6 +12719,22 @@ function HeaderController ($scope, $state, $rootScope, authFactory, stateFactory
   }
 
 
+  function toggleDebug (set) {
+    if (set !== undefined) {
+      DEBUG.show = set;
+    } else {
+      DEBUG.show = !DEBUG.show;
+    }
+    $scope.dbgText = (DEBUG.show ? 'Hide debug' : 'Show debug');
+  }
+
+
+  function log (title) {
+    if (con.isEnabled()) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      con.debug(title, Date.now(), args.concat(' '));
+    }
+  }
 
 }
 
@@ -9924,10 +12784,15 @@ SubmenuPageController.$inject = ['$scope', 'SUBMENU'];
 
 function SubmenuPageController ($scope, SUBMENU) {
 
-  var menuEntries = [];
+  var menuEntries = [],
+    entry;
   for (var prop in SUBMENU) {
     if (SUBMENU[prop].header) {
-      menuEntries.push(SUBMENU[prop]);
+      entry = angular.copy(SUBMENU[prop]);
+      entry.items.forEach(function (item) {
+        item.name = item.name.trim(); // remove any whitespace used to set alignment in dropdown menu
+      });
+      menuEntries.push(entry);
     }
   }
 
@@ -9983,21 +12848,29 @@ function stateFactory ($state, STATES, MENUS) {
   }
 
   function stateIs(curstate) {
-    return $state.is(curstate);
+    var res = false;
+    if (curstate) {
+      res = $state.is(curstate);
+    }
+    return res;
   }
 
   function stateIsNot(curstate) {
-    return !$state.is(curstate);
+    return !stateIs(curstate);
   }
 
   function stateIncludes(curstate) {
-    return $state.includes(curstate);
+    var res = false;
+    if (curstate) {
+      res = $state.includes(curstate);
+    }
+    return res;
   }
 
   function stateIsOneOf(states) {
     var isoneof = false;
     for (var i = 0; i < states.length; ++i) {
-      if ($state.is(states[i])) {
+      if (stateIs(states[i])) {
         isoneof = true;
         break;
       }
@@ -10017,7 +12890,7 @@ function stateFactory ($state, STATES, MENUS) {
       if (entry) {
         if (entry.sref === state) {
           for (var j = 0; (j < entry.substates.length) && !issub; ++j) {
-            issub = $state.is(entry.substates[j]);
+            issub = $state.is(entry.substates[j].state);
           }
         }
       }
@@ -10054,9 +12927,9 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-LoginController.$inject = ['$scope', '$rootScope', 'NgDialogFactory', 'authFactory', 'CONFIG'];
+LoginController.$inject = ['$scope', '$state', '$rootScope', 'NgDialogFactory', 'Idle', 'authFactory', 'userFactory', 'userService', 'timerFactory', 'CONFIG', 'STATES'];
 
-function LoginController($scope, $rootScope, NgDialogFactory, authFactory, CONFIG) {
+function LoginController($scope, $state, $rootScope, NgDialogFactory, Idle, authFactory, userFactory, userService, timerFactory, CONFIG, STATES) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   $scope.doLogin = doLogin;
@@ -10068,6 +12941,9 @@ function LoginController($scope, $rootScope, NgDialogFactory, authFactory, CONFI
   $scope.devmode = CONFIG.DEV_MODE;
   if (CONFIG.DEV_MODE) {
     $scope.devCredentials = devCredentials;
+    $scope.devUser1 = CONFIG.DEV_USER1;
+    $scope.devUser2 = CONFIG.DEV_USER2;
+    $scope.devUser3 = CONFIG.DEV_USER3;
   }
 
   /* function implementation
@@ -10075,26 +12951,37 @@ function LoginController($scope, $rootScope, NgDialogFactory, authFactory, CONFI
 
   function loginSuccess (/*response*/) {
     $rootScope.$broadcast('login:Successful');
+    goHome();
+
+    // start idle watching, also starts the Keepalive service by default.
+    Idle.watch();
   }
 
-  function loginFailure (/*response*/) {
+  function loginFailure (response) {
     NgDialogFactory.error(response, 'Login Unsuccessful');
+    goHome();
+  }
+
+  function goHome() {
+    if ($state.is(STATES.APP)) {
+      $state.reload();
+    } else {
+      $state.go(STATES.APP);
+    }
+  }
+
+  function setSource(data) {
+    data.src = authFactory.SRC.WEB;
+    return data;
   }
 
   function doLogin() {
-    if($scope.rememberMe) {
-      authFactory.storeUserinfo($scope.loginData);
-    } else {
-      authFactory.removeUserinfo();
-    }
-
-    authFactory.login($scope.loginData, loginSuccess, loginFailure);
-
+    authFactory.login(setSource($scope.loginData), loginSuccess, loginFailure);
     NgDialogFactory.close();
   }
 
   function doFacebookLogin() {
-    authFactory.loginByFacebook($scope.loginData, loginSuccess, loginFailure);
+    authFactory.loginByFacebook(setSource($scope.loginData), loginSuccess, loginFailure);
     NgDialogFactory.close();
   }
 
@@ -10103,10 +12990,21 @@ function LoginController($scope, $rootScope, NgDialogFactory, authFactory, CONFI
   }
 
   // Quick hack for dev mode to enter user credentials
-  function devCredentials() {
+  function devCredentials(user) {
     // HACK username/password for dev
-    $scope.loginData.username = CONFIG.DEV_USER;
-    $scope.loginData.password = CONFIG.DEV_PASSWORD;
+    if (!$scope.loginData) {
+      $scope.loginData = {};
+    }
+    if (user === CONFIG.DEV_USER1) {
+      $scope.loginData.username = CONFIG.DEV_USER1;
+      $scope.loginData.password = CONFIG.DEV_PASSWORD1;
+    } else if (user === CONFIG.DEV_USER2) {
+      $scope.loginData.username = CONFIG.DEV_USER2;
+      $scope.loginData.password = CONFIG.DEV_PASSWORD2;
+    } else if (user === CONFIG.DEV_USER3) {
+      $scope.loginData.username = CONFIG.DEV_USER3;
+      $scope.loginData.password = CONFIG.DEV_PASSWORD3;
+    }
   }
 
 
@@ -10121,7 +13019,7 @@ function RegisterController ($scope, $rootScope, NgDialogFactory, authFactory) {
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   $scope.doRegister = doRegister;
 
-  $scope.register = {};
+  $scope.registration = {};
   $scope.loginData = {};
 
 
@@ -10129,11 +13027,9 @@ function RegisterController ($scope, $rootScope, NgDialogFactory, authFactory) {
     -------------------------- */
 
   function doRegister() {
-    console.log('Doing registration', $scope.registration);
-
     authFactory.register($scope.registration,
       // success functgion
-      function (response) {
+      function (/*response*/) {
         $rootScope.$broadcast('registration:Successful');
       },
       // failure function
@@ -10145,6 +13041,51 @@ function RegisterController ($scope, $rootScope, NgDialogFactory, authFactory) {
     NgDialogFactory.close();
   }
 }
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .controller('IdleController', IdleController);
+
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+IdleController.$inject = ['$scope', 'NgDialogFactory', 'CONFIG'];
+
+function IdleController($scope, NgDialogFactory, CONFIG) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  $scope.finished = finished;
+
+  if (CONFIG.AUTOLOGOUTCOUNT < 60) {
+    $scope.secTimer = true; // seconds timer
+  } else if (CONFIG.AUTOLOGOUTCOUNT < 3600) {
+    $scope.minTimer = true; // minutes timer
+  } else if (CONFIG.AUTOLOGOUTCOUNT < 86400) {
+    $scope.hrTimer = true; // hours timer
+  } else {
+    $scope.dayTimer = true; // days timer
+  }
+  $scope.timerDuration = CONFIG.AUTOLOGOUTCOUNT; //sec
+  $scope.timerInterval = 1000; // interval 1 sec
+
+
+
+  /* function implementation
+    -------------------------- */
+
+  function finished () {
+    NgDialogFactory.close();
+  }
+
+}
+
+
 
 /*jslint node: true */
 /*global angular */
@@ -10185,19 +13126,206 @@ function PersonFilterController($scope) {
 /*global angular */
 'use strict';
 
+angular.module('ct.clientCommon')
+
+  .service('userService', userService);
+
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+userService.$inject = ['$state', 'userFactory', 'NgDialogFactory', 'controllerUtilFactory', 'miscUtilFactory', 'SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'DEBUG'];
+
+function userService($state, userFactory, NgDialogFactory, controllerUtilFactory, miscUtilFactory, SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA, DEBUG) {
+
+  /*jshint validthis:true */
+  this.confirmDeleteUSer = function (scope, deleteList, onSuccess, onFailure) {
+
+    NgDialogFactory.openAndHandle({
+        template: 'users/confirmdelete_user.html',
+        scope: scope, className: 'ngdialog-theme-default',
+        controller: 'UserDeleteController',
+        data: { list: deleteList }
+      },
+      // process function
+      function (value) {
+        // perform delete
+        var delParams = {};
+        angular.forEach(value, function (entry) {
+          delParams[entry._id] = true;
+        });
+
+        userFactory.delete('user', delParams,
+          // success function
+          function (response) {
+            if (onSuccess) {
+              onSuccess(response);
+            }
+          },
+          // error function
+          function (response) {
+            if (onFailure) {
+              onFailure(response);
+            } else {
+              NgDialogFactory.error(response, 'Delete Unsuccessful');
+            }
+          }
+        );
+      });
+  };
+
+  /*jshint validthis:true */
+  this.getStateButton = function (scope, state) {
+    var button = controllerUtilFactory.getStateButton(state, scope),
+      buttons = miscUtilFactory.toArray(button),
+      isDash = $state.is(scope.dashState);
+
+    buttons.forEach(function (element) {
+      if (element.state === scope.newState) {
+        element.tip = 'Create new user';
+      } else if (element.state === scope.viewState) {
+        if (isDash) {
+          element.tip = 'View selected user';
+        } else {
+          element.tip = 'View this user';
+        }
+      } else if (element.state === scope.editState) {
+        if (isDash) {
+          element.tip = 'Edit selected user';
+        } else {
+          element.tip = 'Edit this user';
+        }
+      } else if (element.state === scope.delState) {
+        if (isDash) {
+          element.tip = 'Delete selected user(s)';
+        } else {
+          element.tip = 'Delete this user';
+        }
+      }
+    });
+
+    // TODO remove hack, user delete not currently supported
+    var idx = buttons.findIndex(function (element) {
+      return (element.state === scope.delState);
+    });
+    if (idx >= 0) {
+      buttons.splice(idx, 1);
+      if (buttons.length === 0) {
+        button = undefined;
+      }
+    }
+
+
+    if (Array.isArray(button)) {
+      return buttons;
+    } else {
+      return button;
+    }
+  };
+
+  this.getUserDetails = function (id, flat, onSuccess, onFailure) {
+    if (typeof flat === 'function') {
+      onFailure = onSuccess;
+      onSuccess = flat;
+      flat = false;
+    }
+
+    userFactory.get('user', {id: id},
+      // success function
+      function (response) {
+
+        var user = {
+          // from user model
+          username: response.username,
+          role: response.role._id,
+          _id: response._id
+        };
+
+        if (flat) {
+          // flatten object
+          PEOPLESCHEMA.SCHEMA.forModelProps([
+              PEOPLESCHEMA.IDs.FNAME,
+              PEOPLESCHEMA.IDs.LNAME,
+              PEOPLESCHEMA.IDs.NOTE
+            ], function (field) {
+              var model = field[SCHEMA_CONST.MODELNAME_PROP];
+              if (model) {
+                user[model] = response.person[model];
+              }
+          });
+          ADDRSCHEMA.SCHEMA.forModelProps([
+              ADDRSCHEMA.IDs.ADDR1,
+              ADDRSCHEMA.IDs.ADDR2,
+              ADDRSCHEMA.IDs.ADDR3,
+              ADDRSCHEMA.IDs.TOWN,
+              ADDRSCHEMA.IDs.CITY,
+              ADDRSCHEMA.IDs.COUNTY,
+              ADDRSCHEMA.IDs.COUNTRY,
+              ADDRSCHEMA.IDs.PCODE,
+              ADDRSCHEMA.IDs.GPS
+            ], function (field) {
+              var model = field[SCHEMA_CONST.MODELNAME_PROP];
+              if (model) {
+                user[model] = response.person.address[model];
+              }
+          });
+
+          // TODO contactDetails schema & factory
+
+          if (response.person.contactDetails) {
+            miscUtilFactory.copyProperties(response.person.contactDetails, user, [
+              // from contactDetails model
+              'phone', 'mobile', 'email', 'website', 'facebook', 'twitter'
+              ]);
+          }
+        } else {
+          user.person = response.person;
+        }
+
+        if (DEBUG.devmode) {
+          user.person_id = miscUtilFactory.readSafe(response, ['person','_id']);
+          user.address_id = miscUtilFactory.readSafe(response, ['person','address','_id']);
+          user.contact_id = miscUtilFactory.readSafe(response, ['person','contactDetails','_id']);
+        }
+
+        if (onSuccess) {
+          onSuccess(response, user);
+        }
+      },
+      // error function
+      function (response) {
+        // response is message
+        NgDialogFactory.error(response, 'Unable to retrieve User');
+
+        if (onFailure) {
+          onFailure(response);
+        }
+      }
+    );
+  };
+
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
 angular.module('canvassTrac')
 
-  .controller('UserController', UserController)
+  .controller('UserDashController', UserDashController)
 
   .filter('filterDashUser', ['UTIL', function (UTIL) {
     return function (input, name, op, role) {
-      
+
       if (!op) {
         op = UTIL.OP_OR;
       }
       var out = [];
       if (name || role) {
-        // filter by name & role values for 
+        // filter by name & role values for
         angular.forEach(input, function (user) {
           var nameOk,
             roleOk,
@@ -10229,94 +13357,172 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-UserController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'roleFactory', 'userFactory', 'NgDialogFactory', 'stateFactory', 'utilFactory', 'miscUtilFactory', 'ADDRSCHEMA', 'PEOPLESCHEMA', 'STATES', 'UTIL'];
+UserDashController.$inject = ['$scope', 'roleFactory', 'userFactory', 'userService', 'NgDialogFactory', 'stateFactory', 'controllerUtilFactory', 'miscUtilFactory', 'USERSCHEMA', 'STATES', 'UTIL', 'DEBUG'];
 
-function UserController($scope, $rootScope, $state, $stateParams, roleFactory, userFactory, NgDialogFactory, stateFactory, utilFactory, miscUtilFactory, ADDRSCHEMA, PEOPLESCHEMA, STATES, UTIL) {
+function UserDashController($scope, roleFactory, userFactory, userService, NgDialogFactory, stateFactory, controllerUtilFactory, miscUtilFactory, USERSCHEMA, STATES, UTIL, DEBUG) {
 
-  console.log('UserController id', $stateParams.id);
+  controllerUtilFactory.setScopeVars('USERS', $scope);
 
-  STATES.SET_SCOPE_VARS($scope, 'USERS');
+  if (DEBUG.devmode) {
+    $scope.debug = DEBUG;
+  }
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
-  $scope.userFilterOps = UTIL.OP_LIST;
-  $scope.initUserFilter = initUserFilter;
+  $scope.filterOps = UTIL.OP_LIST;
+  $scope.initFilter = initFilter;
   $scope.toggleSelection = toggleSelection;
-  $scope.getTitle = getTitle;
-  $scope.selectedCnt = 0;
-  $scope.editDisabled = true;
-  $scope.initUser = initUser;
-  $scope.processForm = processForm;
-  $scope.viewUser = viewUser;
-  $scope.editUser = editUser;
-  $scope.confirmDelete = confirmDelete;
-  $scope.stateIs = stateFactory.stateIs;
-  $scope.stateIsNot = stateFactory.stateIsNot;
-  $scope.stateIncludes = stateFactory.stateIncludes;
-  $scope.menuStateIs = stateFactory.menuStateIs;
-  
-  initUserFilter();
-  initUser($stateParams.id);
+
+  $scope.changeStateParam = changeStateParam;
+  $scope.dashDelete = dashDelete;
+  $scope.setSelect = setSelect;
+  $scope.getStateButton = getStateButton;
+
+  stateFactory.addInterface($scope);  // add stateFactory menthods to scope
+
+  initFilter();
 
   // get list of roles selecting name field, _id field is always provided
-  $scope.roles = roleFactory.getRoles().query({fields: 'name'})
-    .$promise.then(
-      // success function
-      function (response) {
-        // response is actual data
-        
-        console.log(response);
-        
-        $scope.roles = response;
-      },
-      // error function
-      function (response) {
-        // response is message
-        $scope.message = 'Error: ' + response.status + ' ' + response.statusText;
-      }
-    );
-
-  $scope.users = userFactory.getUsers().query(
+  $scope.roles = roleFactory.query('role', {fields: 'name'},
     // success function
     function (response) {
       // response is actual data
-      $scope.users = response;
-//        $scope.showMenu = true;
+      $scope.roles = response;
+
+      // get list of users
+      getUsers();
     },
     // error function
     function (response) {
-      // repose is message
-      $scope.message = 'Error: ' + response.status + ' ' + response.statusText;
+      // response is message
+      NgDialogFactory.error(response);
     }
   );
 
-
-  
-  
   /* function implementation
   -------------------------- */
 
-  function initUserFilter() {
-    $scope.userFilterText = undefined;
-    $scope.userFilterRole = undefined;
-    $scope.userFilterOp = undefined;
-    $scope.userSelectList = undefined;
-    $scope.selectedCnt = utilFactory.initSelected($scope.users);
+  function initFilter() {
+    $scope.filterText = undefined;
+    $scope.filterRole = undefined;
+    $scope.filterOp = undefined;
+    setSelect(0);
   }
-  
-  function toggleSelection(entry) {
-    $scope.selectedCnt = utilFactory.toggleSelection(entry, $scope.selectedCnt);
-    switch ($scope.selectedCnt) {
-      case 1:
-        if (entry.isSelected) {
-          $scope.user = entry;
-          break;
-        }
-        /* falls through */
-      default:
-        initUser();
-        break;
+
+  function toggleSelection (entry) {
+    setUser(
+      controllerUtilFactory.toggleSelection($scope, entry, $scope.users, initUser)
+    );
+  }
+
+  function getUsers() {
+    // get list of users
+    $scope.users = userFactory.query('user',
+      // success function
+      function (response) {
+        // response is actual data
+        $scope.users = response;
+      },
+      // error function
+      function (response) {
+        // repose is message
+        NgDialogFactory.error(response, 'Unable to retrieve users');
+      }
+    );
+  }
+
+
+  function changeStateParam () {
+    return {
+      id: $scope.user._id
+    };
+  }
+
+  function setUser (user) {
+    $scope.user = user;
+  }
+
+  function initUser () {
+    // include only required fields
+    setUser(USERSCHEMA.SCHEMA.getObject());
+  }
+
+  function dashDelete() {
+    var selectedList = miscUtilFactory.getSelectedList($scope.users);
+    userService.confirmDeleteUser($scope, selectedList,
+      // on success
+      function (/*response*/) {
+        getUsers();
+      });
+  }
+
+  function getStateButton (state) {
+    return userService.getStateButton($scope, state);
+  }
+
+
+  function setSelect (sel) {
+    return controllerUtilFactory.setSelect($scope, $scope.users, sel);
+  }
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .controller('UserController', UserController);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+UserController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'roleFactory', 'userFactory', 'userService', 'NgDialogFactory', 'stateFactory', 'consoleService', 'controllerUtilFactory', 'DEBUG'];
+
+function UserController($scope, $rootScope, $state, $stateParams, roleFactory, userFactory, userService, NgDialogFactory, stateFactory, consoleService, controllerUtilFactory, DEBUG) {
+
+  var con = consoleService.getLogger('UserController');
+
+  con.log('UserController id', $stateParams.id);
+
+  controllerUtilFactory.setScopeVars('USERS', $scope);
+
+  if (DEBUG.devmode) {
+    $scope.debug = DEBUG;
+  }
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  $scope.getTitle = getTitle;
+  $scope.processForm = processForm;
+
+  $scope.changeStateParam = changeStateParam;
+  $scope.singleDelete = singleDelete;
+  $scope.getStateButton = getStateButton;
+
+  $scope.gotoDash = gotoDash;
+
+  stateFactory.addInterface($scope);  // add stateFactory menthods to scope
+
+  initUser($stateParams.id);
+
+  // get list of roles selecting name field, _id field is always provided
+  $scope.roles = roleFactory.query('role', {fields: 'name'},
+    // success function
+    function (response) {
+      // response is actual data
+      $scope.roles = response;
+    },
+    // error function
+    function (response) {
+      // response is message
+      NgDialogFactory.error(response);
     }
-  }
+  );
+
+  /* function implementation
+  -------------------------- */
 
   function getTitle() {
     $scope.editDisabled = true;
@@ -10340,7 +13546,7 @@ function UserController($scope, $rootScope, $state, $stateParams, roleFactory, u
     if ($state.is($scope.newState)) {
       createUser();
     } else if ($state.is($scope.viewState)) {
-      $state.go($scope.dashState);
+      gotoDash();
     } else if ($state.is($scope.editState)) {
       updateUser();
     }
@@ -10357,127 +13563,79 @@ function UserController($scope, $rootScope, $state, $stateParams, roleFactory, u
         _id: ''
       };
     } else {
-      $scope.user = userFactory.getUsers().get({id: id})
-        .$promise.then(
-          // success function
-          function (response) {
-            
-            console.log('response', response);
-            
-            var user = {
-              // from user model
-              username: response.username,
-              role: response.role._id,
-              id: response._id
-            };
+      $scope.user = undefined;
+      userService.getUserDetails(id, true,
+        // success function
+        function (response, user) {
 
-            copyProperties(response.person, user, PEOPLESCHEMA.SCHEMA, [
-                PEOPLESCHEMA.IDs.FNAME,
-                PEOPLESCHEMA.IDs.LNAME,
-                PEOPLESCHEMA.IDs.NOTE
-              ]);
-            copyProperties(response.person.address, user, ADDRSCHEMA.SCHEMA, [
-                ADDRSCHEMA.IDs.ADDR1,
-                ADDRSCHEMA.IDs.ADDR2,
-                ADDRSCHEMA.IDs.ADDR3,
-                ADDRSCHEMA.IDs.TOWN,
-                ADDRSCHEMA.IDs.CITY,
-                ADDRSCHEMA.IDs.COUNTY,
-                ADDRSCHEMA.IDs.COUNTRY,
-                ADDRSCHEMA.IDs.PCODE,
-                ADDRSCHEMA.IDs.GPS
-              ]);
-            // TODO contactDetails schema & factory
-//            copyProperties(response.person.contactDetails, user, schema, ids);
+          con.log('response', response);
 
-            if (response.person.contactDetails) {
-              miscUtilFactory.copyProperties(response.person.contactDetails, user, [
-                // from contactDetails model
-                'phone', 'mobile', 'email', 'website', 'facebook', 'twitter'
-                ]);
-            }
-            $scope.user = user;
-          },
-          // error function
-          function (response) {
-            // response is message
-            NgDialogFactory.error(response, 'Unable to retrieve User');
-          }
-        );
-    }
-  }
-
-
-  function copyProperties (from, to, schema, ids) {
-    if (from) {
-      var fields = [];
-      ids.forEach(function (id) {
-        fields.push(schema.getModelName(id));
-      });
-      miscUtilFactory.copyProperties(from, to, fields);
+          $scope.user = user;
+        }
+      );
     }
   }
 
 
   function createUser() {
 
-    console.log('createUser', $scope.user);
+    con.log('createUser', $scope.user);
 
-    userFactory.getUsers().save($scope.user)
-      .$promise.then(
-        // success function
-        function (response) {
-          $scope.initUser();
-          $state.go($scope.dashState);
-        },
-        // error function
-        function (response) {
-          // response is message
-          NgDialogFactory.error(response, 'Creation Unsuccessful');
-        }
-      );
+    userFactory.save('user', $scope.user,
+      // success function
+      function (/*response*/) {
+        initUser();
+        gotoDash();
+      },
+      // error function
+      function (response) {
+        // response is message
+        NgDialogFactory.error(response, 'Creation Unsuccessful');
+      }
+    );
   }
 
   function updateUser() {
 
-    console.log('updateUser', $scope.user);
+    con.log('updateUser', $scope.user);
 
-    userFactory.getUsers().update({id: $scope.user.id}, $scope.user)
-      .$promise.then(
-        // success function
-        function (response) {
-          $scope.initUser();
-          $state.go($scope.dashState);
-        },
-        // error function
-        function (response) {
-          // response is message
-          NgDialogFactory.error(response, 'Update Unsuccessful');
-        }
-      );
-  }
-
-  function viewUser() {
-    $state.go($scope.viewState, {id: $scope.user._id});
-  }
-
-  function editUser() {
-    $state.go($scope.editState, {id: $scope.user._id});
-  }
-
-  function confirmDelete() {
-    $scope.userSelectList = [];
-
-    angular.forEach($scope.users, function (user) {
-      if (user.isSelected) {
-        $scope.userSelectList.push(user);
+    userFactory.update('user', {id: $scope.user._id}, $scope.user,
+      // success function
+      function (/*response*/) {
+        initUser();
+        gotoDash();
+      },
+      // error function
+      function (response) {
+        // response is message
+        NgDialogFactory.error(response, 'Update Unsuccessful');
       }
-    });
-
-    NgDialogFactory.open({ template: 'users/confirmdelete.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'UserController' });
+    );
   }
-  
-  
+
+  function changeStateParam () {
+    return {
+      id: $scope.user._id
+    };
+  }
+
+  function singleDelete() {
+    userService.confirmDeleteUser($scope, [$scope.user],
+      // success function
+      function (/*response*/) {
+        gotoDash();
+      });
+  }
+
+  function getStateButton (state) {
+    return userService.getStateButton($scope, state);
+  }
+
+  function gotoDash() {
+    $state.go($scope.dashState);
+  }
+
+
 }
 
 
@@ -10487,17 +13645,127 @@ function UserController($scope, $rootScope, $state, $stateParams, roleFactory, u
 
 angular.module('canvassTrac')
 
-  .controller('ElectionController', ElectionController)
+  .controller('UserDeleteController', UserDeleteController);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+UserDeleteController.$inject = ['$scope', 'utilFactory'];
+
+function UserDeleteController($scope, utilFactory) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  $scope.formatDate = utilFactory.formatDate;
+
+
+  /* function implementation
+  -------------------------- */
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('ct.clientCommon')
+
+  .service('electionService', electionService);
+
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+electionService.$inject = ['$state', 'electionFactory', 'NgDialogFactory', 'controllerUtilFactory'];
+
+function electionService($state, electionFactory, NgDialogFactory, controllerUtilFactory) {
+
+  /*jshint validthis:true */
+  this.confirmDeleteElection = function (scope, deleteList, onSuccess, onFailure) {
+
+    NgDialogFactory.openAndHandle({
+        template: 'elections/confirmdelete_election.html',
+        scope: scope, className: 'ngdialog-theme-default',
+        controller: 'ElectionDeleteController',
+        data: { list: deleteList }
+      },
+      // process function
+      function (value) {
+        // perform delete
+        var delParams = {};
+        angular.forEach(value, function (entry) {
+          delParams[entry._id] = true;
+        });
+
+        electionFactory.delete('election', delParams,
+          // success function
+          onSuccess,
+          // error function
+          function (response) {
+            if (onFailure) {
+              onFailure(response);
+            } else {
+              NgDialogFactory.error(response, 'Delete Unsuccessful');
+            }
+          }
+        );
+      });
+  };
+
+  /*jshint validthis:true */
+  this.getStateButton = function (scope, state) {
+    var button = controllerUtilFactory.getStateButton(state, scope),
+      isDash = $state.is(scope.dashState);
+
+    button.forEach(function (element) {
+      if (element.state === scope.newState) {
+        element.tip = 'Create new election';
+      } else if (element.state === scope.viewState) {
+        if (isDash) {
+          element.tip = 'View selected election';
+        } else {
+          element.tip = 'View this election';
+        }
+      } else if (element.state === scope.editState) {
+        if (isDash) {
+          element.tip = 'Edit selected election';
+        } else {
+          element.tip = 'Edit this election';
+        }
+      } else if (element.state === scope.delState) {
+        if (isDash) {
+          element.tip = 'Delete selected election(s)';
+        } else {
+          element.tip = 'Delete this election';
+        }
+      }
+    });
+
+    return button;
+  };
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .controller('ElectionDashController', ElectionDashController)
 
   .filter('filterDashElection', ['UTIL', function (UTIL) {
     return function (input, name, op, system) {
-      
+
       if (!op) {
         op = UTIL.OP_OR;
       }
       var out = [];
       if (name || system) {
-        // filter by name & system values for 
+        // filter by name & system values for
         angular.forEach(input, function (election) {
           var nameOk,
             systemOk;
@@ -10528,56 +13796,49 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-ElectionController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'votingsystemFactory', 'electionFactory', 'NgDialogFactory', 'stateFactory', 'utilFactory', 'STATES', 'UTIL', 'ELECTIONSCHEMA', 'RESOURCE_CONST'];
+ElectionDashController.$inject = ['$scope', '$rootScope', '$state', 'votingsystemFactory', 'electionFactory', 'electionService', 'NgDialogFactory', 'stateFactory', 'utilFactory', 'controllerUtilFactory', 'miscUtilFactory', 'ELECTIONSCHEMA', 'STATES', 'UTIL', 'DEBUG'];
 
-function ElectionController($scope, $rootScope, $state, $stateParams, votingsystemFactory, electionFactory, NgDialogFactory, stateFactory, utilFactory, STATES, UTIL, ELECTIONSCHEMA, RESOURCE_CONST) {
+function ElectionDashController($scope, $rootScope, $state, votingsystemFactory, electionFactory, electionService, NgDialogFactory, stateFactory, utilFactory, controllerUtilFactory, miscUtilFactory, ELECTIONSCHEMA, STATES, UTIL, DEBUG) {
 
-  console.log('id', $stateParams.id);
+  controllerUtilFactory.setScopeVars('ELECTION', $scope);
 
-  STATES.SET_SCOPE_VARS($scope, 'ELECTION');
+  if (DEBUG.devmode) {
+    $scope.debug = DEBUG;
+  }
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   $scope.filterOps = UTIL.OP_LIST;
   $scope.initFilter = initFilter;
   $scope.toggleSelection = toggleSelection;
-  $scope.getTitle = getTitle;
   $scope.formatDate = utilFactory.formatDate;
-//  $scope.initItem = initItem;
-  $scope.processForm = processForm;
-  $scope.viewItem = viewItem;
-  $scope.editItem = editItem;
-  $scope.deleteItem = deleteItem;
+
+  $scope.changeStateParam = changeStateParam;
   $scope.dashDelete = dashDelete;
-  $scope.confirmDelete = confirmDelete;
-  $scope.gotoDash = gotoDash;
-  $scope.stateIs = stateFactory.stateIs;
-  $scope.stateIsNot = stateFactory.stateIsNot;
-  $scope.stateIncludes = stateFactory.stateIncludes;
-  $scope.menuStateIs = stateFactory.menuStateIs;
-  $scope.stateIsOneOf = stateFactory.stateIsOneOf;
-  $scope.stateIsNotOneOf = stateFactory.stateIsNotOneOf;
+  $scope.setSelect = setSelect;
+  $scope.getStateButton = getStateButton;
 
-  
+  stateFactory.addInterface($scope);  // add stateFactory menthods to scope
+
+  initFilter();
+
   // get list of systems selecting name field, _id field is always provided
-  $scope.votingSystems = votingsystemFactory.getVotingSystems().query({fields: 'name'})
-    .$promise.then(
-      // success function
-      function (response) {
-        // response is actual data
-        $scope.votingSystems = response;
-      },
-      // error function
-      function (response) {
-        // response is message
-        $scope.message = 'Error: ' + response.status + ' ' + response.statusText;
-      }
-    );
+  $scope.votingSystems = votingsystemFactory.query('system', {fields: 'name'},
+    // success function
+    function (response) {
+      // response is actual data
+      $scope.votingSystems = response;
 
-  getElections();
+      getElections();
+    },
+    // error function
+    function (response) {
+      // response is message
+      NgDialogFactory.error(response, 'Unable to retrieve Voting Systems');
+      $state.go(STATES.APP);
+    }
+  );
 
 
-  
-  
   /* function implementation
   -------------------------- */
 
@@ -10585,26 +13846,131 @@ function ElectionController($scope, $rootScope, $state, $stateParams, votingsyst
     $scope.filterText = undefined;
     $scope.filterSystem = undefined;
     $scope.filterOp = undefined;
-    $scope.selectedCnt = utilFactory.initSelected($scope.elections);
+    setSelect(0);
   }
-  
-  function toggleSelection(entry) {
-    $scope.selectedCnt = utilFactory.toggleSelection(entry, $scope.selectedCnt);
-    switch ($scope.selectedCnt) {
-      case 1:
-        if (entry.isSelected) {
-          $scope.election = entry;
-          break;
-        }
-        /* falls through */
-      default:
-        initItem();
-        break;
+
+  function toggleSelection (entry) {
+    setElection(
+      controllerUtilFactory.toggleSelection($scope, entry, $scope.elections, initElection)
+    );
+  }
+
+
+  function getElections () {
+    $scope.elections = electionFactory.query('election',
+      // success function
+      function (response) {
+        // response is actual data
+        $scope.elections = response;
+
+        initFilter();
+      },
+      // error function
+      function (response) {
+        // response is message
+        NgDialogFactory.error(response, 'Unable to retrieve Elections');
+      }
+    );
+  }
+
+  function changeStateParam () {
+    return {
+      id: $scope.election._id
+    };
+  }
+
+  function setElection (election) {
+    $scope.election = election;
+  }
+
+  function initElection () {
+    // include only required fields
+    setElection(ELECTIONSCHEMA.SCHEMA.getObject());
+  }
+
+
+  function dashDelete() {
+    var selectedList = miscUtilFactory.getSelectedList($scope.elections);
+    electionService.confirmDeleteElection($scope, selectedList,
+      // success function
+      function (/*response*/) {
+        getElections();
+      });
+  }
+
+  function getStateButton (state) {
+    return electionService.getStateButton($scope, state);
+  }
+
+  function setSelect(sel) {
+    return controllerUtilFactory.setSelect($scope, $scope.elections, sel);
+  }
+
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .controller('ElectionController', ElectionController);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+ElectionController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'votingsystemFactory', 'electionFactory', 'electionService', 'NgDialogFactory', 'stateFactory', 'controllerUtilFactory', 'consoleService', 'STATES', 'ELECTIONSCHEMA', 'RESOURCE_CONST', 'DEBUG'];
+
+function ElectionController($scope, $rootScope, $state, $stateParams, votingsystemFactory, electionFactory, electionService, NgDialogFactory, stateFactory, controllerUtilFactory, consoleService, STATES, ELECTIONSCHEMA, RESOURCE_CONST, DEBUG) {
+
+  var con = consoleService.getLogger('ElectionController');
+
+  con.debug('ElectionController id', $stateParams.id);
+
+  controllerUtilFactory.setScopeVars('ELECTION', $scope);
+
+  if (DEBUG.devmode) {
+    $scope.debug = DEBUG;
+  }
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  $scope.getTitle = getTitle;
+  $scope.processForm = processForm;
+
+  $scope.changeStateParam = changeStateParam;
+  $scope.singleDelete = singleDelete;
+  $scope.getStateButton = getStateButton;
+
+  $scope.gotoDash = gotoDash;
+
+  stateFactory.addInterface($scope);  // add stateFactory menthods to scope
+
+  // get list of systems selecting name field, _id field is always provided
+  $scope.votingSystems = votingsystemFactory.query('system', {fields: 'name'},
+    // success function
+    function (response) {
+      // response is actual data
+      $scope.votingSystems = response;
+    },
+    // error function
+    function (response) {
+      // response is message
+      NgDialogFactory.error(response, 'Unable to retrieve Voting Systems');
+      $state.go(STATES.APP);
     }
-  }
+  );
+
+  initItem($stateParams.id);
+  
+  /* function implementation
+  -------------------------- */
 
   function getTitle() {
     $scope.editDisabled = true;
+
     var title;
     if ($state.is($scope.newState)) {
       title = 'Create Election';
@@ -10620,31 +13986,12 @@ function ElectionController($scope, $rootScope, $state, $stateParams, votingsyst
     return title;
   }
 
-  
-  function getElections() {
-    $scope.elections = electionFactory.getElections().query(
-      // success function
-      function (response) {
-        // response is actual data
-        $scope.elections = response;
 
-        initFilter();
-        initItem($stateParams.id);
-      },
-      // error function
-      function (response) {
-        // repose is message
-        $scope.message = 'Error: ' + response.status + ' ' + response.statusText;
-      }
-    );
-  }
-  
-  
   function processForm() {
     if ($state.is($scope.newState)) {
       createElection();
     } else if ($state.is($scope.viewState)) {
-      $state.go($scope.dashState);
+      gotoDash();
     } else if ($state.is($scope.editState)) {
       updateElection();
     }
@@ -10652,132 +13999,248 @@ function ElectionController($scope, $rootScope, $state, $stateParams, votingsyst
 
   function initItem(id) {
     if (!id) {
-      // include only required fields
       $scope.election = ELECTIONSCHEMA.SCHEMA.getObject();
     } else {
-      $scope.election = electionFactory.getElections().get({id: id})
-        .$promise.then(
-          // success function
-          function (response) {
-            
-            console.log('response', response);
-            
-            $scope.election = electionFactory.readResponse(response, {
-                objId: undefined, // no objId means not stored, just returned
-                factory: 'electionFactory',
-                storage: RESOURCE_CONST.STORE_OBJ,
-                subObj: { // storage infor for election
-                    objId: undefined, // no objId means not stored, just returned
-                    factory: 'votingsystemFactory',
-                    schema: ELECTIONSCHEMA.SCHEMA,
-                    schemaId: ELECTIONSCHEMA.IDs.SYSTEM,
-                    //type: can be retrieved using schema & schemaId
-                    //path: can be retrieved using schema & schemaId
-                    storage: RESOURCE_CONST.STORE_OBJ,
-                  }
-              });
-          },
-          // error function
-          function (response) {
-            // response is message
-            NgDialogFactory.error(response, 'Unable to retrieve Election');
-          }
-        );
+      $scope.election = electionFactory.get('election', {id: id},
+        // success function
+        function (response) {
+
+          $scope.election = electionFactory.readResponse(response, {
+            objId: undefined, // no objId means not stored, just returned
+            factory: 'electionFactory',
+            storage: RESOURCE_CONST.STORE_OBJ,
+            subObj: { // storage infor for election
+              objId: undefined, // no objId means not stored, just returned
+              factory: 'votingsystemFactory',
+              schema: ELECTIONSCHEMA.SCHEMA,
+              schemaId: ELECTIONSCHEMA.IDs.SYSTEM,
+              //type: can be retrieved using schema & schemaId
+              //path: can be retrieved using schema & schemaId
+              storage: RESOURCE_CONST.STORE_OBJ,
+            }
+          });
+        },
+        // error function
+        function (response) {
+          // response is message
+          NgDialogFactory.error(response, 'Unable to retrieve Election');
+        }
+      );
     }
   }
 
 
   function createElection() {
 
-    console.log('createElection', $scope.election);
+    con.log('createElection', $scope.election);
 
-    electionFactory.getElections().save($scope.election)
-      .$promise.then(
-        // success function
-        function (response) {
-          initItem();
-          $state.go($scope.dashState);
-        },
-        // error function
-        function (response) {
-          // response is message
-          NgDialogFactory.error(response, 'Creation Unsuccessful');
-        }
-      );
+    electionFactory.save('election', $scope.election,
+      // success function
+      function (/*response*/) {
+        initItem();
+        gotoDash();
+      },
+      // error function
+      function (response) {
+        // response is message
+        NgDialogFactory.error(response, 'Creation Unsuccessful');
+      }
+    );
   }
 
   function updateElection() {
 
-    console.log('updateElection', $scope.election);
+    con.log('updateElection', $scope.election);
 
-    electionFactory.getElections().update({id: $scope.election._id}, $scope.election)
-      .$promise.then(
-        // success function
-        function (response) {
-          initItem();
-          $state.go($scope.dashState);
-        },
-        // error function
-        function (response) {
-          // response is message
-          NgDialogFactory.error(response, 'Update Unsuccessful');
-        }
-      );
+    electionFactory.update('election', {id: $scope.election._id}, $scope.election,
+      // success function
+      function (/*response*/) {
+        initItem();
+        gotoDash();
+      },
+      // error function
+      function (response) {
+        // response is message
+        NgDialogFactory.error(response, 'Update Unsuccessful');
+      }
+    );
   }
 
-  function viewItem() {
-    $state.go($scope.viewState, {id: $scope.election._id});
+  function changeStateParam () {
+    return {
+      id: $scope.election._id
+    };
   }
 
-  function editItem() {
-    $state.go($scope.editState, {id: $scope.election._id});
+  function singleDelete() {
+
+    // $scope.election.system is set to doc id, change to object for display purposes
+    var deleteList = [
+      JSON.parse(JSON.stringify($scope.election))
+    ];
+    deleteList[0].system = $scope.votingSystems.find(function (system) {
+      return (system._id === $scope.election.system);
+    });
+
+    electionService.confirmDeleteElection($scope, deleteList,
+      // success function
+      function (/*response*/) {
+        gotoDash();
+      });
   }
 
-  function deleteItem() {
-    confirmDelete([$scope.election]);
+  function getStateButton (state) {
+    return electionService.getStateButton($scope, state);
   }
-  
+
   function gotoDash() {
     $state.go($scope.dashState);
   }
 
-  function dashDelete() {
-    var selectedList = utilFactory.getSelectedList($scope.elections);
-    confirmDelete(selectedList);
-  }
+}
 
-  function confirmDelete(deleteList) {
 
-    var dialog = NgDialogFactory.open({ template: 'election/confirmdelete.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'ElectionController',
-                  data: {list: deleteList}});
-    
-    dialog.closePromise.then(function (data) {
-      if (!NgDialogFactory.isNgDialogCancel(data.value)) {
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .controller('ElectionDeleteController', ElectionDeleteController);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+ElectionDeleteController.$inject = ['$scope', 'utilFactory'];
+
+function ElectionDeleteController($scope, utilFactory) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  $scope.formatDate = utilFactory.formatDate;
+
+
+  /* function implementation
+  -------------------------- */
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('ct.clientCommon')
+
+  .service('canvassService', canvassService);
+
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+canvassService.$inject = ['$state', 'canvassFactory', 'NgDialogFactory', 'controllerUtilFactory', 'userFactory', 'miscUtilFactory', 'USERSCHEMA', 'SCHEMA_CONST'];
+
+function canvassService($state, canvassFactory, NgDialogFactory, controllerUtilFactory, userFactory, miscUtilFactory, USERSCHEMA, SCHEMA_CONST) {
+
+  var roleDialog =
+      USERSCHEMA.SCHEMA.getField(USERSCHEMA.USER_ROLE_IDX, SCHEMA_CONST.DIALOG_PROP);
+
+  /*jshint validthis:true */
+  this.confirmDeleteCanvass = function (scope, deleteList, onSuccess, onFailure) {
+
+    NgDialogFactory.openAndHandle({
+        template: 'canvasses/confirmdelete_canvass.html',
+        scope: scope, className: 'ngdialog-theme-default',
+        controller: 'CanvassDeleteController',
+        data: { list: deleteList }
+      },
+      // process function
+      function (value) {
         // perform delete
         var delParams = {};
-        angular.forEach(data.value, function (entry) {
+        angular.forEach(value, function (entry) {
           delParams[entry._id] = true;
         });
 
-        electionFactory.getElections().delete(delParams)
-          .$promise.then(
+        canvassFactory.delete('canvass', delParams,
             // success function
-            function (response) {
-              if ($state.is($scope.dashState)) {
-                getElections();
-              } else {
-                gotoDash();
-              }
-            },
+            onSuccess,
             // error function
             function (response) {
-              // response is message
-              NgDialogFactory.error(response, 'Delete Unsuccessful');
+              if (onFailure) {
+                onFailure(response);
+              } else {
+                NgDialogFactory.error(response, 'Delete Unsuccessful');
+              }
             }
           );
+      });
+  };
+
+  /*jshint validthis:true */
+  this.getStateButton = function (scope, state) {
+    var button = controllerUtilFactory.getStateButton(state, scope),
+      isDash = $state.is(scope.dashState);
+
+    button.forEach(function (element) {
+      if (element.state === scope.newState) {
+        element.tip = 'Create new canvass';
+      } else if (element.state === scope.viewState) {
+        if (isDash) {
+          element.tip = 'View selected canvass';
+        } else {
+          element.tip = 'View this canvass';
+        }
+      } else if (element.state === scope.editState) {
+        if (isDash) {
+          element.tip = 'Edit selected canvass';
+        } else {
+          element.tip = 'Edit this canvass';
+        }
+      } else if (element.state === scope.delState) {
+        if (isDash) {
+          element.tip = 'Delete selected canvass(es)';
+        } else {
+          element.tip = 'Delete this canvass';
+        }
       }
     });
-  }
+
+    return button;
+  };
+
+
+  this.newCanvasserFilter = function (base, canvasser) {
+    var opts = {
+        hiddenFilters: [roleDialog] // hide role from filter description
+      },
+      filter;
+
+    // display role name rather than id
+//    if (canvasser) {
+//      opts = {
+//        dispTransform: function (dialog, filterVal) {
+//          var str = filterVal;
+//          if (dialog === roleDialog) {
+//            str = canvasser.name;
+//          }
+//          return str;
+//        }
+//      };
+//    }
+
+    filter = userFactory.newFilter(base, opts);
+
+    // add canvasser restriction to filter
+    if (canvasser) {
+      filter.addFilterValue(roleDialog, canvasser._id);
+    }
+
+    return filter;
+  };
+
+
 
 }
 
@@ -10829,45 +14292,47 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassDashController.$inject = ['$scope', '$rootScope', '$state', 'canvassFactory', 'electionFactory', 'utilFactory', 'NgDialogFactory', 'stateFactory', 'STATES', 'UTIL'];
+CanvassDashController.$inject = ['$scope', '$rootScope', '$state', 'canvassFactory', 'canvassService', 'electionFactory', 'NgDialogFactory', 'stateFactory', 'miscUtilFactory', 'utilFactory', 'controllerUtilFactory', 'CANVASSSCHEMA', 'STATES', 'UTIL', 'DEBUG'];
 
-function CanvassDashController($scope, $rootScope, $state, canvassFactory, electionFactory, utilFactory, NgDialogFactory, stateFactory, STATES, UTIL) {
+function CanvassDashController($scope, $rootScope, $state, canvassFactory, canvassService, electionFactory, NgDialogFactory, stateFactory, miscUtilFactory, utilFactory, controllerUtilFactory, CANVASSSCHEMA, STATES, UTIL, DEBUG) {
 
-  STATES.SET_SCOPE_VARS($scope, 'CANVASS');
+  if (DEBUG.devmode) {
+    $scope.debug = DEBUG;
+  }
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   $scope.filterOps = UTIL.OP_LIST;
   $scope.initFilter = initFilter;
   $scope.toggleCanvassSel = toggleCanvassSel;
-  $scope.viewItem = viewItem;
-  $scope.editItem = editItem;
-  $scope.deleteItem = deleteItem;
+  $scope.formatDate = utilFactory.formatDate;
+
+  $scope.changeStateParam = changeStateParam;
   $scope.dashDelete = dashDelete;
-  $scope.confirmDeleteCanvass = confirmDeleteCanvass;
-  $scope.gotoDash = gotoDash;
-  $scope.stateIs = stateFactory.stateIs;
-  $scope.stateIsNot = stateFactory.stateIsNot;
-  $scope.stateIncludes = stateFactory.stateIncludes;
-  $scope.menuStateIs = stateFactory.menuStateIs;
-  $scope.stateIsOneOf = stateFactory.stateIsOneOf;
-  $scope.stateIsNotOneOf = stateFactory.stateIsNotOneOf;
+  $scope.setSelect = setSelect;
+  $scope.getStateButton = getStateButton;
+
+  stateFactory.addInterface($scope);  // add stateFactory menthods to scope
+
+  controllerUtilFactory.setScopeVars('CANVASS', $scope);
+
+  initFilter();
 
   // get list of elections selecting name field, _id field is always provided
-  $scope.elections = electionFactory.getElections().query({fields: 'name'})
-    .$promise.then(
-      // success function
-      function (response) {
-        // response is actual data
-        $scope.elections = response;
-      },
-      // error function
-      function (response) {
-        // response is message
-        $scope.message = 'Error: ' + response.status + ' ' + response.statusText;
-      }
-    );
-  
-  getCanvasses();
+  $scope.elections = electionFactory.query('election', {fields: 'name'},
+    // success function
+    function (response) {
+      // response is actual data
+      $scope.elections = response;
+
+      getCanvasses();
+    },
+    // error function
+    function (response) {
+      // response is message
+      NgDialogFactory.error(response, 'Unable to retrieve Elections');
+      $state.go(STATES.APP);
+    }
+  );
 
   
   
@@ -10878,27 +14343,18 @@ function CanvassDashController($scope, $rootScope, $state, canvassFactory, elect
     $scope.filterText = undefined;
     $scope.filterElection = undefined;
     $scope.filterOp = undefined;
-    $scope.selectedCnt = utilFactory.initSelected($scope.canvasses);
+    setSelect(0);
   }
   
   
-  function toggleCanvassSel(entry) {
-    $scope.selectedCnt = utilFactory.toggleSelection(entry, $scope.selectedCnt);
-    switch ($scope.selectedCnt) {
-      case 1:
-        if (entry.isSelected) {
-          $scope.canvass = entry;
-          break;
-        }
-        /* falls through */
-      default:
-        initCanvass();
-        break;
-    }
+  function toggleCanvassSel (entry) {
+    setCanvass(
+      controllerUtilFactory.toggleSelection($scope, entry, $scope.canvasses, initCanvass)
+    );
   }
 
   function getCanvasses() {
-    $scope.canvasses = canvassFactory.getCanvasses().query(
+    $scope.canvasses = canvassFactory.query('canvass',
       // success function
       function (response) {
         // response is actual data
@@ -10909,8 +14365,8 @@ function CanvassDashController($scope, $rootScope, $state, canvassFactory, elect
       },
       // error function
       function (response) {
-        // repose is message
-        $scope.message = 'Error: ' + response.status + ' ' + response.statusText;
+        // response is message
+        NgDialogFactory.error(response, 'Unable to retrieve Canvasses');
       }
     );
   }
@@ -10922,85 +14378,33 @@ function CanvassDashController($scope, $rootScope, $state, canvassFactory, elect
 
   function initCanvass() {
     // include only required fields
-    setCanvass({
-      name: '',
-      description: '',
-      startDate: '',
-      endDate: '',
-      election: ''
-//        _id: ''
-    });
+    setCanvass(CANVASSSCHEMA.SCHEMA.getObject());
   }
 
-  function viewItem () {
-    $state.go($scope.viewState, {id: $scope.canvass._id});
-  }
-
-  function editItem () {
-    $state.go($scope.editState, {id: $scope.canvass._id});
-  }
-
-  function deleteItem () {
-    confirmDeleteCanvass([$scope.canvass]);
+  function changeStateParam () {
+    return {
+      id: $scope.canvass._id
+    };
   }
   
-  function gotoDash () {
-    $state.go($scope.dashState);
-  }
-
-  function dashDelete() {
-    var selectedList = utilFactory.getSelectedList($scope.canvasses);
-    confirmDeleteCanvass(selectedList);
-  }
-
-
-  function confirmDelete (dialogOpts, onClose) {
-
-    var dialog = NgDialogFactory.open(dialogOpts);
-    
-    dialog.closePromise.then(function (data) {
-      if (!NgDialogFactory.isNgDialogCancel(data.value)) {
-        // perform delete
-        onClose(data);
-      }
-    });
-  }
-  
-  function confirmDeleteCanvass (deleteList) {
-
-    confirmDelete (
-      {template: 'canvasses/confirmdelete_canvass.html', 
-        scope: $scope, className: 'ngdialog-theme-default', 
-        controller: 'CanvassDashController', data: {list: deleteList}},
-      function (data) {
-        // perform delete
-        var delParams = {};
-        angular.forEach(data.value, function (entry) {
-          delParams[entry._id] = true;
-        });
-
-        canvassFactory.getCanvasses().delete(delParams)
-          .$promise.then(
-            // success function
-            function (response) {
-              if ($state.is($scope.dashState)) {
-                getCanvasses();
-              } else {
-                gotoDash();
-              }
-            },
-            // error function
-            function (response) {
-              NgDialogFactory.error(response, 'Delete Unsuccessful');
-            }
-          );
+  function dashDelete () {
+    var selectedList = miscUtilFactory.getSelectedList($scope.canvasses);
+    canvassService.confirmDeleteCanvass($scope, selectedList,
+      // on success
+      function (/*response*/) {
+        getCanvasses();
       });
   }
-  
 
-  
-  
-  
+  function setSelect (sel) {
+    return controllerUtilFactory.setSelect($scope, $scope.canvasses, sel);
+  }
+
+  function getStateButton (state) {
+    return canvassService.getStateButton($scope, state);
+  }
+
+
 }
 
 
@@ -11010,15 +14414,18 @@ function CanvassDashController($scope, $rootScope, $state, canvassFactory, elect
 
 angular.module('canvassTrac')
 
-  .constant('LABELS', (function () {
-    return ['label-primary',
-      'label-success',
-      'label-info',
-      'label-warning',
-      'label-danger'
-      ];
+  .value('LABELS', (function () {
+    return {
+      index: 0,
+      classes: [
+        'label-primary',
+        'label-success',
+        'label-info',
+        'label-warning',
+        'label-danger'
+      ]
+    };
   })())
-  .value('LABELIDX', 0)
   .controller('CanvassController', CanvassController);
 
 
@@ -11026,13 +14433,16 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', '$filter', '$injector', 'canvassFactory', 'canvassAssignmentFactory', 'canvassResultFactory', 'electionFactory', 'surveyFactory', 'addressFactory', 'questionFactory', 'userFactory', 'NgDialogFactory', 'stateFactory', 'utilFactory', 'miscUtilFactory', 'pagerFactory', 'storeFactory', 'resourceFactory', 'RES', 'roleFactory', 'ROLES', 'STATES', 'LABELS', 'LABELIDX', 'SCHEMA_CONST', 'CANVASSSCHEMA', 'SURVEYSCHEMA', 'CANVASSRES_SCHEMA', 'CANVASSASSIGN_SCHEMA', 'ADDRSCHEMA', 'RESOURCE_CONST', 'QUESTIONSCHEMA', 'CHARTS'];
+CanvassController.$inject = ['$scope', '$state', '$stateParams', '$filter', '$injector', 'canvassFactory', 'canvassService', 'canvassAssignmentFactory', 'surveyFactory', 'addressFactory', 'userFactory', 'NgDialogFactory', 'stateFactory', 'utilFactory', 'miscUtilFactory', 'storeFactory', 'resourceFactory', 'consoleService', 'controllerUtilFactory', 'RES', 'roleFactory', 'ROLES', 'STATES', 'LABELS', 'SCHEMA_CONST', 'CANVASSSCHEMA', 'SURVEYSCHEMA', 'CANVASSRES_SCHEMA', 'CANVASSASSIGN_SCHEMA', 'ADDRSCHEMA', 'RESOURCE_CONST', 'QUESTIONSCHEMA', 'CHARTS', 'DEBUG'];
 
-function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $injector, canvassFactory, canvassAssignmentFactory, canvassResultFactory, electionFactory, surveyFactory, addressFactory, questionFactory, userFactory, NgDialogFactory, stateFactory, utilFactory, miscUtilFactory, pagerFactory, storeFactory, resourceFactory, RES, roleFactory, ROLES, STATES, LABELS, LABELIDX, SCHEMA_CONST, CANVASSSCHEMA, SURVEYSCHEMA, CANVASSRES_SCHEMA, CANVASSASSIGN_SCHEMA, ADDRSCHEMA, RESOURCE_CONST, QUESTIONSCHEMA, CHARTS) {
+function CanvassController($scope, $state, $stateParams, $filter, $injector, canvassFactory, canvassService, canvassAssignmentFactory, surveyFactory, addressFactory, userFactory, NgDialogFactory, stateFactory, utilFactory, miscUtilFactory, storeFactory, resourceFactory, consoleService, controllerUtilFactory, RES, roleFactory, ROLES, STATES, LABELS, SCHEMA_CONST, CANVASSSCHEMA, SURVEYSCHEMA, CANVASSRES_SCHEMA, CANVASSASSIGN_SCHEMA, ADDRSCHEMA, RESOURCE_CONST, QUESTIONSCHEMA, CHARTS, DEBUG) {
 
-  console.log('CanvassController id', $stateParams.id);
+  var con = consoleService.getLogger('CanvassController');
 
-  STATES.SET_SCOPE_VARS($scope, 'CANVASS');
+  con.debug('CanvassController id', $stateParams.id);
+
+  controllerUtilFactory.setScopeVars('CANVASS', $scope);
+
   $scope.tabs = {
     CANVASS_TAB: 0,
     SURVEY_TAB: 1,
@@ -11040,7 +14450,8 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
     CANVASSER_TAB: 3,
     ASSIGNMENT_TAB: 4,
     RESULT_TAB: 5,
-    ALL_TABS: 6
+    ALL_TABS: 6,
+    DASH_TAB: 100  // tab number to indicate dashboard
   };
   $scope.firstTab = $scope.tabs.CANVASS_TAB;
   if (showTab($scope.tabs.RESULT_TAB)) {
@@ -11049,7 +14460,10 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
     $scope.lastTab = $scope.tabs.ASSIGNMENT_TAB;
   }
   $scope.activeTab = $scope.firstTab;
-  
+  $scope.deactiveTab = $scope.firstTab;
+
+  LABELS.index = 0;
+
   var TAB_BITS = [0];
   for (var prop in $scope.tabs) {
     var bit = (1 << $scope.tabs[prop]);
@@ -11060,24 +14474,27 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
   }
   TAB_BITS.push(TAB_BITS.shift());  // first shall be last
 
+  if (DEBUG.devmode) {
+    $scope.debug = DEBUG;
+  }
+
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   $scope.getTitle = getTitle;
-  $scope.showButton = showButton;
-  $scope.changeState = changeState;
+
+  $scope.changeStateParam = changeStateParam;
+  $scope.singleDelete = singleDelete;
+  $scope.getStateButton = getStateButton;
+
   $scope.showTab = showTab;
   $scope.initTab = initTab;
+  $scope.deselectTab = deselectTab;
   $scope.formatDate = utilFactory.formatDate;
   $scope.processForm = processForm;
   $scope.processSurvey = processSurvey;
   $scope.gotoDash = gotoDash;
   $scope.nextTab = nextTab;
   $scope.prevTab = prevTab;
-  $scope.stateIs = stateFactory.stateIs;
-  $scope.stateIsNot = stateFactory.stateIsNot;
-  $scope.stateIncludes = stateFactory.stateIncludes;
-  $scope.menuStateIs = stateFactory.menuStateIs;
-  $scope.stateIsOneOf = stateFactory.stateIsOneOf;
-  $scope.stateIsNotOneOf = stateFactory.stateIsNotOneOf;
+  $scope.gotoTab = gotoTab;
   $scope.setPage = setPage;
   $scope.incPage = incPage;
   $scope.decPage = decPage;
@@ -11088,11 +14505,12 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
   $scope.showPager = showPager;
   $scope.toggleItemSel = toggleItemSel;
   $scope.setItemSel = setItemSel;
-  $scope.confirmDelete = confirmDelete;
   $scope.requestCanvasserRole = requestCanvasserRole;
   $scope.getSurveyRspOptions = getSurveyRspOptions;
 
-  canvassFactory.setLabeller(labeller);
+  stateFactory.addInterface($scope);  // add stateFactory menthods to scope
+
+  canvassAssignmentFactory.setLabeller(labeller);
 
   initItem(); // perform basic init of objects
   if ($stateParams.id) {
@@ -11116,7 +14534,7 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
               case $scope.tabs.SURVEY_TAB:
                 // survey tab specific init
                 if ($scope.survey) {
-                  utilFactory.initSelected($scope.survey.questions);
+                  miscUtilFactory.initSelected($scope.survey.questions);
                 }
                 break;
               case $scope.tabs.ADDRESS_TAB:
@@ -11138,7 +14556,116 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
     }
   }
   
+  function deselectTab ($event, $selectedIndex) {
+
+    var modified = false;
+
+    con.debug('deselectTab', $event, $scope.deactiveTab, $selectedIndex);
+
+    if ($scope.deactiveTab === $selectedIndex) {
+      return; // ignore
+    }
+
+    if ($state.is($scope.newState) || $state.is($scope.editState)) {
+      switch ($scope.deactiveTab) {
+        case $scope.tabs.CANVASS_TAB:
+          modified = isCanvassModified();
+          if (modified) {
+            deselectObjectTab($event, $scope.deactiveTab, $selectedIndex, 'Canvass Modified',
+              function () {
+                // discard modificarions
+                $scope.canvass = canvassFactory.duplicateObj(RES.ACTIVE_CANVASS, RES.BACKUP_CANVASS, storeFactory.OVERWRITE);
+              });
+          }
+          break;
+        case $scope.tabs.SURVEY_TAB:
+          modified = isSurveyModified();
+          if (modified) {
+            deselectObjectTab($event, $scope.deactiveTab, $selectedIndex, 'Survey Modified',
+              function () {
+                // discard modificarions
+                $scope.survey = surveyFactory.duplicateObj(RES.ACTIVE_SURVEY, RES.BACKUP_SURVEY, storeFactory.OVERWRITE);
+              });
+          }
+          break;
+        case $scope.tabs.ADDRESS_TAB:
+          modified = deselectListTab($event, $scope.deactiveTab, $selectedIndex,
+                          addressFactory.getList(RES.ASSIGNED_ADDR),
+                          addressFactory.getList(RES.BACKUP_ASSIGNED_ADDR),
+                          'Assigned Addresses Modified');
+          break;
+        case $scope.tabs.CANVASSER_TAB:
+          modified = deselectListTab($event, $scope.deactiveTab, $selectedIndex,
+                          userFactory.getList(RES.ASSIGNED_CANVASSER),
+                          userFactory.getList(RES.BACKUP_ASSIGNED_CANVASSER),
+                          'Assigned Canvassers Modified');
+          break;
+        case $scope.tabs.ASSIGNMENT_TAB:
+          modified = areAllocationsModified();
+          if (modified) {
+            deselectObjectTab($event, $scope.deactiveTab, $selectedIndex, 'Assignments Modified',
+              function () {
+                // discard modificarions
+                var undoStack = storeFactory.getObj(RES.ALLOCATION_UNDOS);
+                if (undoStack) {
+                  undoStack.undo();
+                }
+              });
+          }
+          break;
+      }
+    }
+    if (!modified) {
+      /* no need to gotoTab as activeTab will have been set by the tab selection click
+        or the gotoTab call on the next/prev button */
+      endTabChange($selectedIndex);
+    }
+  }
   
+  function deselectObjectTab ($event, prevTabIndex, nextTabIndex, title, restoreFunc) {
+
+    var tabSet = function () {
+      endTabChange(nextTabIndex);  // default, just setup for next change
+    };
+    if ($event) {
+      $event.preventDefault();
+
+      if (isValidTab(nextTabIndex)) {
+        tabSet = function () {
+          setTab(nextTabIndex); // set to required tab as tab event was prevented
+        };
+      }
+    }
+
+    NgDialogFactory.yesNoDialog(title, 'Do you wish to save changes?',
+      // process function
+      function (/*value*/) {
+        processData(prevTabIndex, tabSet);
+      },
+      // cancel function
+      function () {
+        // discard modificarions
+        miscUtilFactory.call(restoreFunc);
+
+        tabSet();
+      }
+    );
+  }
+
+  function deselectListTab ($event, prevTabIndex, nextTabIndex, workList, backupList, title) {
+
+    var unmodified = workList.compare(backupList, function (o1, o2) {
+        return (o1._id === o2._id);
+      });
+
+    if (!unmodified) {
+      deselectObjectTab($event, prevTabIndex, nextTabIndex, title, function () {
+        // discard modificarions
+        workList.setList(backupList.slice(), storeFactory.APPLY_FILTER);
+      });
+    }
+    return (!unmodified); // true if modified
+  }
   
   function getTitle () {
     $scope.editDisabled = true;
@@ -11157,67 +14684,83 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
     return title;
   }
 
-  function showButton (forState) {
-    var show = false;
-    if ($state.is($scope.newState)) {
-      // no buttons in newState
-    } else if ($state.is($scope.viewState)) {
-      switch (forState) {
-        case $scope.newState:
-        case $scope.editState:
-        case $scope.delState:
-          show = true;  // show new/edit/del
-          break;
-      }
-    } else if ($state.is($scope.editState)) {
-      switch (forState) {
-        case $scope.newState:
-        case $scope.viewState:
-        case $scope.delState:
-          show = true;  // show new/view/del
-          break;
-      }
-    }
-    return show;
+  function changeStateParam () {
+    return {
+      id: $scope.canvass._id
+    };
   }
 
-  function changeState (toState) {
-    var to = toState,
-      params;
-    if (toState === $scope.newState) {
-      // TODO add save changes check
-    } else if (toState === $scope.viewState) {
-      // TODO add save changes check
-      params = {id: $scope.canvass._id};
-    } else if (toState === $scope.editState) {
-      params = {id: $scope.canvass._id};
-    } else if (toState === $scope.delState) {
-      // TODO delState
-      to = undefined;
-    }
-    if (to) {
-      $state.go(to, params);
-    }
+  function singleDelete() {
+    var deleteList = [
+      JSON.parse(JSON.stringify($scope.canvass))
+    ];
+    deleteList[0].election = $scope.election;
+
+    canvassService.confirmDeleteCanvass($scope, deleteList,
+      // on success
+      function (/*response*/) {
+        gotoDash();
+      });
   }
 
-  
+  function getStateButton (state) {
+    return canvassService.getStateButton($scope, state);
+  }
+
   function showTab (tab) {
     var show = true;
     if ($state.is($scope.newState) || $state.is($scope.editState)) {
       if (tab === $scope.tabs.RESULT_TAB) {
-        show = false; // no results in new mode
+        show = false; // no results in new/edit mode
       }
     }
     return show;
   }
 
+  function processData (currentTabIdx, next) {
+
+    if ($state.is($scope.newState) || $state.is($scope.editState)) {
+      // depending on timing of responses from host, $scope.canvass may not be set, so get local copy
+      var canvass = canvassFactory.getObj(RES.ACTIVE_CANVASS),
+        action = ($state.is($scope.newState) ? RES.PROCESS_NEW : RES.PROCESS_UPDATE);
+
+      switch (currentTabIdx) {
+        case $scope.tabs.CANVASS_TAB:
+          processCanvass(action, next);
+          break;
+        case $scope.tabs.SURVEY_TAB:
+          if (!canvass.survey && (action === RES.PROCESS_UPDATE)) {
+            // no previous survey so change to new mode
+            action = RES.PROCESS_UPDATE_NEW;
+          } else if (canvass.survey && (action === RES.PROCESS_NEW)) {
+            // previous survey (created after adding question), so change to update mode
+            action = RES.PROCESS_UPDATE;
+          }
+          processSurvey(action, next);
+          break;
+        case $scope.tabs.ADDRESS_TAB:
+          // generate addreess list for host
+          canvass.addresses = extractIds(addressFactory, RES.ASSIGNED_ADDR);
+          processCanvass(RES.PROCESS_UPDATE, requestAssignments(next));
+          break;
+        case $scope.tabs.CANVASSER_TAB:
+          // generate canvasser list for host
+          canvass.canvassers = extractIds(userFactory, RES.ASSIGNED_CANVASSER);
+          processCanvass(RES.PROCESS_UPDATE, requestAssignments(next));
+          break;
+        case $scope.tabs.ASSIGNMENT_TAB:
+          processAllocations(RES.PROCESS_UPDATE, next);
+          break;
+      }
+    }
+  }
 
   function processForm () {
     if ($state.is($scope.newState) || $state.is($scope.editState)) {
       // depending on timing of responses from host, $scope.canvass may not be set, so get local copy
       var canvass = canvassFactory.getObj(RES.ACTIVE_CANVASS),
-        action = ($state.is($scope.newState) ? RES.PROCESS_NEW : RES.PROCESS_UPDATE),
-        resList;
+        action = ($state.is($scope.newState) ? RES.PROCESS_NEW : RES.PROCESS_UPDATE);
+
       switch ($scope.activeTab) {
         case $scope.tabs.CANVASS_TAB:
           processCanvass(action, nextTab);
@@ -11234,18 +14777,12 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
           break;
         case $scope.tabs.ADDRESS_TAB:
           // generate addreess list for host
-          resList = addressFactory.getList(RES.ASSIGNED_ADDR);
-          if (resList) {
-            canvass.addresses = extractIds(resList);
-          }
+          canvass.addresses = extractIds(addressFactory, RES.ASSIGNED_ADDR);
           processCanvass(RES.PROCESS_UPDATE, requestAssignmentsNextTab);
           break;
         case $scope.tabs.CANVASSER_TAB:
           // generate canvasser list for host
-          resList = userFactory.getList(RES.ASSIGNED_CANVASSER);
-          if (resList) {
-            canvass.canvassers = extractIds(resList);
-          }
+          canvass.canvassers = extractIds(userFactory, RES.ASSIGNED_CANVASSER);
           processCanvass(RES.PROCESS_UPDATE, requestAssignmentsNextTab);
           break;
         case $scope.tabs.ASSIGNMENT_TAB:
@@ -11270,6 +14807,8 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
 
     $scope.survey = resources[RES.ACTIVE_SURVEY];
     $scope.backupSurvey = resources[RES.BACKUP_SURVEY];
+
+    $scope.election = resources[RES.ACTIVE_ELECTION];
   }
 
   function initItem(id) {
@@ -11277,21 +14816,20 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
       init();
       initTab($scope.tabs.ALL_TABS);
     } else {
-      $scope.canvass = canvassFactory.getCanvasses().get({id: id})
-        .$promise.then(
-          // success function
-          function (response) {
-            initTab($scope.tabs.ALL_TABS);
-            processCanvassRsp(response,
-                  (storeFactory.CREATE_INIT | storeFactory.APPLY_FILTER),
-                  requestAssignments);
-          },
-          // error function
-          function (response) {
-            // response is message
-            NgDialogFactory.error(response, 'Unable to retrieve Canvass');
-          }
-        );
+      $scope.canvass = canvassFactory.get('canvass', { id: id },
+        // success function
+        function (response) {
+          initTab($scope.tabs.ALL_TABS);
+          processCanvassRsp(response,
+                (storeFactory.CREATE_INIT | storeFactory.APPLY_FILTER),
+                requestAssignments);
+        },
+        // error function
+        function (response) {
+          // response is message
+          NgDialogFactory.error(response, 'Unable to retrieve Canvass');
+        }
+      );
     }
   }
 
@@ -11304,65 +14842,66 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
                                               }));
   }
 
-  function getCanvassRspOptions (schema, flags, next, custom) {
+  function getCanvassRspOptions (schema, flags, next, customArgs) {
 
-    var args = checkArgs('canvassFactory', schema, flags, next, custom),
+    var args = resourceFactory.getStandardArgsObject(
+                        undefined, // no id, this obj will not be used
+                        'canvassFactory', 'canvass', schema, flags, next, customArgs),
       addrObjId,
-      canvsrObjId;
+      canvsrObjId,
+      schemaLink;
 
-    if (!miscUtilFactory.isEmpty(args.schema) && args.schema.schema &&
-        (args.schema.schema.name === CANVASSASSIGN_SCHEMA.SCHEMA.name)) {
-      // for canvass assignment processing so only want allocated addr/canvasser
-      addrObjId = RES.ALLOCATED_ADDR;
-      canvsrObjId = RES.ALLOCATED_CANVASSER;
+    if (!miscUtilFactory.isEmpty(args.schema)) {
+      schemaLink = {
+        schema: args.schema,
+        schemaId: args.schemaId
+      };
+      if (args.schema.name === CANVASSASSIGN_SCHEMA.SCHEMA.name) {
+        // for canvass assignment processing so only want allocated addr/canvasser
+        addrObjId = RES.ALLOCATED_ADDR;
+        canvsrObjId = RES.ALLOCATED_CANVASSER;
+      }
     } else {
       // for canvass processing
-      addrObjId = [RES.ASSIGNED_ADDR, RES.ALLOCATED_ADDR];
-      canvsrObjId = [RES.ASSIGNED_CANVASSER, RES.ALLOCATED_CANVASSER];
+      addrObjId = [RES.ASSIGNED_ADDR, RES.BACKUP_ASSIGNED_ADDR, RES.ALLOCATED_ADDR];
+      canvsrObjId = [RES.ASSIGNED_CANVASSER, RES.BACKUP_ASSIGNED_CANVASSER, RES.ALLOCATED_CANVASSER];
+      schemaLink = {};
     }
 
-    var addrOpts = getRspAddressOptions(addrObjId, {
-        schema: CANVASSSCHEMA.SCHEMA,
-        schemaId: CANVASSSCHEMA.IDs.ADDRESSES,
-      }, (args.flags | storeFactory.COPY_SET)),  // make copy of addresses
-      canvsrOpts = getRspCanvasserOptions(canvsrObjId, {
-        schema: CANVASSSCHEMA.SCHEMA,
-        schemaId: CANVASSSCHEMA.IDs.CANVASSERS,
-      }, (args.flags | storeFactory.COPY_SET)),  // make copy of canvassers
-      resltsOpts = getRspResultOptions(RES.CANVASS_RESULT, {
-        schema: CANVASSSCHEMA.SCHEMA,
-        schemaId: CANVASSSCHEMA.IDs.RESULTS,
-      }, (args.flags | storeFactory.COPY_SET)),   // make copy of results
-    rspOptions = {
-      objId: [RES.ACTIVE_CANVASS,  RES.BACKUP_CANVASS],
-      factory: args.factory,
-      schema: args.schema.schema,
-      schemaId: args.schema.schemaId,
-      storage: RESOURCE_CONST.STORE_OBJ,
-      flags: args.flags,
-      next: args.next,
-      subObj: [
-        // storage arguments for specific sub sections of survey info
-        { // storage info for election
-          objId: RES.ACTIVE_ELECTION, // id of election object to save response data to
-          schema: CANVASSSCHEMA.SCHEMA,
-          schemaId: CANVASSSCHEMA.IDs.ELECTION,
-          //type/path/storage/factory: can be retrieved using schema & schemaId
-          flags: args.flags
-        },
-        // storage info for survey
-        getSurveyRspOptions({
-          schema: CANVASSSCHEMA.SCHEMA,
-          schemaId: CANVASSSCHEMA.IDs.SURVEY
-        }, args.flags),
-        // storage info for addresses
-        addrOpts,
-        // storage info for canvassers
-        canvsrOpts,
-        // storage info for results
-        resltsOpts
-      ]
-    };
+    var addrOpts = getRspAddressOptions(addrObjId,
+                      CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.ADDRESSES),
+                      (args.flags | storeFactory.COPY_SET)),  // make copy of addresses
+      canvsrOpts = getRspCanvasserOptions(canvsrObjId,
+                      CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.CANVASSERS),
+                      (args.flags | storeFactory.COPY_SET)),  // make copy of canvassers
+      resltsOpts = getRspResultOptions(RES.CANVASS_RESULT,
+                      CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.RESULTS),
+                      (args.flags | storeFactory.COPY_SET)),   // make copy of results
+      rspOptions = resourceFactory.getStandardArgsObject(
+                      [RES.ACTIVE_CANVASS,  RES.BACKUP_CANVASS],
+                      args.factory, args.resource,
+                      [ // storage arguments for specific sub sections of survey info
+                        // storage info for election
+                        getRspElectionOptions(
+                          RES.ACTIVE_ELECTION, // id of election object to save
+                          CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.ELECTION),
+                          args.flags),
+                        // storage info for survey
+                        getSurveyRspOptions(
+                          CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.SURVEY),
+                          args.flags),
+                        // storage info for addresses
+                        addrOpts,
+                        // storage info for canvassers
+                        canvsrOpts,
+                        // storage info for results
+                        resltsOpts
+                      ],
+                      schemaLink, args.flags, args.next, args.customArgs);
+
+    angular.extend(rspOptions, {
+      storage: RESOURCE_CONST.STORE_OBJ
+    });
 
     // mark address & result objects for linking
     addrOpts[canvassFactory.ADDR_RES_LINKADDRESS] = true;
@@ -11376,22 +14915,22 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
     addrOpts[canvassAssignmentFactory.ADDR_CANVSR_ADDRESSLIST] = true;
     canvsrOpts[canvassAssignmentFactory.ADDR_CANVSR_CANVASSERLIST] = true;
 
-    if (args.custom) {
-      // add custom items
-      miscUtilFactory.copyProperties(args.custom, rspOptions);
-    }
-
     return rspOptions;
   }
 
-  function getRspAddressOptions (objId, schema, flags, next, custom) {
+  function getRspAddressOptions (objId, schema, flags, next, customArgs) {
     // storage info for addresses
-    return getRspOptionsObject(objId, 'addressFactory', schema, flags, next, custom);
+    return getRspOptionsObject(objId, 'addressFactory', 'address', schema, flags, next, customArgs);
   }
 
-  function getRspCanvasserOptions (objId, schema, flags, next, custom) {
+  function getRspCanvasserOptions (objId, schema, flags, next, customArgs) {
     // storage info for canvassers
-    return getRspOptionsObject(objId, 'userFactory', schema, flags, next, custom);
+    return getRspOptionsObject(objId, 'userFactory', 'user', schema, flags, next, customArgs);
+  }
+
+  function getRspElectionOptions (objId, schema, flags, next, customArgs) {
+    // storage info for canvassers
+    return getRspOptionsObject(objId, 'electionFactory', 'election', schema, flags, next, customArgs);
   }
 
   function getRspResultOptions (objId, schema, flags, next) {
@@ -11430,83 +14969,43 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
       });
     });
 
-    var optObj = getRspOptionsObject(objId, 'canvassResultFactory', subObj, schema, flags, next);
-    optObj.customArgs = {
-      getChartType: function (type) {
-        /* chart.js pie, polarArea & doughnut charts may be displayed using
-          single data series (i.e. data = []), whereas chart.js radar, line &
-          bar require multiple data series (i.e. data = [[], []]) */
-        switch (type) {
-          case QUESTIONSCHEMA.TYPEIDs.QUESTION_YES_NO:
-          case QUESTIONSCHEMA.TYPEIDs.QUESTION_YES_NO_MAYBE:
-          case QUESTIONSCHEMA.TYPEIDs.QUESTION_CHOICE_SINGLESEL:
-            return CHARTS.PIE;
-          case QUESTIONSCHEMA.TYPEIDs.QUESTION_CHOICE_MULTISEL:
-            return CHARTS.BAR;
-          case QUESTIONSCHEMA.TYPEIDs.QUESTION_RANKING:
-            return CHARTS.POLAR;
-          default:
-            return undefined;
-        }
-      }
-    };
+    var optObj = getRspOptionsObject(
+                  objId, 'canvassResultFactory', 'result',
+                  subObj, schema, flags, next, {
+                    getChartType: function (type) {
+                      /* chart.js pie, polarArea & doughnut charts may be displayed using
+                        single data series (i.e. data = []), whereas chart.js radar, line &
+                        bar require multiple data series (i.e. data = [[], []]) */
+                      switch (type) {
+                        case QUESTIONSCHEMA.TYPEIDs.QUESTION_YES_NO:
+                        case QUESTIONSCHEMA.TYPEIDs.QUESTION_YES_NO_MAYBE:
+                        case QUESTIONSCHEMA.TYPEIDs.QUESTION_CHOICE_SINGLESEL:
+                          return CHARTS.PIE;
+                        case QUESTIONSCHEMA.TYPEIDs.QUESTION_CHOICE_MULTISEL:
+                          return CHARTS.BAR;
+                        case QUESTIONSCHEMA.TYPEIDs.QUESTION_RANKING:
+                          return CHARTS.POLAR;
+                        default:
+                          return undefined;
+                      }
+                    }
+                  });
     return optObj;
   }
 
-  function getRspOptionsObject(objId, factory, subObj, schema, flags, next, custom) {
-    var args = checkArgs(factory, subObj, schema, flags, next, custom);
-    return { // storage info for results
-      objId: objId,
-      factory: args.factory,
-      schema: args.schema.schema,
-      schemaId: args.schema.schemaId,
-      //type/path/storage/factory: can be retrieved using schema & schemaId
-      subObj: args.subObj,
-      flags: args.flags,
-      next: args.next,
-      custom: args.custom
-    };
+  function getRspOptionsObject(objId, factory, resource, subObj, schema, flags, next, customArgs) {
+
+    return resourceFactory.getStandardArgsObject(objId, factory, resource, subObj, schema, flags, next, customArgs);
   }
 
-  function checkArgs (factory, subObj, schema, flags, next, custom) {
-    if (!angular.isString(factory)) {
-      custom = next;
-      next = flags;
-      flags = schema;
-      schema = subObj;
-      subObj = factory;
-      factory = undefined;
-    }
-    if (!angular.isArray(subObj)) {
-      custom = next;
-      next = flags;
-      flags = schema;
-      schema = subObj;
-      subObj = undefined;
-    }
-    if (!angular.isObject(schema)) {
-      custom = next;
-      next = flags;
-      flags = schema;
-      schema = {};
-    }
-    if (!angular.isNumber(flags)) {
-      custom = next;
-      next = flags;
-      flags = storeFactory.NOFLAG;
-    }
-    if (!angular.isFunction(next)) {
-      custom = next;
-      next = undefined;
-    }
-    return {
-      factory: factory, schema: schema, subObj: subObj,
-      flags: flags, next: next, custom: custom
-    };
-  }
 
-  function getSurveyRspOptions (schema, flags, next) {
-    var args = checkArgs('surveyFactory', schema, flags, next),
+  function getSurveyRspOptions (schema, flags, next, customArgs) {
+
+    var args = resourceFactory.getStandardArgsObject(
+                                  [RES.ACTIVE_SURVEY, RES.BACKUP_SURVEY],
+                                  'surveyFactory', 'survey',
+                                  // will set subObj here
+                                  schema, flags, next, customArgs),
       subObj = {
         // storage arguments for specific sub sections of survey info
         objId: RES.SURVEY_QUESTIONS,
@@ -11519,24 +15018,16 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
     // mark question & result objects for linking
     subObj[canvassFactory.QUES_RES_LINKQUES] = true;
 
-    return {
-      // storage info for survey
-      objId: [RES.ACTIVE_SURVEY, RES.BACKUP_SURVEY],
-      factory: args.factory,
-      schema: args.schema.schema,
-      schemaId: args.schema.schemaId,
-      //type/path/storage: can be retrieved using schema & schemaId
-      storage: RESOURCE_CONST.STORE_OBJ,
-      flags: args.flags,
-      next: args.next,
-      subObj: subObj
-    };
+    return angular.extend(args, {
+      subObj: subObj,
+      storage: RESOURCE_CONST.STORE_OBJ
+    });
   }
 
 
 
   function labeller () {
-    return LABELS[LABELIDX++ % LABELS.length];
+    return LABELS.classes[LABELS.index++ % LABELS.classes.length];
   }
 
   function processCanvassAllocationRsp (response, flags, next) {
@@ -11549,67 +15040,65 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
       next = undefined;
     }
 
-    // TODO currently only support single assignment
-//    var toProcess = response;
-//    if (Array.isArray(response)) {
-//      toProcess = response[0];
-//    }
-//    if (toProcess) {
-      canvassAssignmentFactory.readResponse(response,
-                                            getAssignmentRspOptions(flags, next));
-//    }
+    canvassAssignmentFactory.readResponse(response,
+                                          getAssignmentRspOptions(flags, next));
   }
 
   function getAssignmentRspOptions (schema, flags, next) {
-    var args = checkArgs(schema, flags, next),
-      custom = {
+
+    var args = resourceFactory.getStandardArgsObject(
+                                undefined, // no objId as don't need to save the assignments response
+                                'canvassAssignmentFactory', 'assignment',
+                                // subObj will be set here
+                                schema, flags, next),
+      commonArgs = {
         processArg: RESOURCE_CONST.PROCESS_READ,  // argument only for use during read
       },
-      addrOpts = getRspAddressOptions(undefined /*RES.ALLOCATED_ADDR*/, {
-          schema: CANVASSASSIGN_SCHEMA.SCHEMA,
-          schemaId: CANVASSASSIGN_SCHEMA.IDs.ADDRESSES,
-        }, (args.flags | storeFactory.COPY_SET),  // make copy of addresses
-        custom),
-      canvsrOpts = getRspCanvasserOptions(undefined /*RES.ALLOCATED_CANVASSER*/, {
-          schema: CANVASSASSIGN_SCHEMA.SCHEMA,
-          schemaId: CANVASSASSIGN_SCHEMA.IDs.CANVASSER,
-        }, (args.flags | storeFactory.COPY_SET),  // make copy of canvasser
-        custom);
-
-    // mark address & canvasser objects for linking
-    addrOpts[canvassAssignmentFactory.ADDR_CANVSR_LINKADDRESS] = true;
-    canvsrOpts[canvassAssignmentFactory.ADDR_CANVSR_LINKCANVASSER] = true;
-
-    return {
-      // no objId as don't need to save the assignments response
-      flags: args.flags,
-      next: args.next,
-      subObj: [
+      addrOpts = getRspAddressOptions(undefined /* not being saved */,
+                          CANVASSASSIGN_SCHEMA.SCHEMA.getSchemaLink(
+                                CANVASSASSIGN_SCHEMA.IDs.ADDRESSES
+                          ),
+                          (args.flags | storeFactory.COPY_SET)),  // make copy of addresses
+      canvsrOpts = getRspCanvasserOptions(undefined /* not being saved */,
+                          CANVASSASSIGN_SCHEMA.SCHEMA.getSchemaLink(
+                                CANVASSASSIGN_SCHEMA.IDs.CANVASSER
+                          ),
+                          (args.flags | storeFactory.COPY_SET)),  // make copy of canvasser
+      subObj = [
           // storage info for canvasser
           canvsrOpts,
           // storage info for addresses
           addrOpts,
           // storage info for canvass
-          getCanvassRspOptions({
-            schema: CANVASSASSIGN_SCHEMA.SCHEMA,
-            schemaId: CANVASSASSIGN_SCHEMA.IDs.CANVASS
-          }, args.flags, custom)
-      ],
-      linkAddressAndCanvasser: {
-        labeller: labeller
-      }
-    };
+          getCanvassRspOptions(
+                          CANVASSASSIGN_SCHEMA.SCHEMA.getSchemaLink(
+                                CANVASSASSIGN_SCHEMA.IDs.CANVASS
+                          ),
+                          args.flags)
+      ];
+
+    subObj.forEach(function (obj) {
+      angular.extend(obj, commonArgs);
+    });
+
+    // mark address & canvasser objects for linking
+    addrOpts[canvassAssignmentFactory.ADDR_CANVSR_LINKADDRESS] = true;
+    canvsrOpts[canvassAssignmentFactory.ADDR_CANVSR_LINKCANVASSER] = true;
+
+    return angular.extend(args, {
+                          subObj: subObj,
+                          linkAddressAndCanvasser: {
+                            labeller: labeller
+                          }
+                        }, commonArgs);
   }
-
-
 
   
   function requestAssignments (next) {
     // depending on timing of responses from host, $scope.canvass may not be set, so get local copy
-    var canvass = canvassFactory.getObj(RES.ACTIVE_CANVASS),
-      resource = canvassAssignmentFactory.getCanvassAssignment();
+    var canvass = canvassFactory.getObj(RES.ACTIVE_CANVASS);
 
-    resource.query({canvass: canvass._id}).$promise.then(
+    canvassAssignmentFactory.query('assignment', {canvass: canvass._id},
       // success function
       function (response) {
         // response from server contains result
@@ -11626,7 +15115,7 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
     requestAssignments(nextTab);
   }
 
-  
+
   function creationError(response) {
     NgDialogFactory.error(response, 'Creation Unsuccessful');
   }
@@ -11648,29 +15137,25 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
   function processCanvass (action, next) {
     // depending on timing of responses from host, $scope.canvass may not be set, so get local copy
     var canvass = canvassFactory.getObj(RES.ACTIVE_CANVASS),
-      backupCanvass = canvassFactory.getObj(RES.BACKUP_CANVASS),
-      resource = canvassFactory.getCanvasses(),
       promise;
 
-    console.log('processCanvass', canvass);
+    con.log('processCanvass', canvass);
     
     if (action === RES.PROCESS_NEW) {
-      promise = resource.save(canvass).$promise;
+      promise = canvassFactory.save('canvass', canvass, true);
     } else if (action === RES.PROCESS_UPDATE) {
-      var modified = !angular.equals(backupCanvass, canvass);
+      var modified = isCanvassModified(canvass);
 
-      console.log('updateCanvass', modified);
+      con.log('updateCanvass', modified);
 
       if (modified) {   // object was modified
-        promise = resource.update({id: canvass._id}, canvass).$promise;
-      } else {  // not modified so proceed to next tab
-        nextTab();
+        promise = canvassFactory.update('canvass', {id: canvass._id}, canvass, true);
+      } else {  // not modified so proceed to next
+        miscUtilFactory.call(next);
       }
     }
     
     if (promise) {
-      var errorFxn = getErrorFxn(action);
-
       promise.then(
         // success function
         function (response) {
@@ -11679,21 +15164,33 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
                             next);
         },
         // error function
-        errorFxn
+        getErrorFxn(action)
       );
     }
   }
   
+  function isCanvassModified (canvass, backupCanvass) {
+    // depending on timing of responses from host, $scope.canvass may not be set, so get local copy
+    if (!canvass) {
+      canvass = canvassFactory.getObj(RES.ACTIVE_CANVASS);
+    }
+    if (!backupCanvass) {
+      backupCanvass = canvassFactory.getObj(RES.BACKUP_CANVASS);
+    }
+    var modified = !angular.equals(backupCanvass, canvass);
+    con.log('canvass modified', modified);
+    return modified;
+  }
+
   function processAllocations (action, next) {
 
     // depending on timing of responses from host, $scope.canvass may not be set, so get local copy
     var canvass = canvassFactory.getObj(RES.ACTIVE_CANVASS),
       canvassers = userFactory.getList(RES.ALLOCATED_CANVASSER),
-      resource = canvassAssignmentFactory.getCanvassAssignment(),
       newAllocs = [],
-      promises = [];
-    
-    canvassers.list.forEach(function (canvasser) {
+      updates = [];
+
+    canvassers.forEachInList(function (canvasser) {
       
       if (!canvasser.allocId) {
         if (canvasser.addresses && canvasser.addresses.length) {
@@ -11705,14 +15202,16 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
         }
       } else {
         // has existing allocation, so update it
-        promises.push(resource.update({id: canvasser.allocId}, {
+        updates.push(
+          canvassAssignmentFactory.update('assignment', {id: canvasser.allocId}, {
             addresses: canvasser.addresses
-          }).$promise);
+          }, true)
+        );
       }
     });
     
     if (newAllocs.length) {
-      resource.saveMany(newAllocs).$promise.then(
+      canvassAssignmentFactory.saveMany('assignment', undefined, newAllocs,
         // success function
         function (response) {
           processCanvassAllocationRsp(response, next);
@@ -11721,8 +15220,8 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
         creationError
       );
     }
-    if (promises.length) {
-      promises.forEach(function (promise) {
+    if (updates.length) {
+      updates.forEach(function (promise) {
         promise.then(
           // success function
           function (response) {
@@ -11732,15 +15231,29 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
           updateError
         );
       });
-      
     }
   }
   
-  function extractIds (resList) {
-    var idArray = [];
-    resList.list.forEach(function (entry) {
-      idArray.push(entry._id);
-    });
+  function areAllocationsModified () {
+
+    var undoStack = storeFactory.getObj(RES.ALLOCATION_UNDOS),
+      modified = false;
+    if (undoStack) {
+      modified = (undoStack.size > 0);
+    }
+    return (modified);
+  }
+
+  function extractIds (factory, listId) {
+
+    var idArray = [],
+      resList = factory.getList(listId);
+
+    if (resList) {
+      resList.list.forEach(function (entry) {
+        idArray.push(entry._id);
+      });
+    }
     return idArray;
   }
 
@@ -11748,31 +15261,25 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
     // depending on timing of responses from host, $scope.canvass may not be set, so get local copy
     var canvass = canvassFactory.getObj(RES.ACTIVE_CANVASS),
       survey = surveyFactory.getObj(RES.ACTIVE_SURVEY),
-      backupSurvey = surveyFactory.getObj(RES.BACKUP_SURVEY),
-      resource = surveyFactory.getSurveys(),
       promise;
     
-    console.log('processSurvey', survey);
+    con.log('processSurvey', survey);
 
     if ((action === RES.PROCESS_NEW) || (action === RES.PROCESS_UPDATE_NEW)) {
-      promise = resource.save(survey).$promise;
+      promise = surveyFactory.save('survey', survey, true);
     } else if (action === RES.PROCESS_UPDATE) {
-      var modified = !angular.equals(backupSurvey, survey);
+      var modified = isSurveyModified(survey);
 
-      console.log('updateSurvey', modified);
+      con.log('updateSurvey', modified);
 
       if (modified) {   // object was modified
-        promise = resource.update({id: survey._id}, survey).$promise;
+        promise = surveyFactory.update('survey', {id: survey._id}, survey, true);
       } else {  // not modified so proceed to next
-        if (next) {
-          next();
-        }
+        miscUtilFactory.call(next);
       }
     }
 
     if (promise) {
-      var errorFxn = getErrorFxn(action);
-
       promise.then(
         // success function
         function (response) {
@@ -11782,47 +15289,85 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
             canvass.survey = survey._id;
             processCanvass(RES.PROCESS_UPDATE, next);
           } else {  // have survey already so proceed to next
-            if (next) {
-              next();
-            }
+            miscUtilFactory.call(next);
           }
         },
         // error function
-        errorFxn
+        getErrorFxn(action)
       );
     }
+  }
+
+  function isSurveyModified (survey, backupSurvey) {
+    // depending on timing of responses from host, $scope.canvass may not be set, so get local copy
+    if (!survey) {
+      survey = surveyFactory.getObj(RES.ACTIVE_SURVEY);
+    }
+    if (!backupSurvey) {
+      backupSurvey = surveyFactory.getObj(RES.BACKUP_SURVEY);
+    }
+    var modified = !angular.equals(backupSurvey, survey);
+
+    con.log('survey modified', modified);
+
+    return modified;
   }
 
   function gotoDash () {
     $state.go($scope.dashState);
   }
 
-  function confirmDelete (dialogOpts, onClose) {
-
-    var dialog = NgDialogFactory.open(dialogOpts);
-    
-    dialog.closePromise.then(function (data) {
-      if (!NgDialogFactory.isNgDialogCancel(data.value)) {
-        // perform delete
-        onClose(data);
-      }
-    });
-  }
-  
-  
   function nextTab () {
     if ($scope.activeTab < $scope.lastTab) {
-      $scope.activeTab += 1;
+      gotoTab($scope.activeTab + 1);
+    } else if ($scope.activeTab === $scope.lastTab) {
+      deselectTab(null, $scope.tabs.DASH_TAB);
     }
   }
 
   function prevTab () {
     if ($scope.activeTab > $scope.firstTab) {
-      $scope.activeTab -= 1;
+      gotoTab($scope.activeTab - 1);
     }
   }
 
-  
+  function isValidTab (tabnum) {
+    return ((tabnum >= $scope.firstTab) && (tabnum <= $scope.lastTab));
+  }
+
+  /**
+   * Initiase move to new tab, e.g. from onClick etc.
+   * @param {number} tabnum Tab index to go to
+   */
+  function gotoTab (tabnum) {
+    if (isValidTab(tabnum)) {
+      $scope.activeTab = tabnum;
+    }
+  }
+
+  /**
+   * Set the tab, e.g. from software
+   * @param {number} tabnum Tab index to go to
+   */
+  function setTab (tabnum) {
+    if (isValidTab(tabnum)) {
+      $scope.deactiveTab = tabnum;  // ready for next action
+      $scope.activeTab = tabnum;
+    }
+  }
+
+  /**
+   * End a tab change
+   * @param {number} tabnum Tab index to go to
+   */
+  function endTabChange (tabnum) {
+    if (isValidTab(tabnum)) {
+      $scope.deactiveTab = tabnum;  // ready for next action
+    } else if (tabnum === $scope.tabs.DASH_TAB) {
+      gotoDash();
+    }
+  }
+
   function showPager(pager) {
     var result = false;
     if (pager) {
@@ -11891,33 +15436,35 @@ function CanvassController($scope, $rootScope, $state, $stateParams, $filter, $i
   
   function toggleItemSel (ctrl, entry) {
     if (ctrl && !$scope.editDisabled) {
-      ctrl.selCount = utilFactory.toggleSelection(entry, ctrl.selCount);
+      ctrl.selCount = miscUtilFactory.toggleSelection(entry, ctrl.selCount);
     }
   }
   
   function setItemSel (ctrl, set) {
     if (ctrl) {
-      ctrl.selCount = utilFactory.setSelected(ctrl.list, set);
+      var cmd = (set.cmd ? set.cmd : set);
+      ctrl.selCount = miscUtilFactory.setSelected(ctrl, cmd);
     }
   }
 
   function requestCanvasserRole (next) {
-    $scope.canvasser = roleFactory.getRoles().query({level: ROLES.ROLE_CANVASSER})
-      .$promise.then(
-        // success function
-        function (response) {
-          // response is actual data
+    $scope.canvasser = roleFactory.query('role', {level: ROLES.ROLE_CANVASSER},
+      // success function
+      function (response) {
+        // response is actual data
+        if (Array.isArray(response)) {
+          $scope.canvasser = response[0];
+        } else {
           $scope.canvasser = response;
-          if (next) {
-            next();
-          }
-        },
-        // error function
-        function (response) {
-          // response is message
-          $scope.message = 'Error: ' + response.status + ' ' + response.statusText;
         }
-      );
+        miscUtilFactory.call(next);
+      },
+      // error function
+      function (response) {
+        // response is message
+        NgDialogFactory.error(response, 'Unable to retrieve Roles');
+      }
+    );
   }
 
 }
@@ -11937,31 +15484,26 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassCanvassController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', '$filter', 'canvassFactory', 'electionFactory', 'RES'];
+CanvassCanvassController.$inject = ['$scope', 'canvassFactory', 'electionFactory', 'NgDialogFactory'];
 
-function CanvassCanvassController($scope, $rootScope, $state, $stateParams, $filter, canvassFactory, electionFactory, RES) {
-
-  console.log('CanvassCanvassController id', $stateParams.id);
+function CanvassCanvassController($scope, canvassFactory, electionFactory, NgDialogFactory) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
 
   // get list of elections selecting name field, _id field is always provided
-  $scope.elections = electionFactory.getElections().query({fields: 'name'})
-    .$promise.then(
-      // success function
-      function (response) {
-        // response is actual data
-        $scope.elections = response;
-      },
-      // error function
-      function (response) {
-        // response is message
-        $scope.message = 'Error: ' + response.status + ' ' + response.statusText;
-      }
-    );
+  $scope.elections = electionFactory.query('election', {fields: 'name'},
+    // success function
+    function (response) {
+      // response is actual data
+      $scope.elections = response;
+    },
+    // error function
+    function (response) {
+      // response is message
+      NgDialogFactory.error(response, 'Unable to retrieve Elections');
+    }
+  );
   
-
-  $scope.canvass = canvassFactory.getObj(RES.ACTIVE_CANVASS);
 
   /* function implementation
   -------------------------- */
@@ -11984,25 +15526,40 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassSurveyController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', '$filter', 'canvassFactory', 'electionFactory', 'surveyFactory', 'questionFactory', 'addressFactory', 'NgDialogFactory', 'stateFactory', 'utilFactory', 'UTIL', 'RES'];
+CanvassSurveyController.$inject = ['$scope', '$rootScope', '$state', '$filter', 'canvassFactory', 'electionFactory', 'surveyFactory', 'questionFactory', 'addressFactory', 'miscUtilFactory', 'NgDialogFactory', 'stateFactory', 'QUESACTION', 'RES', 'DECOR'];
 
-function CanvassSurveyController($scope, $rootScope, $state, $stateParams, $filter, canvassFactory, electionFactory, surveyFactory, questionFactory, addressFactory, NgDialogFactory, stateFactory, utilFactory, UTIL, RES) {
-
-  console.log('CanvassSurveyController id', $stateParams.id);
+function CanvassSurveyController($scope, $rootScope, $state, $filter, canvassFactory, electionFactory, surveyFactory, questionFactory, addressFactory, miscUtilFactory, NgDialogFactory, stateFactory, QUESACTION, RES, DECOR) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   $scope.toggleQuestionSel = toggleQuestionSel;
   $scope.questionDelete = questionDelete;
   $scope.questionSelClear = questionSelClear;
   $scope.questionSelAll = questionSelAll;
-  $scope.confirmDeleteQuestion = confirmDeleteQuestion;
   $scope.openQuestion = openQuestion;
   $scope.getQuestionTypeName = questionFactory.getQuestionTypeName;
   $scope.showQuestionOptions = questionFactory.showQuestionOptions;
   $scope.onSurveyChange = onSurveyChange;
+  $scope.quesButtons = [
+    { txt: 'New', icon: DECOR.NEW.icon, tip: 'Create new',
+      class: DECOR.DASH.class, act: QUESACTION.NEW },
+    { txt: 'View', icon: DECOR.VIEW.icon, tip: 'View selected',
+      class: DECOR.VIEW.class, act: QUESACTION.VIEW },
+    { txt: 'Edit', icon: DECOR.EDIT.icon, tip: 'Edit selected',
+      class: DECOR.EDIT.class, act: QUESACTION.EDIT },
+    { txt: 'Delete', icon: DECOR.DEL.icon, tip: 'Delete selected',
+      class: DECOR.DEL.class },
+    { txt: 'Unselect', state: 'unsel', icon: DECOR.UNSEL.icon, tip: 'Unselect all',
+      class: DECOR.UNSEL.class },
+    { txt: 'Select', state: 'sel', icon: DECOR.SEL.icon, tip: 'Select all',
+      class: DECOR.SEL.class }
+  ];
 
-  $scope.canvass = canvassFactory.getObj(RES.ACTIVE_CANVASS);
-  $scope.survey = surveyFactory.getObj(RES.ACTIVE_SURVEY);
+  $scope.showQuesButton = showQuesButton;
+  $scope.exeQuesButton = exeQuesButton;
+  $scope.disableQuesButton = disableQuesButton;
+
+
+
   $scope.questions = questionFactory.getList(RES.SURVEY_QUESTIONS);
 
   
@@ -12010,29 +15567,37 @@ function CanvassSurveyController($scope, $rootScope, $state, $stateParams, $filt
   -------------------------- */
 
   function toggleQuestionSel (entry) {
-    $scope.selQuestionCnt = utilFactory.toggleSelection(entry, $scope.selQuestionCnt);
+    $scope.selQuestionCnt = miscUtilFactory.toggleSelection(entry, $scope.selQuestionCnt);
+  }
+
+  function countQuestionSel () {
+    $scope.selQuestionCnt = miscUtilFactory.countSelected($scope.questions);
   }
 
   function haveSurveyQuestions () {
     return ($scope.survey && $scope.questions.count);
   }
 
-  function questionSelClear () {
+  function questionSelUnSel (action) {
     if (haveSurveyQuestions()) {
-      $scope.selQuestionCnt = utilFactory.setSelected($scope.questions.list, UTIL.CLR_SEL);
+      $scope.selQuestionCnt = miscUtilFactory.setSelected($scope.questions, action);
+    } else {
+      $scope.selQuestionCnt = 0;
     }
   }
 
+  function questionSelClear () {
+    questionSelUnSel(miscUtilFactory.CLR_SEL);
+  }
+
   function questionSelAll () {
-    if (haveSurveyQuestions()) {
-      $scope.selQuestionCnt = utilFactory.setSelected($scope.questions.list, UTIL.SET_SEL);
-    }
+    questionSelUnSel(miscUtilFactory.SET_SEL);
   }
 
 
   function questionDelete () {
     if (haveSurveyQuestions()) {
-      var selectedList = utilFactory.getSelectedList($scope.questions.list);
+      var selectedList = miscUtilFactory.getSelectedList($scope.questions);
       confirmDeleteQuestion(selectedList);
     }
   }
@@ -12040,16 +15605,18 @@ function CanvassSurveyController($scope, $rootScope, $state, $stateParams, $filt
 
   function confirmDeleteQuestion (deleteList) {
 
-    $scope.confirmDelete (
-      {template: 'canvasses/confirmdelete_question.html', 
-        scope: $scope, className: 'ngdialog-theme-default', 
-        controller: 'CanvassSurveyController', data: {list: deleteList}},
-      function (data) {
+    NgDialogFactory.openAndHandle({
+        template: 'canvasses/confirmdelete_question.html', scope: $scope,
+        className: 'ngdialog-theme-default', controller: 'CanvassSurveyController',
+        data: { list: deleteList}
+      },
+      // process function
+      function (value) {
         // perform delete
         var delParams = {},
           idx,
           updatedSurvey = angular.copy($scope.survey);
-        angular.forEach(data.value, function (entry) {
+        angular.forEach(value, function (entry) {
           delParams[entry._id] = true;
 
           idx = updatedSurvey.questions.findIndex(function (ques) {
@@ -12060,137 +15627,195 @@ function CanvassSurveyController($scope, $rootScope, $state, $stateParams, $filt
           }
         });
 
-        questionFactory.getQuestions().delete(delParams)
-          .$promise.then(
-            // success function
-            function (response) {
-              // update survey's list of questions
-              surveyFactory.getSurveys().update({id: updatedSurvey._id}, updatedSurvey)
-                .$promise.then(
-                  // success function
-                  function (response) {
-                    surveyFactory.readResponse(response, $scope.getSurveyRspOptions());
+        questionFactory.delete('question', delParams,
+          // success function
+          function (/*response*/) {
+            // update survey's list of questions
+            surveyFactory.update('survey', {id: updatedSurvey._id}, updatedSurvey,
+              // success function
+              function (response) {
+                surveyFactory.readResponse(response, $scope.getSurveyRspOptions());
 
-                    $scope.selQuestionCnt = utilFactory.countSelected($scope.questions.list);
-                  },
-                  // error function
-                  function (response) {
-                    // response is message
-                    NgDialogFactory.error(response, 'Unable to retrieve Survey');
-                  }
-                );
-            },
-            // error function
-            function (response) {
-              NgDialogFactory.error(response, 'Delete Unsuccessful');
-            }
-          );
+                countQuestionSel();
+              },
+              // error function
+              function (response) {
+                // response is message
+                NgDialogFactory.error(response, 'Unable to retrieve Survey');
+              }
+            );
+          },
+          // error function
+          function (response) {
+            NgDialogFactory.error(response, 'Delete Unsuccessful');
+          }
+        );
       });
   }
   
   
   function openQuestion (action) {
-    
     var qdata;
-    if (action === 'new') {
+
+    if (action === QUESACTION.NEW) {
       qdata = {};
-    } else if ((action === 'view') || (action == 'edit')) {
+    } else if ((action === QUESACTION.VIEW) || (action === QUESACTION.EDIT)) {
       
-      for (var i = 0; i < $scope.questions.list.length; ++i) {
-        if ($scope.questions.list[i].isSelected) {
-          qdata = angular.copy($scope.questions.list[i]);
-          // change qdata.type to a question type object as expected by dialog
-          qdata.type = questionFactory.getQuestionTypeObj(qdata.type);
-          // set numoptions as that's not part of the model but needed by dialog
-          qdata.numoptions = 0;
-          if (qdata.type.showOptions && qdata.options) {
-            qdata.numoptions = qdata.options.length;
-          }
-          break;
+      qdata = miscUtilFactory.findSelected($scope.questions);
+      if (qdata) {
+        qdata = angular.copy(qdata);
+        // change qdata.type to a question type object as expected by dialog
+        qdata.type = questionFactory.getQuestionTypeObj(qdata.type);
+        // set numoptions as that's not part of the model but needed by dialog
+        qdata.numoptions = 0;
+        if (qdata.type.showOptions && qdata.options) {
+          qdata.numoptions = qdata.options.length;
         }
       }
     } 
 
-    var dialog = NgDialogFactory.open({ template: 'surveys/question.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'QuestionController', 
-                	data: {action: action, question: qdata},
-									resolve: {
-										questionTypes: function depFactory() {
-											return questionFactory.getQuestionTypes();
-										}
-									}});
+    var dialog = NgDialogFactory.open({
+      template: 'surveys/question.html', scope: $scope,
+      className: 'ngdialog-theme-default', controller: 'QuestionController',
+      data: { action: action, question: qdata },
+      resolve: {
+        questionTypes: function depFactory() {
+          return questionFactory.getQuestionTypes();
+        }
+      }
+    });
 
     dialog.closePromise.then(function (data) {
       if (!NgDialogFactory.isNgDialogCancel(data.value)) {
 
-        var resource = questionFactory.getQuestions();
-
         // dialog returns question type object, only need the type value for the server
         data.value.question.type = data.value.question.type.type;
-        
-        if (data.value.action === 'new') {
-          resource.save(data.value.question)
-            .$promise.then(
-              // success function
-              function (response) {
-                if (!$scope.survey.questions) {
-                  $scope.survey.questions = [];
-                }
+
+        if (data.value.action === QUESACTION.NEW) {
+          questionFactory.save('question', data.value.question,
+            // success function
+            function (response) {
+              if (!$scope.survey.questions) {
+                $scope.survey.questions = [];
+              }
+              $scope.survey.questions.push(response._id);
+
+              var surveyProc;
+              if (!$scope.survey._id) {
+                surveyProc = RES.PROCESS_UPDATE_NEW;
+              } else {
+                surveyProc = RES.PROCESS_UPDATE;
+              }
+              $scope.processSurvey(surveyProc, countQuestionSel);
+            },
+            // error function
+            function (response) {
+              NgDialogFactory.error(response, 'Creation Unsuccessful');
+            }
+          );
+        } else if (data.value.action === QUESACTION.EDIT) {
+          questionFactory.update('question', {id: data.value.question._id}, data.value.question,
+            // success function
+            function (response) {
+
+              var idx = $scope.questions.findIndexInList(function (entry) {
+                return (entry._id === response._id);
+              });
+              if (idx >= 0) {
+                toggleQuestionSel(
+                  $scope.questions.updateInList(idx,
+                              questionFactory.readRspObject(response)));
+              }
+
+              if (!$scope.survey.questions) {
+                $scope.survey.questions = [];
                 $scope.survey.questions.push(response._id);
-
-                var surveyProc;
-                if (!$scope.survey._id) {
-                  surveyProc = RES.PROCESS_UPDATE_NEW;
-                } else {
-                  surveyProc = RES.PROCESS_UPDATE;
-                }
-                $scope.processSurvey(surveyProc);
-              },
-              // error function
-              function (response) {
-                NgDialogFactory.error(response, 'Creation Unsuccessful');
               }
-            );
-        } else if (data.value.action === 'edit') {
-          resource.update({id: data.value.question._id}, data.value.question)
-            .$promise.then(
-              // success function
-              function (response) {
 
-                var idx = $scope.questions.findIndexInList(function (entry) {
-                  return (entry._id === response._id);
-                });
-                if (idx >= 0) {
-                  toggleQuestionSel(
-                    $scope.questions.updateInList(idx,
-                                questionFactory.readRspObject(response)));
-                }
-
-                if (!$scope.survey.questions) {
-                  $scope.survey.questions = [];
-                  $scope.survey.questions.push(response._id);
-                }
-
-                $scope.processSurvey(RES.PROCESS_UPDATE);
-              },
-              // error function
-              function (response) {
-                NgDialogFactory.error(response, 'Creation Unsuccessful');
-              }
-            );
+              $scope.processSurvey(RES.PROCESS_UPDATE);
+            },
+            // error function
+            function (response) {
+              NgDialogFactory.error(response, 'Creation Unsuccessful');
+            }
+          );
         }
-        
-        // clear selected question list
-//        initSelected($scope.survey.questions);
       }
     });
 
   }
 
+
+  function showQuesButton (btn, form) {
+    var show = false;
+    switch (btn.txt) {
+      case 'New':
+        show = (!$scope.editDisabled && !form.$invalid);
+        break;
+      case 'View':
+        show = ($scope.questions.count > 0);
+        break;
+      case 'Edit':
+      case 'Delete':
+      case 'Unselect':
+      case 'Select':
+        show = (!$scope.editDisabled && ($scope.questions.count > 0));
+        break;
+    }
+    return show;
+  }
+
+  function exeQuesButton (btn) {
+    switch (btn.txt) {
+      case 'New':
+      case 'View':
+      case 'Edit':
+        openQuestion(btn.act);
+        break;
+      case 'Delete':
+        questionDelete();
+        break;
+      case 'Unselect':
+        questionSelClear();
+        break;
+      case 'Select':
+        questionSelAll();
+        break;
+    }
+  }
+
+  function disableQuesButton (btn, form) {
+    var disable = false;
+    switch (btn.txt) {
+      case 'New':
+        disable = !$scope.editDisabled && form.$invalid;
+        break;
+      case 'View':
+      case 'Edit':
+        disable = ($scope.selQuestionCnt !== 1);
+        break;
+      case 'Delete':
+        disable = ($scope.selQuestionCnt < 1);
+        break;
+      case 'Unselect':
+        disable = ($scope.selQuestionCnt === 0);
+        break;
+      case 'Select':
+        disable = ($scope.selQuestionCnt === $scope.questions.count);
+        break;
+    }
+    return disable;
+  }
+
+
+
+
+
   function onSurveyChange () {
     /* save the updated survey to the store, as processSurvey in the parent
       controller doesn't see the changes to name & description.
       Something to do with scopes? */
-    surveyFactory.setObj(RES.ACTIVE_SURVEY, $scope.survey);
+//    surveyFactory.setObj(RES.ACTIVE_SURVEY, $scope.survey);
   }
   
   
@@ -12204,6 +15829,17 @@ function CanvassSurveyController($scope, $rootScope, $state, $stateParams, $filt
 
 angular.module('canvassTrac')
 
+  .directive('cnvtrcAddrWidget', function() {
+    return {
+      restrict: 'E',          // restrict the directive declaration style to element name
+      scope: {                // new "isolate" scope
+        'addrInfo': '=info',  // bidirectional binding
+        'showBadge': '=badge',
+        'debug': '='
+      },
+      templateUrl: 'canvasses/address.element.html'
+    };
+  })
   .controller('CanvassAddressController', CanvassAddressController);
 
 
@@ -12212,18 +15848,15 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassAddressController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', '$filter', 'canvassFactory', 'electionFactory', 'surveyFactory', 'addressFactory', 'NgDialogFactory', 'stateFactory', 'utilFactory', 'pagerFactory', 'storeFactory', 'resourceFactory', 'RES'];
+CanvassAddressController.$inject = ['$scope', '$state', '$stateParams', '$filter', 'addressFactory', 'NgDialogFactory', 'utilFactory', 'miscUtilFactory', 'controllerUtilFactory', 'pagerFactory', 'storeFactory', 'consoleService', 'resourceFactory', 'RES', 'RESOURCE_CONST', 'SCHEMA_CONST'];
 
-function CanvassAddressController($scope, $rootScope, $state, $stateParams, $filter, canvassFactory, electionFactory, surveyFactory, addressFactory, NgDialogFactory, stateFactory, utilFactory, pagerFactory, storeFactory, resourceFactory, RES) {
+function CanvassAddressController($scope, $state, $stateParams, $filter, addressFactory, NgDialogFactory, utilFactory, miscUtilFactory, controllerUtilFactory, pagerFactory, storeFactory, consoleService, resourceFactory, RES, RESOURCE_CONST, SCHEMA_CONST) {
 
-  console.log('CanvassAddressController id', $stateParams.id);
+  var con = consoleService.getLogger('CanvassAddressController');
 
-  var MAX_DISP_PAGE = 5;
+  con.log('CanvassAddressController id', $stateParams.id);
 
-//  $scope.sortOptions = addressFactory.getSortOptions();
-  
-  $scope.perPageOpt = [5, 10, 15, 20];
-  $scope.perPage = 10;
+  pagerFactory.addPerPageOptions($scope, 5, 5, 4, 1); // 4 opts, from 5 inc 5, dflt 10
 
   setupGroup(RES.ASSIGNED_ADDR, 'Assigned');
   setupGroup(RES.UNASSIGNED_ADDR, 'Unassigned');
@@ -12233,6 +15866,17 @@ function CanvassAddressController($scope, $rootScope, $state, $stateParams, $fil
   $scope.filterList = filterList;
   $scope.updateList = updateList;
   $scope.sortList = sortList;
+
+  var anyNonBlankQuery = resourceFactory.buildMultiValModelPropQuery(
+      // $or=field1=value1,field2=value2....
+      RESOURCE_CONST.QUERY_OR,
+      addressFactory.getModelPropList({
+        type: SCHEMA_CONST.FIELD_TYPES.STRING,  // get list of properties of type STRING
+      }),
+      function () {
+        return RESOURCE_CONST.QUERY_NBLANK;
+      }
+    );
 
   requestAddressCount();  // get database total address count
 
@@ -12248,20 +15892,25 @@ function CanvassAddressController($scope, $rootScope, $state, $stateParams, $fil
     });
     
     var filter = RES.getFilterName(id);
-    $scope[filter] = storeFactory.newObj(filter, addressFactory.newFilter, storeFactory.CREATE_INIT);
+    $scope[filter] = storeFactory.newObj(filter, newFilter, storeFactory.CREATE_INIT);
 
     var pager = RES.getPagerName(id);
-    $scope[pager] = pagerFactory.newPager(pager, [], 1, $scope.perPage, MAX_DISP_PAGE);
+    $scope[pager] = pagerFactory.newPager(pager, [], 1, $scope.perPage, 5);
 
     setFilter(id, $scope[filter]);
     addressFactory.setPager(id, $scope[pager]);
   }
   
-  function setFilter (id , filter) {
+  function newFilter (base) {
+    // new filter no blanks
+    return addressFactory.newFilter(base, { allowBlank: false });
+  }
+
+  function setFilter (id, filter) {
     // unassignedAddrFilterStr or assignedAddrFilterStr
     var filterStr = RES.getFilterStrName(id);
     if (!filter) {
-      filter = addressFactory.newFilter();
+      filter = newFilter();
     }
     $scope[filterStr] = filter.toString();
 
@@ -12273,7 +15922,9 @@ function CanvassAddressController($scope, $rootScope, $state, $stateParams, $fil
   }
 
 
-  function filterList (resList, action) {
+  function filterList (resList, btn) {
+
+    var action = btn.cmd;
     
     if (action === 'c') {       // clear filter
       setFilter(resList.id);
@@ -12283,10 +15934,9 @@ function CanvassAddressController($scope, $rootScope, $state, $stateParams, $fil
       resList.applyFilter();
     } else if (action === 'a') {  // no filter, get all
       setFilter(resList.id);
-      requestAddresses(resList);  // request all addresses
-      
+      requestAddresses(resList, anyNonBlankQuery);  // request all addresses
     } else {  // set filter
-      var filter = angular.copy(resList.filter.filterBy);
+      var filter = angular.copy(resList.filter.getFilterValue());
 
       var dialog = NgDialogFactory.open({ template: 'address/addressfilter.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'AddressFilterController', 
                     data: {action: resList.id, title: resList.title, filter: filter}});
@@ -12294,7 +15944,7 @@ function CanvassAddressController($scope, $rootScope, $state, $stateParams, $fil
       dialog.closePromise.then(function (data) {
         if (!NgDialogFactory.isNgDialogCancel(data.value)) {
 
-          var filter = addressFactory.newFilter(data.value.filter);
+          var filter = newFilter(data.value.filter);
           
           var resList = setFilter(data.value.action, filter);
           if (resList) {
@@ -12314,12 +15964,13 @@ function CanvassAddressController($scope, $rootScope, $state, $stateParams, $fil
 
   function requestAddresses (resList, filter) {
     
-    addressFactory.getFilteredResource(resList, filter, 
+    addressFactory.getFilteredResource('address', resList, filter,
       // success function
       function (response) {
         if (!response.length) {
           NgDialogFactory.message('No addresses found', 'No addresses matched the specified criteria');
         }
+        $scope.setItemSel(resList, miscUtilFactory.CLR_SEL);
 
         requestAddressCount();
       },
@@ -12330,68 +15981,99 @@ function CanvassAddressController($scope, $rootScope, $state, $stateParams, $fil
     ); // get database total address count
   }
 
-  function requestAddressCount (filter) {
-    $scope.dbAddrCount = addressFactory.getCount().get()
-      .$promise.then(
-        // success function
-        function (response) {
-          $scope.dbAddrCount = response.count;
-        },
-        // error function
-        function (response) {
-          NgDialogFactory.error(response, 'Unable to retrieve address count');
-        }
-      );
+  function requestAddressCount () {
+    $scope.dbAddrCount = addressFactory.get('count', anyNonBlankQuery,
+      // success function
+      function (response) {
+        $scope.dbAddrCount = response.count; // total count
+      },
+      // error function
+      function (response) {
+        NgDialogFactory.error(response, 'Unable to retrieve address count');
+      }
+    );
   }
 
-  
   function updateList (fromList, toList) {
-    var selList,
-      moveList = [];  // addr to be moved, i.e. not in target
 
-    selList = utilFactory.getSelectedList(fromList.list);
-    
-    if (selList.length > 0) {
-      selList.forEach(function (element) {
-        var i;
-        for (i = 0; i < toList.list.length; ++i) {
-          if (element._id === toList.list[i]._id) {
-            break;
-          }
-        }
-        if (i === toList.list.length) {
-          // not in target so needs to be moved
-          moveList.push(element);
-        }
-        
-        utilFactory.toggleSelection(element);
-      });
-      
-      // remove all selected from source
-      utilFactory.arrayRemove(fromList.list, selList);
-      fromList.selCount = 0;
-    }
-    
-    if (moveList.length > 0) {
-
-      utilFactory.arrayAdd(toList.list, moveList, function (array, add) {
-        for (var i = 0; i < array.length; ++i) {
-          if (add._id === array[i]._id) {
-            return false; // already in array
-          }
-        }
-        return true;  // not found, so add
-      });
-    }
-    
-    [fromList, toList].forEach(function (resList) {
-      sortList(resList);
-      resList.count = resList.list.length;
-      resList.applyFilter();
+    controllerUtilFactory.moveListSelected(fromList, toList, function (item1, item2) {
+      return (item1._id === item2._id);
     });
   }
   
 }
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .service('filterSortService', filterSortService);
+
+
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+filterSortService.$inject = ['miscUtilFactory', 'DECOR'];
+
+function filterSortService (miscUtilFactory, DECOR) {
+
+  var all = 0x01,
+    filter = 0x02,
+    clear = 0x04;
+
+  /*jshint validthis:true */
+  this.ALL = all;
+  this.FILTER = filter;
+  this.CLEAR = clear;
+  this.ALL_FILTER_CLEAR = all | filter | clear;
+  this.FILTER_CLEAR = filter | clear;
+  this.ALL_FILTER = all | filter;
+  this.ALL_CLEAR = all | clear;
+
+  this.getRequestButtons = function (name, btns) {
+    var buttons = [
+      { txt: 'All', cmd: 'a', icon: 'fa fa-list-alt fa-fw', tip: 'Request all ' + name,
+        class: 'btn btn-primary' },
+      { txt: 'Filter', cmd: 'f', icon: 'fa fa-filter fa-fw', tip: 'Filter ' + name,
+        class: 'btn btn-info' },
+      { txt: 'Clear', cmd: 'c', icon: 'fa fa-eraser fa-fw', tip: 'Clear '  + name + ' list',
+        class: 'btn btn-warning' }
+    ],
+    reqButtons = [];
+
+    for (var i = 0, mask = all; mask <= clear; mask <<= 1, ++i) {
+      if ((btns & mask) !== 0) {
+        reqButtons.push(buttons[i]);
+      }
+    }
+
+    return reqButtons;
+  };
+
+  this.getSelectButtons = function () {
+    return [
+      { txt: 'All', cmd: miscUtilFactory.SET_SEL, icon: DECOR.SEL.icon, tip: 'Select all in list',
+        class: DECOR.SEL.class },
+      { txt: 'Clear', cmd: miscUtilFactory.CLR_SEL, icon: DECOR.UNSEL.icon, tip: 'Unselect all in list',
+        class: DECOR.UNSEL.class },
+      { txt: 'Invert', cmd: miscUtilFactory.TOGGLE_SEL, icon: 'fa fa-exchange fa-rotate-90 fa-fw', tip: 'Invert selection',
+        class: 'btn btn-default' }
+    ];
+  };
+
+  /* function implementation
+  -------------------------- */
+
+}
+
+
+
+
 
 
 /*jslint node: true */
@@ -12408,21 +16090,16 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassUnassignedAddressController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'addressFactory', 'RES', 'UTIL'];
+CanvassUnassignedAddressController.$inject = ['$scope', 'addressFactory', 'RES', 'filterSortService'];
 
-function CanvassUnassignedAddressController($scope, $rootScope, $state, $stateParams, addressFactory, RES, UTIL) {
-
-  console.log('CanvassUnassignedAddressController id', $stateParams.id);
+function CanvassUnassignedAddressController($scope, addressFactory, RES, filterSortService) {
 
   $scope.list = addressFactory.getList(RES.UNASSIGNED_ADDR);
   $scope.sortOptions = $scope.list.sortOptions;
   $scope.pager = $scope.list.pager;
-  $scope.reqAll = true; // emable request all button
-  $scope.SET_SEL = UTIL.SET_SEL;
-  $scope.CLR_SEL = UTIL.CLR_SEL;
-  $scope.TOGGLE_SEL = UTIL.TOGGLE_SEL;
-  
-  
+  $scope.reqButtons = filterSortService.getRequestButtons('unassigned addresses', filterSortService.ALL_FILTER_CLEAR);
+  $scope.selButtons = filterSortService.getSelectButtons();
+
   /* function implementation
   -------------------------- */
 
@@ -12447,19 +16124,15 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassAssignedAddressController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'addressFactory', 'RES', 'UTIL'];
+CanvassAssignedAddressController.$inject = ['$scope', 'addressFactory', 'RES', 'filterSortService'];
 
-function CanvassAssignedAddressController($scope, $rootScope, $state, $stateParams, addressFactory, RES, UTIL) {
-
-  console.log('CanvassAssignedAddressController id', $stateParams.id);
+function CanvassAssignedAddressController($scope, addressFactory, RES, filterSortService) {
 
   $scope.list = addressFactory.getList(RES.ASSIGNED_ADDR);
   $scope.sortOptions = $scope.list.sortOptions;
   $scope.pager = $scope.list.pager;
-  $scope.reqAll = false; // disable request all button
-  $scope.SET_SEL = UTIL.SET_SEL;
-  $scope.CLR_SEL = UTIL.CLR_SEL;
-  $scope.TOGGLE_SEL = UTIL.TOGGLE_SEL;
+  $scope.reqButtons = filterSortService.getRequestButtons('assigned addresses', filterSortService.FILTER_CLEAR);
+  $scope.selButtons = filterSortService.getSelectButtons();
   
   /* function implementation
   -------------------------- */
@@ -12485,18 +16158,13 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassCanvasserController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', '$filter', 'canvassFactory', 'electionFactory', 'surveyFactory', 'addressFactory', 'NgDialogFactory', 'stateFactory', 'utilFactory', 'pagerFactory', 'storeFactory', 'RES', 'ADDRSCHEMA', 'roleFactory', 'ROLES', 'userFactory'];
+CanvassCanvasserController.$inject = ['$scope', '$state', '$filter', 'NgDialogFactory', 'miscUtilFactory', 'controllerUtilFactory', 'pagerFactory', 'storeFactory', 'RES', 'USERSCHEMA', 'SCHEMA_CONST', 'userFactory', 'canvassService'];
 
-function CanvassCanvasserController($scope, $rootScope, $state, $stateParams, $filter, canvassFactory, electionFactory, surveyFactory, addressFactory, NgDialogFactory, stateFactory, utilFactory, pagerFactory, storeFactory, RES, ADDRSCHEMA, roleFactory, ROLES, userFactory) {
-
-  console.log('CanvassCanvasserController id', $stateParams.id);
-
-  var MAX_DISP_PAGE = 5;
+function CanvassCanvasserController($scope, $state, $filter, NgDialogFactory, miscUtilFactory, controllerUtilFactory, pagerFactory, storeFactory, RES, USERSCHEMA, SCHEMA_CONST, userFactory, canvassService) {
 
   $scope.sortOptions = userFactory.getSortOptions();
   
-  $scope.perPageOpt = [5, 10, 15, 20];
-  $scope.perPage = 10;
+  pagerFactory.addPerPageOptions($scope, 5, 5, 4, 1); // 4 opts, from 5 inc 5, dflt 10
 
   setupGroup(RES.ASSIGNED_CANVASSER, 'Assigned');
   setupGroup(RES.UNASSIGNED_CANVASSER, 'Unassigned');
@@ -12507,10 +16175,9 @@ function CanvassCanvasserController($scope, $rootScope, $state, $stateParams, $f
   $scope.updateList = updateList;
   $scope.sortList = sortList;
 
-  // get canvasser role id, followed by inassigned canvassers
+  // get canvasser role id, followed by unassigned canvassers
   $scope.requestCanvasserRole(requestUnassignedCanvassers);
 
-  
   /* function implementation
   -------------------------- */
   
@@ -12521,28 +16188,28 @@ function CanvassCanvasserController($scope, $rootScope, $state, $stateParams, $f
     });
     
     var filter = RES.getFilterName(id);
-    $scope[filter] = storeFactory.newObj(filter, userFactory.newFilter, storeFactory.CREATE_INIT);
+    $scope[filter] = storeFactory.newObj(filter, newFilter, storeFactory.CREATE_INIT);
 
     var pager = RES.getPagerName(id);
-    $scope[pager] = pagerFactory.newPager(pager, [], 1, $scope.perPage, MAX_DISP_PAGE);
+    $scope[pager] = pagerFactory.newPager(pager, [], 1, $scope.perPage, 5);
 
     setFilter(id, $scope[filter]);
     userFactory.setPager(id, $scope[pager]);
+  }
+
+  function newFilter (base) {
+    return canvassService.newCanvasserFilter(base, $scope.canvasser);
+
   }
 
   function setFilter (id , filter) {
     // unassignedCanvasserFilterStr or assignedCanvasserFilterStr
     var filterStr = RES.getFilterStrName(id);
     if (!filter) {
-      filter = userFactory.newFilter();
+      filter = newFilter();
     }
     $scope[filterStr] = filter.toString();
 
-    // add canvasser restriction to filter
-    if ($scope.canvasser) {
-      filter.role = $scope.canvasser._id;
-    }
-    
     return userFactory.setFilter(id, filter);
   }
 
@@ -12550,7 +16217,9 @@ function CanvassCanvasserController($scope, $rootScope, $state, $stateParams, $f
     return resList.sort();
   }
   
-  function filterList (resList, action) {
+  function filterList (resList, btn) {
+
+    var action = btn.cmd;
     
     if (action === 'c') {       // clear filter
       setFilter(resList.id);
@@ -12560,21 +16229,24 @@ function CanvassCanvasserController($scope, $rootScope, $state, $stateParams, $f
       resList.applyFilter();
     } else if (action === 'a') {  // no filter, get all
       setFilter(resList.id);
-      requestCanvassers(resList);  // request all canvassers
+      requestCanvassers(resList, resList.filter);  // request all canvassers
       
     } else {  // set filter
-      var filter = angular.copy(resList.filter.filterBy);
+      var filter = angular.copy(resList.filter.getFilterValue());
 
-      NgDialogFactory.openAndHandle({ template: 'people/personfilter.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'PersonFilterController', 
-                    data: {action: resList.id, title: resList.title, filter: filter}},
+      NgDialogFactory.openAndHandle({
+          template: 'people/personfilter.html', scope: $scope,
+          className: 'ngdialog-theme-default', controller: 'PersonFilterController',
+          data: {action: resList.id, title: resList.title, filter: filter}
+        },
         // process function
         function (value) {
 
-          var filter = userFactory.newFilter(value.filter),
+          var filter = newFilter(value.filter),
             resList = setFilter(value.action, filter);
           if (resList) {
             if (resList.id === RES.UNASSIGNED_CANVASSER) {
-              // request filtered addresses from server
+              // request filtered canvassers from server
               requestCanvassers(resList, filter);
             } else {
               resList.applyFilter();
@@ -12588,22 +16260,24 @@ function CanvassCanvasserController($scope, $rootScope, $state, $stateParams, $f
   }
 
 
-  function requestUnassignedCanvassers (filter) {
+  function requestUnassignedCanvassers () {
     var resList = userFactory.getList(RES.UNASSIGNED_CANVASSER);
     if (resList) {
-      requestCanvassers(resList);
+      setFilter(RES.UNASSIGNED_CANVASSER);
+      requestCanvassers(resList, resList.filter);
     }
   }
 
   function requestCanvassers (resList, filter) {
     
-    userFactory.getFilteredResource(resList, filter, 
+    userFactory.getFilteredResource('user', resList, filter,
                                     
       // success function
       function (response) {
         if (!response.length) {
           NgDialogFactory.message('No canvassers found', 'No canvassers matched the specified criteria');
         }
+        $scope.setItemSel(resList, miscUtilFactory.CLR_SEL);
       },
       // error function
       function (response) {
@@ -12613,48 +16287,9 @@ function CanvassCanvasserController($scope, $rootScope, $state, $stateParams, $f
   }
 
   function updateList (fromList, toList) {
-    var selList,
-      moveList = [];  // addr to be moved, i.e. not in target
 
-    selList = utilFactory.getSelectedList(fromList.list);
-    
-    if (selList.length > 0) {
-      selList.forEach(function (element) {
-        var i;
-        for (i = 0; i < toList.list.length; ++i) {
-          if (element._id === toList.list[i]._id) {
-            break;
-          }
-        }
-        if (i === toList.list.length) {
-          // not in target so needs to be moved
-          moveList.push(element);
-        }
-        
-        utilFactory.toggleSelection(element);
-      });
-      
-      // remove all selected from source
-      utilFactory.arrayRemove(fromList.list, selList);
-      fromList.selCount = 0;
-    }
-    
-    if (moveList.length > 0) {
-
-      utilFactory.arrayAdd(toList.list, moveList, function (array, add) {
-        for (var i = 0; i < array.length; ++i) {
-          if (add._id === array[i]._id) {
-            return false; // already in array
-          }
-        }
-        return true;  // not found, so add
-      });
-    }
-    
-    [fromList, toList].forEach(function (resList) {
-      sortList(resList);
-      resList.count = resList.list.length;
-      resList.applyFilter();
+    controllerUtilFactory.moveListSelected(fromList, toList, function (item1, item2) {
+      return (item1._id === item2._id);
     });
   }
   
@@ -12675,19 +16310,15 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassUnassignedCanvasserController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'userFactory', 'RES', 'UTIL'];
+CanvassUnassignedCanvasserController.$inject = ['$scope', 'userFactory', 'RES', 'filterSortService'];
 
-function CanvassUnassignedCanvasserController($scope, $rootScope, $state, $stateParams, userFactory, RES, UTIL) {
-
-  console.log('CanvassUnassignedCanvasserController id', $stateParams.id);
+function CanvassUnassignedCanvasserController($scope, userFactory, RES, filterSortService) {
 
   $scope.list = userFactory.getList(RES.UNASSIGNED_CANVASSER);
   $scope.sortOptions = $scope.list.sortOptions;
   $scope.pager = $scope.list.pager;
-  $scope.reqAll = true; // emable request all button
-  $scope.SET_SEL = UTIL.SET_SEL;
-  $scope.CLR_SEL = UTIL.CLR_SEL;
-  $scope.TOGGLE_SEL = UTIL.TOGGLE_SEL;
+  $scope.reqButtons = filterSortService.getRequestButtons('unassigned canvassers', filterSortService.ALL_FILTER_CLEAR);
+  $scope.selButtons = filterSortService.getSelectButtons();
   
   /* function implementation
   -------------------------- */
@@ -12713,19 +16344,15 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassAssignedCanvasserController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'userFactory', 'RES', 'UTIL'];
+CanvassAssignedCanvasserController.$inject = ['$scope', 'userFactory', 'RES', 'filterSortService'];
 
-function CanvassAssignedCanvasserController($scope, $rootScope, $state, $stateParams, userFactory, RES, UTIL) {
-
-  console.log('CanvassAssignedCanvasserController id', $stateParams.id);
+function CanvassAssignedCanvasserController($scope, userFactory, RES, filterSortService) {
 
   $scope.list = userFactory.getList(RES.ASSIGNED_CANVASSER);
   $scope.sortOptions = $scope.list.sortOptions;
   $scope.pager = $scope.list.pager;
-  $scope.reqAll = false; // disable request all button
-  $scope.SET_SEL = UTIL.SET_SEL;
-  $scope.CLR_SEL = UTIL.CLR_SEL;
-  $scope.TOGGLE_SEL = UTIL.TOGGLE_SEL;
+  $scope.reqButtons = filterSortService.getRequestButtons('assigned canvassers', filterSortService.FILTER_CLEAR);
+  $scope.selButtons = filterSortService.getSelectButtons();
   
   /* function implementation
   -------------------------- */
@@ -12760,29 +16387,31 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassAssignmentController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', '$filter', 'canvassFactory', 'electionFactory', 'surveyFactory', 'addressFactory', 'NgDialogFactory', 'stateFactory', 'utilFactory', 'pagerFactory', 'storeFactory', 'RES', 'ADDRSCHEMA', 'roleFactory', 'ROLES', 'userFactory', 'CANVASSASSIGN', 'UTIL'];
+CanvassAssignmentController.$inject = ['$scope', '$rootScope', '$state', '$filter', 'canvassFactory', 'canvassAssignmentFactory', 'electionFactory', 'surveyFactory', 'addressFactory', 'NgDialogFactory', 'stateFactory', 'pagerFactory', 'storeFactory', 'miscUtilFactory', 'undoFactory', 'RES', 'ADDRSCHEMA', 'roleFactory', 'ROLES', 'userFactory', 'CANVASSASSIGN'];
 
-function CanvassAssignmentController($scope, $rootScope, $state, $stateParams, $filter, canvassFactory, electionFactory, surveyFactory, addressFactory, NgDialogFactory, stateFactory, utilFactory, pagerFactory, storeFactory, RES, ADDRSCHEMA, roleFactory, ROLES, userFactory, CANVASSASSIGN, UTIL) {
+function CanvassAssignmentController($scope, $rootScope, $state, $filter, canvassFactory, canvassAssignmentFactory, electionFactory, surveyFactory, addressFactory, NgDialogFactory, stateFactory, pagerFactory, storeFactory, miscUtilFactory, undoFactory, RES, ADDRSCHEMA, roleFactory, ROLES, userFactory, CANVASSASSIGN) {
 
-  console.log('CanvassAssignmentController id', $stateParams.id);
-
-  var MAX_DISP_PAGE = 5,
-    factories = {},
+  var factories = {},
+    customFilters = {},
     addressAssignmentTests = makeAddressAssignmentTests(),
-    canvasserAssignmentTests = makeCanvasserAssignmentTests();
+    canvasserAssignmentTests = makeCanvasserAssignmentTests(),
+    undoStack = storeFactory.newObj(RES.ALLOCATION_UNDOS,
+                                   undoFactory.newUndoStack, storeFactory.CREATE_INIT);
 
-  $scope.perPageOpt = [5, 10, 15, 20];
-  $scope.perPage = 10;
+  pagerFactory.addPerPageOptions($scope, 5, 5, 4, 1); // 4 opts, from 5 inc 5, dflt 10
 
   setupGroup(RES.ALLOCATED_ADDR, addressFactory, 'Addresses',
-             CANVASSASSIGN.ASSIGNMENTCHOICES, 'Assigned', false);
+             CANVASSASSIGN.ASSIGNMENTCHOICES, 'Assigned', false, addrFilterFunction);
   setupGroup(RES.ALLOCATED_CANVASSER, userFactory, 'Canvassers',
-             CANVASSASSIGN.ASSIGNMENTCHOICES, 'Has Allocation', true);
+             CANVASSASSIGN.ASSIGNMENTCHOICES, 'Has Allocation', true, cnvsrFilterFunction);
+
+  $scope.undoStack = undoStack;
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   $scope.filterList = filterList;
   $scope.updateList = updateList;
   $scope.sortList = sortList;
+  $scope.undo = undo;
 
   // get canvasser role id
   $scope.requestCanvasserRole();
@@ -12791,9 +16420,10 @@ function CanvassAssignmentController($scope, $rootScope, $state, $stateParams, $
   /* function implementation
   -------------------------- */
 
-  function setupGroup(id, factory, label, assignmentChoices, assignmentLabel,  nameFields) {
+  function setupGroup(id, factory, label, assignmentChoices, assignmentLabel, nameFields, customFilter) {
 
     factories[id] = factory;
+    customFilters[factory.NAME] = customFilter;
     
     $scope[id] = factory.getList(id, storeFactory.CREATE_INIT);
     $scope[id].title = label;
@@ -12807,7 +16437,7 @@ function CanvassAssignmentController($scope, $rootScope, $state, $stateParams, $
       }, storeFactory.CREATE_INIT);
 
     var pager = RES.getPagerName(id);
-    $scope[pager] = pagerFactory.newPager(pager, [], 1, $scope.perPage, MAX_DISP_PAGE);
+    $scope[pager] = pagerFactory.newPager(pager, [], 1, $scope.perPage, 5);
 
     setFilter(id, $scope[filter]);
     factory.setPager(id, $scope[pager]);
@@ -12834,8 +16464,7 @@ function CanvassAssignmentController($scope, $rootScope, $state, $stateParams, $
   }
 
   function addrHasNoAssignmentTest (addr) {
-    // if canvasser set then has assignment
-    return (!addr.canvasser);
+    return !addrHasAssignmentTest(addr);
   }
 
   function makeAddressAssignmentTests () {
@@ -12864,8 +16493,7 @@ function CanvassAssignmentController($scope, $rootScope, $state, $stateParams, $
   }
 
   function canvasserHasNoAssignmentTest (canvasser) {
-    // if addresses set then has assignment
-    return (!canvasser.addresses || !canvasser.addresses.length);
+    return !canvasserHasAssignmentTest(canvasser);
   }
 
   function makeCanvasserAssignmentTests () {
@@ -12888,17 +16516,18 @@ function CanvassAssignmentController($scope, $rootScope, $state, $stateParams, $
     filterFunction(list, canvasserAssignmentTests, filter);
   }
 
+  /**
+   * Create a new filter
+   * @param   {object} factory Factory to create filter
+   * @param   {object} data    Base object to create filter from
+   * @returns {object} Filter
+   */
   function newFilter (factory, data) {
-    var filter = factory.newFilter(data);
+    // new filter with custom function & no blanks
+    var filter = factory.newFilter(data, customFilters[factory.NAME], { allowBlank: false });
     // add assignment specific fields
     if (data && data.assignment) {
-      filter.filterBy.assignment = data.assignment;
-    }
-    // override default customFunction with enhanced version
-    if (factory.NAME === 'addressFactory') {
-      filter.customFunction = addrFilterFunction;
-    } else {
-      filter.customFunction = cnvsrFilterFunction;
+      filter.addFilterValue('assignment', data.assignment);
     }
     return filter;
   }
@@ -12911,16 +16540,18 @@ function CanvassAssignmentController($scope, $rootScope, $state, $stateParams, $
     var factory = factories[id],
       // allocatedAddrFilterStr or allocatedCanvasserFilterStr
       filterStr = RES.getFilterStrName(id),
-      filterStrPrefix;
+      filterStrPrefix,
+      assignment;
     if (!filter) {
       filter = newFilter(factory);
     }
-    if (filter.filterBy.assignment) {
+    assignment = filter.getFilterValue('assignment');
+    if (assignment) {
       // set filter string prefix to assignment text
       var list = factory.getList(id);
       if (list) {
         list.assignmentChoices.forEach(function (choice) {
-          if (choice.val === filter.filterBy.assignment) {
+          if (choice.val === assignment) {
             filterStrPrefix = list.assignmentLabel + ': '+ choice.text;
           }
         });
@@ -12941,7 +16572,9 @@ function CanvassAssignmentController($scope, $rootScope, $state, $stateParams, $
     return resList.sort();
   }
 
-  function filterList (resList, action) {
+  function filterList (resList, btn) {
+
+    var action = btn.cmd;
     
     if (action === 'c') {       // clear filter
       setFilter(resList.id);
@@ -12949,10 +16582,10 @@ function CanvassAssignmentController($scope, $rootScope, $state, $stateParams, $
     } else if (action === 'a') {  // no filter, get all
       var list = setFilter(resList.id);
       if (list) {
-        resList.factory.getFilteredResource(resList, list.filter, resList.label);
+        resList.factory.getFilteredResource(resList.resource, resList, list.filter);
       }
     } else {  // set filter
-      var filter = angular.copy(resList.filter.filterBy);
+      var filter = angular.copy(resList.filter.getFilterValue());
 
       var dialog = NgDialogFactory.open({ template: 'canvasses/assignmentfilter.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'AssignmentFilterController', 
                     data: {action: resList.id, 
@@ -12979,54 +16612,77 @@ function CanvassAssignmentController($scope, $rootScope, $state, $stateParams, $
 
 
   function updateList (action) {
-    var addrList = utilFactory.getSelectedList($scope.allocatedAddr.list),
-      cnvsList = utilFactory.getSelectedList($scope.allocatedCanvasser.list),
+    var addrList = miscUtilFactory.getSelectedList($scope.allocatedAddr),
+      cnvsList = miscUtilFactory.getSelectedList($scope.allocatedCanvasser),
       aidx, cidx,
       canvasser, addr,
       clrSel;
 
-    if (action === 'alloc') {
+    if (action.indexOf('alloc') >= 0) {
       clrSel = true;
-      for (aidx = 0; aidx < addrList.length; ++aidx) {
-        addr = addrList[aidx];
+      undoStack.startMultiStep();
 
-        unlinkAddress(addr);  // unlink addr from previous
+      if (action === 'alloc') {
+        for (aidx = 0; aidx < addrList.length; ++aidx) {
+          addr = addrList[aidx];
 
-        for (cidx = 0; cidx < cnvsList.length; ++cidx) {
-          canvasser = cnvsList[cidx];
-          canvassFactory.linkCanvasserToAddr(canvasser, addr);
+          for (cidx = 0; cidx < cnvsList.length; ++cidx) {
+            canvasser = cnvsList[cidx];
+
+            if (canvasser._id !== addr.canvasser) {
+              undoStack.addStep(
+                unlinkAddress(addr)  // unlink addr from previous
+              );
+
+              undoStack.addStep(
+                canvassAssignmentFactory.linkCanvasserToAddr(canvasser, addr, true)
+              );
+            }
+          }
         }
+      } else if (action === 'unalloc') {
+        // unallocate all addresses allocated to selected canvassers
+        cnvsList.forEach(function (unallocCnvsr) {
+          undoStack.addStep(
+            canvassAssignmentFactory.unlinkAddrListFromCanvasser(unallocCnvsr, $scope.allocatedAddr.slice(), true)
+          );
+        });
+        // unallocate all selected addresses
+        addrList.forEach(function (unallocAddr) {
+          undoStack.addStep(
+            unlinkAddress(unallocAddr)  // unlink addr from previous
+          );
+        });
       }
-    } else if (action === 'unalloc') {
-      clrSel = true;
 
-      // unallocate all addresses allocated to selected canvassers
-      cnvsList.forEach(function (unallocCnvsr) {
-        canvassFactory.unlinkAddrListFromCanvasser(unallocCnvsr, $scope.allocatedAddr.list);
-      });
-      // unallocate all selected addresses
-      addrList.forEach(function (unallocAddr) {
-        unlinkAddress(unallocAddr);
-      });
+      undoStack.endMultiStep();
     } else if (action === 'show') {
       // TODO show allocations
     }
 
+
     if (clrSel) {
-      $scope.setItemSel($scope.allocatedAddr, UTIL.CLR_SEL);
-      $scope.setItemSel($scope.allocatedCanvasser, UTIL.CLR_SEL);
+      $scope.setItemSel($scope.allocatedAddr, miscUtilFactory.CLR_SEL);
+      $scope.setItemSel($scope.allocatedCanvasser, miscUtilFactory.CLR_SEL);
     }
   }
 
   function unlinkAddress (addr) {
+    var undo;
     if (addr.canvasser) {
       var canvasser = $scope.allocatedCanvasser.findInList(function (element) {
           return (element._id === addr.canvasser);
         });
       if (canvasser) {
-        canvassFactory.unlinkAddrFromCanvasser(canvasser, addr);
+        undo = canvassAssignmentFactory.unlinkAddrFromCanvasser(canvasser, addr, true);
       }
     }
+    return undo;
+  }
+
+
+  function undo () {
+    undoStack.undo(1);
   }
 }
 
@@ -13045,22 +16701,16 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassAssignmentAddressController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'addressFactory', 'RES', 'UTIL'];
+CanvassAssignmentAddressController.$inject = ['$scope', 'addressFactory', 'RES', 'filterSortService'];
 
-function CanvassAssignmentAddressController($scope, $rootScope, $state, $stateParams, addressFactory, RES, UTIL) {
-
-  console.log('CanvassAssignmentAddressController id', $stateParams.id);
+function CanvassAssignmentAddressController($scope, addressFactory, RES, filterSortService) {
 
   $scope.list = addressFactory.getList(RES.ALLOCATED_ADDR);
-
   $scope.sortOptions = $scope.list.sortOptions;
   $scope.pager = $scope.list.pager;
-  $scope.reqAll = true; // enable request all button
   $scope.showBadge = true; // enable badge display
-  $scope.SET_SEL = UTIL.SET_SEL;
-  $scope.CLR_SEL = UTIL.CLR_SEL;
-  $scope.TOGGLE_SEL = UTIL.TOGGLE_SEL;
-  
+  $scope.reqButtons = filterSortService.getRequestButtons('addresses', filterSortService.FILTER_CLEAR);
+  $scope.selButtons = filterSortService.getSelectButtons();
 
   /* function implementation
   -------------------------- */
@@ -13082,23 +16732,36 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassAssignmentCanvasserController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'userFactory', 'RES', 'UTIL'];
+CanvassAssignmentCanvasserController.$inject = ['$scope', 'userFactory', 'RES', 'filterSortService'];
 
-function CanvassAssignmentCanvasserController($scope, $rootScope, $state, $stateParams, userFactory, RES, UTIL) {
-
-  console.log('CanvassAssignmentCanvasserController id', $stateParams.id);
+function CanvassAssignmentCanvasserController($scope, userFactory, RES, filterSortService) {
 
   $scope.list = userFactory.getList(RES.ALLOCATED_CANVASSER);
   $scope.sortOptions = $scope.list.sortOptions;
   $scope.pager = $scope.list.pager;
-  $scope.reqAll = true; // emable request all button
   $scope.showBadge = true; // enable badge display
-  $scope.SET_SEL = UTIL.SET_SEL;
-  $scope.CLR_SEL = UTIL.CLR_SEL;
-  $scope.TOGGLE_SEL = UTIL.TOGGLE_SEL;
-  
+  $scope.reqButtons = filterSortService.getRequestButtons('canvassers', filterSortService.FILTER_CLEAR);
+  $scope.selButtons = filterSortService.getSelectButtons();
+  $scope.addressCountStr = addressCountStr;
+
   /* function implementation
   -------------------------- */
+
+  function addressCountStr (count) {
+    var str;
+    switch (count) {
+      case 0:
+        str = 'No addresses';
+        break;
+      case 1:
+        str = count + ' address';
+        break;
+      default:
+        str = count + ' addresses';
+        break;
+    }
+    return str;
+  }
 
 }
 
@@ -13121,14 +16784,11 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-CanvassResultController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', '$filter', 'canvassFactory', 'electionFactory', 'surveyFactory', 'addressFactory', 'canvassResultFactory', 'questionFactory', 'NgDialogFactory', 'stateFactory', 'utilFactory', 'pagerFactory', 'storeFactory', 'RES', 'ADDRSCHEMA', 'CANVASSRES_SCHEMA', 'roleFactory', 'ROLES', 'userFactory', 'CANVASSASSIGN', 'UTIL', 'QUESTIONSCHEMA', 'CHARTS'];
+CanvassResultController.$inject = ['$scope', '$rootScope', '$state', 'canvassFactory', 'electionFactory', 'surveyFactory', 'addressFactory', 'canvassResultFactory', 'questionFactory', 'NgDialogFactory', 'stateFactory', 'pagerFactory', 'storeFactory', 'miscUtilFactory', 'RES', 'ADDRSCHEMA', 'CANVASSRES_SCHEMA', 'roleFactory', 'ROLES', 'userFactory', 'CANVASSASSIGN', 'QUESTIONSCHEMA', 'CHARTS', 'SCHEMA_CONST', 'compareFactory', 'filterFactory'];
 
-function CanvassResultController($scope, $rootScope, $state, $stateParams, $filter, canvassFactory, electionFactory, surveyFactory, addressFactory, canvassResultFactory, questionFactory, NgDialogFactory, stateFactory, utilFactory, pagerFactory, storeFactory, RES, ADDRSCHEMA, CANVASSRES_SCHEMA, roleFactory, ROLES, userFactory, CANVASSASSIGN, UTIL, QUESTIONSCHEMA, CHARTS) {
+function CanvassResultController($scope, $rootScope, $state, canvassFactory, electionFactory, surveyFactory, addressFactory, canvassResultFactory, questionFactory, NgDialogFactory, stateFactory, pagerFactory, storeFactory, miscUtilFactory, RES, ADDRSCHEMA, CANVASSRES_SCHEMA, roleFactory, ROLES, userFactory, CANVASSASSIGN, QUESTIONSCHEMA, CHARTS, SCHEMA_CONST, compareFactory, filterFactory) {
 
-  console.log('CanvassResultController id', $stateParams.id);
-
-  var MAX_DISP_PAGE = 5,
-    factories = {},
+  var factories = {},
     i,
     quickDetails = [
       { label: 'Not Available',
@@ -13148,8 +16808,7 @@ function CanvassResultController($scope, $rootScope, $state, $stateParams, $filt
     detail.dfltValue = CANVASSRES_SCHEMA.SCHEMA.getDfltValue(detail.id);
   });
 
-  $scope.perPageOpt = [5, 10, 15, 20];
-  $scope.perPage = 10;
+  pagerFactory.addPerPageOptions($scope, 5, 5, 4, 1); // 4 opts, from 5 inc 5, dflt 10
 
   setupGroup(RES.ALLOCATED_ADDR, addressFactory, 'Addresses',
              CANVASSASSIGN.ASSIGNMENTCHOICES, 'Assigned', false);
@@ -13158,7 +16817,6 @@ function CanvassResultController($scope, $rootScope, $state, $stateParams, $filt
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   $scope.filterList = filterList;
-  $scope.updateList = updateList;
   $scope.sortList = sortList;
   $scope.getQuestionTypeName = questionFactory.getQuestionTypeName;
   $scope.showPieChart = showPieChart;
@@ -13189,7 +16847,6 @@ function CanvassResultController($scope, $rootScope, $state, $stateParams, $filt
   $scope.canvassComplete = 0;
   $scope.canvassPending = 0;
 
-//  $scope.canvass = canvassFactory.getObj(RES.ACTIVE_CANVASS);
   $scope.survey = surveyFactory.getObj(RES.ACTIVE_SURVEY);
 
   $scope.addresses = addressFactory.getList(RES.ALLOCATED_ADDR);
@@ -13221,37 +16878,46 @@ function CanvassResultController($scope, $rootScope, $state, $stateParams, $filt
   }
 
   function processsResults (resList) {
-    console.log('results');
-    console.log(resList);
-    $scope.resultCount = resList.count;
 
-    $scope.quickData.fill(0);
-    $scope.supportData.fill(0);
+    /* TODO curently only support a single canvass result per address
+       TODO preventing the multiple counting of results for an address should be handled on the server
+    */
 
-    resList.forEachInList(function (result) {
+    var i,
+      filteredList = canvassResultFactory.filterResultsLatestPerAddress(resList.slice());
+
+    $scope.resultCount = filteredList.length;
+
+    var quickData = new Array($scope.quickData.length),
+      supportData = new Array($scope.supportData.length);
+    quickData.fill(0);
+    supportData.fill(0);
+
+    filteredList.forEach(function (result) {
       // calc quick responses
       for (i = 0; i < quickDetails.length; ++i) {
         if (result[quickDetails[i].property] !== quickDetails[i].dfltValue) {
-          ++$scope.quickData[i];
+          // quick responses are mutually exclusive, so if one isn't its default value, thats it
+          ++quickData[i];
+          break;
         }
       }
 
       // ca;c support
       if (result[supportProperty] === CANVASSRES_SCHEMA.SUPPORT_UNKNOWN) {
-        ++$scope.supportData[0];
+        ++supportData[0];
       } else {
         i = result[supportProperty] - CANVASSRES_SCHEMA.SUPPORT_MIN + 1;
-        if (i < $scope.supportData.length) {
-          ++$scope.supportData[i];
+        if (i < supportData.length) {
+          ++supportData[i];
         }
       }
     });
+    $scope.quickData = quickData;
+    $scope.supportData = supportData;
   }
 
   function processQuestions (resList) {
-    console.log('questions');
-    console.log(resList);
-
     var val;
     resList.forEachInList(function (question) {
       question.chartType = chartCtrl(question);
@@ -13416,7 +17082,7 @@ function CanvassResultController($scope, $rootScope, $state, $stateParams, $filt
       }, storeFactory.CREATE_INIT);
 
     var pager = RES.getPagerName(id);
-    $scope[pager] = pagerFactory.newPager(pager, [], 1, $scope.perPage, MAX_DISP_PAGE);
+    $scope[pager] = pagerFactory.newPager(pager, [], 1, $scope.perPage, 5);
 
     setFilter(id, $scope[filter]);
     factory.setPager(id, $scope[pager]);
@@ -13487,16 +17153,19 @@ function CanvassResultController($scope, $rootScope, $state, $stateParams, $filt
   }
 
   function newFilter(factory, data) {
-    var filter = factory.newFilter(data);
+    var customFilter,
+      filter;
+    // override default customFilter with enhanced version
+    if (factory.ID_TAG === ADDRSCHEMA.ID_TAG) {
+      customFilter = addrFilterFunction;
+    } else {
+      customFilter = cnvsrFilterFunction;
+    }
+
+    filter = factory.newFilter(data, customFilter);
     // add assignment specific fields
     if (data && data.assignment) {
       filter.filterBy.assignment = data.assignment;
-    }
-    // override default customFunction with enhanced version
-    if (factory.ID_TAG === ADDRSCHEMA.ID_TAG) {
-      filter.customFunction = addrFilterFunction;
-    } else {
-      filter.customFunction = cnvsrFilterFunction;
     }
     return filter;
   }
@@ -13552,7 +17221,7 @@ function CanvassResultController($scope, $rootScope, $state, $stateParams, $filt
         resList.factory.getFilteredResource(resList, list.filter, resList.label);
       }
     } else {  // set filter
-      var filter = angular.copy(resList.filter.filterBy);
+      var filter = angular.copy(resList.filter.getFilterValue());
 
       var dialog = NgDialogFactory.open({ template: 'canvasses/assignmentfilter.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'AssignmentFilterController',
                     data: {action: resList.id,
@@ -13585,57 +17254,6 @@ function CanvassResultController($scope, $rootScope, $state, $stateParams, $filt
 
   }
 
-
-  function updateList (action) {
-    var addrList = utilFactory.getSelectedList($scope.allocatedAddr.list),
-      cnvsList = utilFactory.getSelectedList($scope.allocatedCanvasser.list),
-      aidx, cidx,
-      canvasser, addr,
-      clrSel;
-
-    if (action === 'alloc') {
-      clrSel = true;
-      for (aidx = 0; aidx < addrList.length; ++aidx) {
-        addr = addrList[aidx];
-
-        unlinkAddress(addr);  // unlink addr from previous
-
-        for (cidx = 0; cidx < cnvsList.length; ++cidx) {
-          canvasser = cnvsList[cidx];
-          canvassFactory.linkCanvasserToAddr(canvasser, addr);
-        }
-      }
-    } else if (action === 'unalloc') {
-      clrSel = true;
-
-      // unallocate all addresses allocated to selected canvassers
-      cnvsList.forEach(function (unallocCnvsr) {
-        canvassFactory.unlinkAddrListFromCanvasser(unallocCnvsr, $scope.allocatedAddr.list);
-      });
-      // unallocate all selected addresses
-      addrList.forEach(function (unallocAddr) {
-        unlinkAddress(unallocAddr);
-      });
-    } else if (action === 'show') {
-      // TODO show allocations
-    }
-
-    if (clrSel) {
-      $scope.setItemSel($scope.allocatedAddr, UTIL.CLR_SEL);
-      $scope.setItemSel($scope.allocatedCanvasser, UTIL.CLR_SEL);
-    }
-  }
-
-  function unlinkAddress (addr) {
-    if (addr.canvasser) {
-      var canvasser = $scope.allocatedCanvasser.findInList(function (element) {
-          return (element._id === addr.canvasser);
-        });
-      if (canvasser) {
-        canvassFactory.unlinkAddrFromCanvasser(canvasser, addr);
-      }
-    }
-  }
 }
 
 
@@ -13680,6 +17298,32 @@ function ResultDetailController ($scope, CHARTS) {
     return (chart === CHARTS.POLAR);
   }
 
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .controller('CanvassDeleteController', CanvassDeleteController);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+CanvassDeleteController.$inject = ['$scope', 'utilFactory'];
+
+function CanvassDeleteController($scope, utilFactory) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  $scope.formatDate = utilFactory.formatDate;
+
+
+  /* function implementation
+  -------------------------- */
 
 }
 
@@ -13742,10 +17386,12 @@ function CanvassTabNavController($scope) {
 
   $scope.hasPrev = false;
   $scope.hasReset = true;
+  $scope.prevTooltip = 'Previous tab';
   $scope.prevEnabled = function () {
     return this.canvassForm.$invalid;
   };
   $scope.nextText = 'Next';
+  $scope.nextTooltip = 'Survey tab';
   $scope.nextEnabled = function () {
     return this.canvassForm.$invalid;
   };
@@ -13780,10 +17426,12 @@ function SurveyTabNavController($scope) {
 
   $scope.hasPrev = true;
   $scope.hasReset = true;
+  $scope.prevTooltip = 'Canvass tab';
   $scope.prevEnabled = function () {
     return this.surveyForm.$invalid;
   };
   $scope.nextText = 'Next';
+  $scope.nextTooltip = 'Address tab';
   $scope.nextEnabled = function () {
     return this.surveyForm.$invalid;
   };
@@ -13818,10 +17466,12 @@ function AddressTabNavController($scope) {
 
   $scope.hasPrev = true;
   $scope.hasReset = false;
+  $scope.prevTooltip = 'Survey tab';
   $scope.prevEnabled = function () {
     return this.addressForm.$invalid;
   };
   $scope.nextText = 'Next';
+  $scope.nextTooltip = 'Canvasser tab';
   $scope.nextEnabled = function () {
     return this.addressForm.$invalid;
   };
@@ -13856,10 +17506,12 @@ function CanvassersTabNavController($scope) {
 
   $scope.hasPrev = true;
   $scope.hasReset = false;
+  $scope.prevTooltip = 'Address tab';
   $scope.prevEnabled = function () {
     return this.canvasserForm.$invalid;
   };
   $scope.nextText = 'Next';
+  $scope.nextTooltip = 'Assignment tab';
   $scope.nextEnabled = function () {
     return this.canvasserForm.$invalid;
   };
@@ -13894,13 +17546,16 @@ function AssignmentTabNavController($scope) {
 
   $scope.hasPrev = true;
   $scope.hasReset = false;
+  $scope.prevTooltip = 'Canvasser tab';
   $scope.prevEnabled = function () {
     return this.assignmentForm.$invalid;
   };
   if ($scope.lastTab === $scope.tabs.ASSIGNMENT_TAB) {
     $scope.nextText = 'Done';
+    $scope.nextTooltip = 'Go to dashboard';
   } else {
     $scope.nextText = 'Next';
+    $scope.nextTooltip = 'Results tab';
   }
   $scope.nextEnabled = function () {
     return this.assignmentForm.$invalid;
@@ -13936,10 +17591,12 @@ function ResultTabNavController($scope) {
 
   $scope.hasPrev = true;
   $scope.hasReset = false;
+  $scope.prevTooltip = 'Assignment tab';
   $scope.prevEnabled = function () {
     return this.resultForm.$invalid;
   };
   $scope.nextText = 'Done';
+  $scope.nextTooltip = 'Go to dashboard';
   $scope.nextEnabled = function () {
     return this.resultForm.$invalid;
   };
@@ -13960,15 +17617,26 @@ function ResultTabNavController($scope) {
 
 angular.module('canvassTrac')
 
+  .constant('QUESACTION', (function () {
+    return {
+      NEW: 'new',
+      VIEW: 'view',
+      EDIT: 'edit'
+    };
+  })())
   .controller('QuestionController', QuestionController);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-QuestionController.$inject = ['$scope', 'questionFactory', 'NgDialogFactory', 'questionTypes'];
+QuestionController.$inject = ['$scope', 'questionFactory', 'NgDialogFactory', 'questionTypes', 'QUESACTION', 'DEBUG'];
 
-function QuestionController($scope, questionFactory, NgDialogFactory, questionTypes) {
+function QuestionController($scope, questionFactory, NgDialogFactory, questionTypes, QUESACTION, DEBUG) {
+
+  if (DEBUG.devmode) {
+    $scope.debug = DEBUG;
+  }
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   $scope.getTitle = getTitle;
@@ -13983,26 +17651,18 @@ function QuestionController($scope, questionFactory, NgDialogFactory, questionTy
     $scope.showRankingNumber = false;
   }
 
-  
-  
-  var ACTIONS = {
-    NEW: 'new',
-    VIEW: 'view',
-    EDIT: 'edit'
-  };
-  
   /* function implementation
   -------------------------- */
 
   function getTitle() {
     $scope.editDisabled = true;
     var title;
-    if ($scope.ngDialogData.action === ACTIONS.NEW) {
+    if ($scope.ngDialogData.action === QUESACTION.NEW) {
       title = 'Create Question';
       $scope.editDisabled = false;
-    } else if ($scope.ngDialogData.action === ACTIONS.VIEW) {
+    } else if ($scope.ngDialogData.action === QUESACTION.VIEW) {
       title = 'View Question';
-    } else if ($scope.ngDialogData.action === ACTIONS.EDIT) {
+    } else if ($scope.ngDialogData.action === QUESACTION.EDIT) {
       title = 'Update Question';
       $scope.editDisabled = false;
     } else {
@@ -14013,11 +17673,11 @@ function QuestionController($scope, questionFactory, NgDialogFactory, questionTy
 
   function getOkText() {
     var text;
-    if ($scope.ngDialogData.action === ACTIONS.NEW) {
+    if ($scope.ngDialogData.action === QUESACTION.NEW) {
       text = 'Create';
-    } else if ($scope.ngDialogData.action === ACTIONS.VIEW) {
+    } else if ($scope.ngDialogData.action === QUESACTION.VIEW) {
       text = 'OK';
-    } else if ($scope.ngDialogData.action === ACTIONS.EDIT) {
+    } else if ($scope.ngDialogData.action === QUESACTION.EDIT) {
       text = 'Update';
     } else {
       text = '';
@@ -14026,7 +17686,6 @@ function QuestionController($scope, questionFactory, NgDialogFactory, questionTy
   }
 
   function selectedItemChanged(item, value) {
-    console.log(item, value);
     if ((item === 'qtype') || (item === 'init')) {
       var typeId = value.type.type,
         showNumOpts = (questionFactory.showQuestionOptions(typeId) &&
@@ -14040,10 +17699,6 @@ function QuestionController($scope, questionFactory, NgDialogFactory, questionTy
       
       $scope.showNumOptions = showNumOpts;
       $scope.showRankingNumber = showRankingNum;
-      
-      console.log(item + ' after', value);
-
-
     } else if (item === 'numopts') {
       if (value.options === undefined) {
         value.options = [];

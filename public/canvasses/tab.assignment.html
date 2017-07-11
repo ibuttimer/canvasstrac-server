@@ -2,7 +2,7 @@
   <form class="form-horizontal" name="assignmentForm" role="form" ng-submit="processForm()" novalidate>
 
     <div class="form-group">
-      <div class="col-sm-12">
+      <div class="col-sm-12 filter-box">
         <div class="col-sm-5">
           <h4>Addresses</h4>
           <p>Filter by: {{allocatedAddrFilterStr}}</p>
@@ -27,7 +27,7 @@
 
         <div class="col-sm-2">
           <p>Items per page</p>
-          <select id="allocperpage" name="allocperpage" ng-change="setPerPage([allocatedCanvasserPager,allocatedAddrPager],perPage)" ng-model="perPage"
+          <select class="form-control" id="allocperpage" name="allocperpage" ng-change="setPerPage([allocatedCanvasserPager,allocatedAddrPager],perPage)" ng-model="perPage"
           ng-options="perPage for perPage in perPageOpt">
           </select>
         </div>
@@ -62,18 +62,28 @@
       <!-- allocated address list -->
       <div class="col-sm-5">
         <div ng-controller="CanvassAssignmentAddressController">
-          <div ng-include="'canvasses/address.element.html'"></div>
+          <div ng-include="'canvasses/address.list.html'"></div>
         </div>
       </div>
 
       <!-- show/assign/unassign buttons -->
       <div class="col-sm-2">
         <div class="btn-group-vertical" role="group">
+<!--  TODO show allocations
           <button type="button" class="btn btn-primary btn-sm" ng-click="updateList('show')" ng-disabled=" (allocatedCanvasser.selCount == 1)">Show&nbsp;<span class="glyphicon glyphicon-eye-open" aria-hidden="true"></span>
           </button>
-          <button type="button" class="btn btn-primary btn-sm" ng-click="updateList('alloc')" ng-disabled="(allocatedAddr.selCount < 1) || (allocatedCanvasser.selCount != 1)">Allocate&nbsp;<span class="glyphicon glyphicon-check" aria-hidden="true"></span>
+-->
+          <button type="button" class="btn btn-primary btn-sm" ng-click="updateList('alloc')" ng-disabled="(allocatedAddr.selCount < 1) || (allocatedCanvasser.selCount != 1)">
+            <span class="fa fa-link" aria-hidden="true"></span>
+            &nbsp;Allocate
           </button>
-          <button type="button" class="btn btn-primary btn-sm" ng-click="updateList('unalloc')" ng-disabled="(allocatedAddr.selCount < 1) && (allocatedCanvasser.selCount < 1)">Unallocate&nbsp;<span class="glyphicon glyphicon-unchecked" aria-hidden="true"></span>
+          <button type="button" class="btn btn-primary btn-sm" ng-click="updateList('unalloc')" ng-disabled="(allocatedAddr.selCount < 1) && (allocatedCanvasser.selCount < 1)">
+            <span class="fa fa-chain-broken" aria-hidden="true"></span>
+            &nbsp;Unallocate
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" ng-click="undo()" ng-disabled="undoStack.size < 1">
+            <span class="fa fa-undo" aria-hidden="true"></span>
+            &nbsp;Undo
           </button>
         </div>
       </div>
@@ -92,10 +102,7 @@
         <div ng-include="'canvasses/tab.buttons.html'"></div>
       </div>
     </div>
-    <br />
-    <br />
+    <br>
+    <br>
   </form>
-
-
-
 </div>

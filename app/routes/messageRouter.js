@@ -79,7 +79,7 @@ router.route('/feedback')
                       '<p>Comment: ' + doc.comment + '</p>' +
                       '</body></html>'
 
-          emailService.sendEmail ('CanvassTrac Feedback', html, doc.email, 
+          emailService.sendEmail('CanvassTrac Feedback', html, doc.email, 
             function (data) {
               doc.result = JSON.stringify(data);
               saveDoc (doc, res);
@@ -90,6 +90,7 @@ router.route('/feedback')
             });
         } else {
           res.json(doc);
+          console.log('Warning: Email service not available');
         }
       }
     });
@@ -129,7 +130,7 @@ router.route('/support')
                       '<p>Request: ' + doc.comment + '</p>' +
                       '</body></html>'
 
-          emailService.sendEmail ('CanvassTrac Support Request', html, doc.email, 
+          emailService.sendEmail('CanvassTrac Support Request', html, doc.email, 
             function (data) {
               doc.result = JSON.stringify(data);
               saveDoc (doc, res);
@@ -140,6 +141,7 @@ router.route('/support')
             });
         } else {
           res.json(doc);
+          console.log('Warning: Email service not available');
         }
       }
     });

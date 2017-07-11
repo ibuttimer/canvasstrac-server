@@ -1,0 +1,6 @@
+<div class="list-group">
+  <button type="button" class="list-group-item" ng-repeat="addr in pager.pageItems" ng-class="{active: addr.isSelected}" ng-click="toggleItemSel(list,addr)">
+
+    <cnvtrc-addr-widget info="addr" badge="showBadge" debug="debug"></cnvtrc-addr-widget>
+  </button>
+</div>

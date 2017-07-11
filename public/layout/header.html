@@ -26,39 +26,74 @@
            aria-hidden="true"></span>&nbsp;{{contactMenu.name}}</a>
         </li>
 
-        <li role="presentation" class="dropdown" ng-class="{active: inSubstate('{{configMenu.root.sref}}')}" uib-dropdown is-open="status.cfgIsOpen">
+        <!-- config menu -->
+        <li ng-if="configMenu" role="presentation" class="dropdown" ng-class="{active: inSubstate('{{configMenu.root.sref}}')}" uib-dropdown is-open="status.cfgIsOpen">
           <a href="#" class="dropdown-toggle" data-toggle="dropdown"
            role="button" aria-haspopup="true" aria-expanded="false" uib-dropdown-toggle ng-disabled="disabled">
-              <span class="fa fa-cog" aria-hidden="true"></span> Configutation <span class="caret"></span>
+              <span class="{{configMenu.root.icon}}" aria-hidden="true"></span>&nbsp;{{configMenu.root.name}}&nbsp;<span class="caret"></span>
           </a>
           <ul class="dropdown-menu" uib-dropdown-menu role="menu">
             <li class="dropdown-header">{{configMenu.votingsys.header}}</li>
-              <li role="menuitem" ng-repeat="entry in configMenu.votingsys.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
+            <li role="menuitem" ng-repeat="entry in configMenu.votingsys.items">
+              <a ui-sref="{{entry.sref}}">
+                <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
+              </a>
+            </li>
             <li class="dropdown-header">{{configMenu.roles.header}}</li>
-              <li role="menuitem" ng-repeat="entry in configMenu.roles.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
+            <li role="menuitem" ng-repeat="entry in configMenu.roles.items">
+              <a ui-sref="{{entry.sref}}">
+                <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
+              </a>
+            </li>
             <li class="dropdown-header">{{configMenu.users.header}}</li>
-              <li role="menuitem" ng-repeat="entry in configMenu.users.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
+            <li role="menuitem" ng-repeat="entry in configMenu.users.items">
+              <a ui-sref="{{entry.sref}}">
+                <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
+              </a>
+            </li>
           </ul>
         </li>
 
-        <li role="presentation" class="dropdown" ng-class="{active: inSubstate('{{campaignMenu.root.sref}}')}" uib-dropdown is-open="status.cmpgnIsOpen">
+        <!-- campaign menu -->
+        <li ng-if="campaignMenu" role="presentation" class="dropdown" ng-class="{active: inSubstate('{{campaignMenu.root.sref}}')}" uib-dropdown is-open="status.cmpgnIsOpen">
           <a href="#" class="dropdown-toggle" data-toggle="dropdown"
            role="button" aria-haspopup="true" aria-expanded="false" uib-dropdown-toggle ng-disabled="disabled">
-            <span class="fa fa-pencil-square" aria-hidden="true"></span>&nbsp;{{campaignMenu.root.name}}&nbsp;<span class="caret"></span>
+            <span class="{{campaignMenu.root.icon}}" aria-hidden="true"></span>&nbsp;{{campaignMenu.root.name}}&nbsp;<span class="caret"></span>
           </a>
           <ul class="dropdown-menu" uib-dropdown-menu role="menu">
             <li class="dropdown-header">{{campaignMenu.elections.header}}</li>
-              <li role="menuitem" ng-repeat="entry in campaignMenu.elections.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
+            <li role="menuitem" ng-repeat="entry in campaignMenu.elections.items">
+              <a ui-sref="{{entry.sref}}">
+                <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
+              </a>
+            </li>
             <li class="dropdown-header">{{campaignMenu.candidates.header}}</li>
-              <li role="menuitem" ng-repeat="entry in campaignMenu.candidates.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
-            <li class="dropdown-header">{{campaignMenu.canvass.header}}</li>
-              <li role="menuitem" ng-repeat="entry in campaignMenu.canvass.items"><a ui-sref="{{entry.sref}}">{{entry.name}}</a></li>
+            <li role="menuitem" ng-repeat="entry in campaignMenu.candidates.items">
+              <a ui-sref="{{entry.sref}}">
+                <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
+              </a>
+            </li>
+            <li class="dropdown-header">{{campaignMenu.canvasses.header}}</li>
+            <li role="menuitem" ng-repeat="entry in campaignMenu.canvasses.items">
+              <a ui-sref="{{entry.sref}}">
+                <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
+              </a>
+            </li>
           </ul>
         </li>
 
       </ul>
       <ul class="nav navbar-nav navbar-right">
-        <li ng-if="!loggedIn"><a ng-click="openLogin()">
+        <li ng-if="debug.devmode">
+          <a ng-click="toggleDebug()">
+          <i class="fa fa-bug" aria-hidden="true"></i> {{dbgText}}</a>
+        </li>
+        <li>
+          <a ng-click="openSupport()">
+          <i class="fa fa-life-ring" aria-hidden="true"></i> Support</a>
+        </li>
+        <li ng-if="!loggedIn">
+          <a ng-click="openLogin()">
           <span class="glyphicon glyphicon-log-in"></span> Login</a>
         </li>
         <li ng-if="loggedIn">

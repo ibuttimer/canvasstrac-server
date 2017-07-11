@@ -6,14 +6,14 @@
   <div class="">
     <form role="form" name="loginForm" ng-submit="doLogin()" novalidate>
       
-      <div class="form-group" ng-class="{ 'has-error' : loginForm.username.$error.required && !loginForm.username.$pristine }">
+      <div class="form-group" ng-class="{ 'has-error has-feedback' : loginForm.username.$error.required && !loginForm.username.$pristine }">
         <label class="sr-only" for="username">Username</label>
         <input type="text" class="form-control input-sm" id="username" name="username" placeholder="Username" ng-model="loginData.username" required>
         <span ng-show="loginForm.username.$error.required && !loginForm.username.$pristine" 
         class="help-block">Your username is required.</span>
       </div>
       
-      <div class="form-group" ng-class="{ 'has-error' : loginForm.password.$error.required && !loginForm.password.$pristine }">
+      <div class="form-group" ng-class="{ 'has-error has-feedback' : loginForm.password.$error.required && !loginForm.password.$pristine }">
         <label class="sr-only" for="password">Password</label>
         <input type="password" class="form-control input-sm" id="password" name="password" placeholder="Password" ng-model="loginData.password" required>
         <span ng-show="loginForm.password.$error.required && !loginForm.password.$pristine" 
@@ -28,7 +28,7 @@
       <div>
         <div class="btn-group" role="group">
           <button type="submit" class="btn btn-info btn-sm" ng-disabled="loginForm.$invalid">Sign in</button>
-          <button type="button" class="btn btn-default btn-sm" ng-click=closeThisDialog("Cancel")>Cancel</button>
+          <button type="button" class="btn btn-default btn-sm" ng-click="closeThisDialog('Cancel')">Cancel</button>
         </div>
 <!--
         <button type="submit" class="btn btn-info btn-sm" ng-disabled="loginForm.$invalid">Sign in</button>
@@ -37,14 +37,19 @@
         &nbsp;&nbsp;<a ng-click=openRegister()>Click here to register</a>
       </div>
       <!-- Quick hack for dev mode to enter user credentials-->
-      <div class="item" ng-if="devmode">
-        <button class="btn btn-warning btn-sm" ng-click="devCredentials()">Dev credentials</button>
+      <div class="btn-group" role="group" ng-if="devmode">
+        <button ng-if="devUser1" class="btn btn-warning btn-sm" ng-click="devCredentials(devUser1)">Dev {{devUser1}}</button>
+        <button ng-if="devUser2" class="btn btn-warning btn-sm" ng-click="devCredentials(devUser2)">Dev {{devUser2}}</button>
+        <button ng-if="devUser3" class="btn btn-warning btn-sm" ng-click="devCredentials(devUser3)">Dev {{devUser3}}</button>
       </div>
-
     </form>
   </div>
-    <p>Alternatively login using</p>
-    <button type="button" class="btn btn-social-icon btn-facebook" ng-click=doFacebookLogin()><i class="fa fa-facebook"> facebook</button> &nbsp;
+<!--
   <div>
+    <p>Alternatively login using</p>
+    <button type="button" class="btn btn-social-icon btn-facebook" ng-click=doFacebookLogin()>
+      <span class="fa fa-facebook"></span>
+    </button>
   </div>
+-->
 </div>

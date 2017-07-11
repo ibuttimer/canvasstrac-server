@@ -8,17 +8,29 @@
       <ul class="list-group-item" ng-repeat="canvass in ngDialogData.list">
         <li class="list-group-item">
           <div class="row">
-            <div class="col-sm-8">
-              <p>{{canvass.name}}</p>
+            <div class="col-sm-12">
+              <div class="col-sm-8">
+                <p>{{canvass.name}}</p>
+              </div>
+              <div class="col-sm-4">
+                <p class="text-right">{{formatDate(canvass.startDate)}}</p>
+              </div>
             </div>
-            <div class="col-sm-4">
-              <p class="text-right">{{formatDate(canvass.startDate)}}</p>
+          </div>
+          <div class="row">
+            <div class="col-sm-12">
+              <div class="col-sm-8">
+                <p>{{canvass.election.name}}</p>
+              </div>
+              <div class="col-sm-4">
+                <p class="text-right">{{formatDate(canvass.endDate)}}</p>
+              </div>
             </div>
-            <div class="col-sm-8">
-              <p>{{canvass.election.name}}</p>
-            </div>
-            <div class="col-sm-4">
-              <p class="text-right">{{formatDate(canvass.endDate)}}</p>
+          </div>
+          <div class="row" ng-if="debug.show">
+            <div class="col-sm-12">
+              <p><code>canvass: {{canvass._id}}</code></p>
+              <p><code>election: {{canvass.election._id}}</code></p>
             </div>
           </div>
         </li>

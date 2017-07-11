@@ -2,7 +2,17 @@ var gulp = require('gulp'),
     nodemon = require('gulp-nodemon'),
     jshint = require('gulp-jshint'),
     argv = require('yargs')
-      .usage('Usage: $0 -production')
+      .usage('Usage: gulp <command> [options]')
+      .command('replace', 'Generate the environment file based on the options from a configuration file')
+      .command('develop', 'Start server and watch application files')
+      .option('e', {
+              alias: 'env',
+              default: 'localdev',
+              describe: 'Specify name of configuration file to use',
+              type: 'string'
+          })
+      .help('h')
+      .alias('h', 'help')
       .argv,
     replace = require('gulp-replace-task'),
     notify = require('gulp-notify'),
@@ -33,37 +43,57 @@ gulp.task('replace', function () {
     filename = env + '.json',
     settings = JSON.parse(fs.readFileSync(basePaths.config + filename, 'utf8')),
     // basic patterns
-    patterns = [];
+    patterns = [],
+    keyVal, dfltVal, setDflt, err;
 
     [ // server/management app common settings
-      'baseURL',
-      'forceHttps',
-      'httpPort',
-      'httpsPortOffset',
-      'socketTimeout',
+      { prop: 'baseURL', type: 'str' },
+      { prop: 'forceHttps', type: 'bool', dflt: true },
+      { prop: 'httpPort', type: 'num' },
+      { prop: 'httpsPortOffset', type: 'num' },
+      { prop: 'socketTimeout', type: 'num' },
       // server-specific settings
-      'dbAddr',
-      'mgmtPath',
-      'jwtSecretKey',
-      'jwtWebTokenLife',
-      'jwtMobileTokenLife',
-      'disableAuth',
-      'fbClientID',
-      'fbClientSecret',
-      'feedbackFromEmail',
-      'feedbackToEmail',
-      'dfltPassword',
-      'testOptions',
+      { prop: 'disableAuth', type: 'bool', dflt: false },
+      { prop: 'dbAddr', type: 'str' },
+      { prop: 'mgmtPath', type: 'str' },
+      { prop: 'jwtSecretKey', type: 'str' },
+      { prop: 'jwtWebTokenLife', type: 'num|str' },
+      { prop: 'jwtMobileTokenLife', type: 'num|str' },
+      { prop: 'fbClientID', type: 'str' },
+      { prop: 'fbClientSecret', type: 'str' },
+      { prop: 'feedbackFromEmail', type: 'str' },
+      { prop: 'feedbackToEmail', type: 'str' },
+      { prop: 'dfltPassword', type: 'str' },
+      { prop: 'testOptions', type: 'str' },
       // sparkpost-specific settings
-      'SPARKPOST_API_KEY',
-      'SPARKPOST_API_URL',
-      'SPARKPOST_SANDBOX_DOMAIN',
-      'SPARKPOST_SMTP_HOST',
-      'SPARKPOST_SMTP_PASSWORD',
-      'SPARKPOST_SMTP_PORT',
-      'SPARKPOST_SMTP_USERNAME'
-    ].forEach(function (prop) {
-      patterns.push({ match: prop, replacement: settings[prop] });
+      { prop: 'SPARKPOST_API_KEY', type: 'str' },
+      { prop: 'SPARKPOST_API_URL', type: 'str' },
+      { prop: 'SPARKPOST_SANDBOX_DOMAIN', type: 'str' },
+      { prop: 'SPARKPOST_SMTP_HOST', type: 'str' },
+      { prop: 'SPARKPOST_SMTP_PASSWORD', type: 'str' },
+      { prop: 'SPARKPOST_SMTP_PORT', type: 'str' },
+      { prop: 'SPARKPOST_SMTP_USERNAME', type: 'str' }
+    ].forEach(function (key) {
+      keyVal = settings[key.prop];
+      setDflt = (keyVal === undefined);
+      if (!setDflt && (typeof keyVal === 'string')) {
+        setDflt = (keyVal.indexOf('@@') === 0); // no replacement in settings file
+      }
+      if (setDflt) {
+        dfltVal = undefined;
+
+        if (key.dflt) {
+          dfltVal = key.dflt;
+        } else if (key.type.indexOf('num') >= 0) {
+          dfltVal = '0';
+        } else if (key.type.indexOf('str') >= 0) {
+          dfltVal = '';
+        } else if (key.type.indexOf('bool') >= 0) {
+          dfltVal = false;
+        }
+        keyVal = dfltVal;
+      }
+      patterns.push({ match: key.prop, replacement: keyVal });
     });
 
   // Replace each placeholder with the correct value for the variable.
@@ -97,4 +127,11 @@ gulp.task('develop', function () {
       }
   });
 
-})
+});
+
+// Default task - does nothing for now
+gulp.task('default', function (cb) {
+  var err;
+  cb(err);
+});
+
