@@ -24,6 +24,7 @@
     "passport-local": "^1.0.0",
     "passport-local-mongoose": "^4.0.0",
     "serve-favicon": "~2.3.0",
+    "node-esapi": "^0.0.1",
     "sparkpost": "^2.1.2"
   },
   "devDependencies": {
