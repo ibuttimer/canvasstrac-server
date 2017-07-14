@@ -17,7 +17,6 @@ var express = require('express'),
     resultReply = router_utils.resultReply,
     populateSubDocsReply = router_utils.populateSubDocsReply,
     makeResult = router_utils.makeResult,
-    removeDoc = router_utils.removeDoc,
     removeDocAccessOk = router_utils.removeDocAccessOk,
   utils = require('../misc/utils'),
   Consts = require('../consts');
