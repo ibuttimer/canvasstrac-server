@@ -3,7 +3,7 @@ Server application for CanvassTrac suite.
 
 ## Development Environment
 The development environment:
-* Nodejs v6.10.1
+* Node.js v6.11.1
 * npm v2.15.9
 * bower v1.7.9
 * gulp v3.9.1
@@ -49,7 +49,7 @@ Assuming the Heroku application name is <code>canvasstrac</code>, proceed as fol
 * <code>heroku builds:create -a canvasstrac</code>
 
 ### Run application on [Heroku](https://www.heroku.com)
-Following deplayment of the application to Heroku, it is necessary to set the environment configuration in the Heroku application console. See *Config Variables* in the Heroku application settings.
+Following deployment of the application to Heroku, it is necessary to set the environment configuration in the Heroku application console. See *Config Variables* in the Heroku application settings.
 
 #### Additional inofrmation
 * Run <code>heroku run bash -a canvasstrac</code> to open a shell to see what is actually deplayed in the dyno.
@@ -58,4 +58,13 @@ Following deplayment of the application to Heroku, it is necessary to set the en
   * <code>heroku run printenv -a canvasstrac</code>, or
   * <code>heroku config --app canvasstrac</code>
 
-
+### Setup database
+In order to initialise the database the following procedure may be followed on an empty database:
+* Run the <code>dev/dbSetup.js</code> script in the mongo shell.
+* Start local instances of the server & management application in **authentication disabled** mode.
+* Create an admin user
+* Start local instances of the server & management application in **authentication enabled** mode.
+* Login as the admin user
+* Select the *Configuration->User->Batch Mode* menu option
+* Select the <code>dev/sampleusers.json</code> file and process it
+* Manually remove the admin user previously created from the database

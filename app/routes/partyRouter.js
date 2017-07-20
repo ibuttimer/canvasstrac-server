@@ -145,7 +145,7 @@ function updateParty (accessCheck, id, req, res, next) {
 
             var mustSave = false;          
 
-            updateDocAccessOk(addressFields, Addresses, party.address, req, res, function (result, res) {
+            updateDocAccessOk(addressFields, Addresses, party.address, res, function (result, res) {
               if (result) {
                 // success or nothing to do
                 if ((result.status == Consts.HTTP_OK) && (party.address != result.payload._id)) {
@@ -154,7 +154,7 @@ function updateParty (accessCheck, id, req, res, next) {
                   mustSave = true;
                 }
                 
-                updateDocAccessOk(contactFields, ContactDetails, party.contactDetails, req, res, function (result, res) {
+                updateDocAccessOk(contactFields, ContactDetails, party.contactDetails, res, function (result, res) {
                   if (result) {
                     // success or nothing to do
                     if ((result.status == Consts.HTTP_OK) && (party.contactDetails != result.payload._id)) {
@@ -207,10 +207,10 @@ function deleteParty (accessCheck, id, req, res, next) {
       if (!checkError (err, res)) {
         if (party) {
           // delete address
-          removeDocAccessOk(Addresses, party.address, req, res, function (result) {
+          removeDocAccessOk(Addresses, party.address, res, function (result) {
             if (result) {
               // delete contact details
-              removeDocAccessOk(ContactDetails, party.contactDetails, req, res, function (result) {
+              removeDocAccessOk(ContactDetails, party.contactDetails, res, function (result) {
                 if (result) {
                   party.remove(function (err, party) {
                     if (!checkError (err, res)) {

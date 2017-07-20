@@ -52,6 +52,21 @@ function checkError (err, res) {
   return isErr;
 }
 
+// TODO checkError() & errorReply() return different types of error message; standardise!
+
+
+/**
+ * Check a new error
+ * @param {number} status - error status code
+ * @param {string} msg    - erroe message
+ * @returns {object} Error object
+ */
+function newError (status, msg) {
+  var err = new Error(msg);
+  err.status = status;
+  return err;
+}
+
 /**
  * Reply with an error
  * @param {Object} res     - http response
@@ -169,13 +184,12 @@ function updateDoc (accessCheck, fields, model, id, req, res, next) {
  * @param {object} fields                     - object containing updated property values
  * @param {mongoose.Model} model              - model to update doc in
  * @param {mongoose.Schema.Types.ObjectId} id - id of doc to update
- * @param {Object} req                        - http request
  * @param {Object} res                        - http response
  * @param {function} next                     - next function
  */
-function updateDocAccessOk (fields, model, id, req, res, next) {
+function updateDocAccessOk (fields, model, id, res, next) {
 
-  updateDoc (Verify.verifyNoCheck, fields, model, id, req, res, next);
+  updateDoc (Verify.verifyNoCheck, fields, model, id, null, res, next);
 }
 
 /**
@@ -192,15 +206,18 @@ function removeDoc (accessCheck, model, id, req, res, next) {
   doChecks(accessCheck, id, req, res, function () {
 
     model.findByIdAndRemove(id, function (err, doc) {
-      if (err) {
-        errorReply(res, err.status, err.message);
-      } else {
-        // success
-        if (typeof next === 'function') {
-          next(makeResult(Consts.HTTP_OK, doc), res);
+      if (res) {
+        if (err) {
+          errorReply(res, err.status, err.message);
+        } else {
+          // success
+          if (typeof next === 'function') {
+            next(makeResult(Consts.HTTP_OK, doc), res);
+          }
+          // else no callback specified
         }
-        // else no callback specified
       }
+      // else no response object so no reply
     });
   });
 }
@@ -209,13 +226,12 @@ function removeDoc (accessCheck, model, id, req, res, next) {
  * Remove a document without an access check
  * @param {mongoose.Model} model              - model to remove doc from
  * @param {mongoose.Schema.Types.ObjectId} id - id of doc to remove
- * @param {Object} req                        - http request
  * @param {Object} res                        - http response
  * @param {function} next                     - next function
  */
-function removeDocAccessOk (model, id, req, res, next) {
+function removeDocAccessOk (model, id, res, next) {
 
-  removeDoc (Verify.verifyNoCheck, model, id, req, res, next);
+  removeDoc (Verify.verifyNoCheck, model, id, null, res, next);
 }
 
 /**
@@ -743,6 +759,7 @@ function getDocs (req, res, isValidModelPath, root, next, options) {
 
 module.exports = {
   checkError: checkError,
+  newError: newError,
   errorReply: errorReply,
   makeResult: makeResult,
   resultReply: resultReply,

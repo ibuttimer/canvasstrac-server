@@ -22,12 +22,12 @@ var express = require('express'),
   Verify = require('./verify'),
   router_utils = require('./router_utils'),
     checkError = router_utils.checkError,
+    newError = router_utils.newError,
     errorReply = router_utils.errorReply,
     resultReply = router_utils.resultReply,
     populateSubDocsReply = router_utils.populateSubDocsReply,
     makeResult = router_utils.makeResult,
     updateDocAccessOk = router_utils.updateDocAccessOk,
-    removeDoc = router_utils.removeDoc,
     removeDocAccessOk = router_utils.removeDocAccessOk,
     processCountReq = router_utils.processCountReq,
     getDocs = router_utils.getDocs,
@@ -58,168 +58,149 @@ function removeDocuments (personId, addressId, contactId) {
   removeDocAccessOk(ContactDetails, contactId);
 }
 
+/**
+ * Add a person document to the database without an access check
+ * @param {object} rawPerson  Person info to add
+ * @param {Object} res        http response
+ * @param {function} next     next function
+ */
+function createPersonAccessOk (rawPerson, res, next) {
+
+  /* person info arrives as a flattened object */
+  var addressFields = getAddressTemplate(rawPerson),
+    contactFields = getContactDetailsTemplate(rawPerson),
+    // don't exclude owner field'
+    personFields = getPersonTemplate(rawPerson, ['address', 'contactDetails']);
+
+  People.create(personFields, function (err, person) {
+    if (!checkError (err, res)) {
+
+      addressFields.owner = person._id;
+      contactFields.owner = person._id;
+
+      // create address
+      Addresses.create(addressFields, function (err, address) {
+        if (!checkError (err, res)) {
+
+          // create contact details
+          ContactDetails.create(contactFields, function (err, contact) {
+            if (!checkError (err, res)) {
+
+              person.address = address._id;
+              person.contactDetails = contact._id;
+              person.save(function (err, newperson) {
+                if (!checkError (err, res)) {
+                  // success
+                  populateSubDocs(newperson, function (err, doc) {
+                    populateSubDocsReply(err, res, next, doc, Consts.HTTP_CREATED);
+                  });
+                } else {
+                  // tidy up by removing everything
+                  removeDocuments (person._id, address._id, contact._id);
+                  checkError(
+                    newError(Consts.HTTP_INTERNAL_ERROR, 'Unable to save person.'), 
+                    res
+                  );
+                }
+              });
+            } else {
+              // tidy up by removing person & address
+              removeDocuments (person._id, address._id);
+              checkError(
+                newError(Consts.HTTP_INTERNAL_ERROR, 'Unable to create contact details.'), 
+                res
+              );
+            }
+          });
+        } else {
+          // tidy up by removing person
+          removeDocuments (person._id);
+          checkError(
+            newError(Consts.HTTP_INTERNAL_ERROR, 'Unable to create address.'), 
+            res
+          );
+        }
+      });
+    }
+  });
+}
+
+/**
+ * Add a person document to the database
+ * @param {function} accessCheck  Access check function; one of verifyXXX()
+ * @param {Object} req            http request
+ * @param {Object} res            http response
+ * @param {function} next         next function
+ */
 function createPerson (accessCheck, req, res, next) {
 
   accessCheck(req, res, function (err) {
-
     if (err) {
       errorReply(res, err.status, err.message);
-      return;
+    } else {
+      createPersonAccessOk(req.body, res, next);
     }
-    
-    var addressFields = getAddressTemplate(req.body),
-      contactFields = getContactDetailsTemplate(req.body),
-      // don't exclude owner field'
-      personFields = getPersonTemplate(req.body, ['address', 'contactDetails']);
-  
-    People.create(personFields, function (err, person) {
+  });
+}
+
+/**
+ * Update a person document in the database without an access check
+ * @param {string} id         ObjectId of document to update
+ * @param {object} rawPerson  Person info to update
+ * @param {Object} res        http response
+ * @param {function} next     next function
+ */
+function updatePersonAccessOk (id, rawPerson, res, next) {
+
+  var addressFields = getAddressTemplate(rawPerson),
+    contactFields = getContactDetailsTemplate(rawPerson),
+    personFields = getPersonTemplate(rawPerson);
+
+  People.findByIdAndUpdate(id, {
+      $set: personFields
+    }, {
+      new: true // return the modified document rather than the original
+    }, function (err, person) {
       if (!checkError (err, res)) {
+        
+        if (person) {
 
-        addressFields.owner = person._id;
-        contactFields.owner = person._id;
+          var mustSave = false;          
 
-        // create address
-        Addresses.create(addressFields, function (err, address) {
-          if (!checkError (err, res)) {
+          updateDocAccessOk(addressFields, Addresses, person.address, res, function (result, res) {
+            if (result) {
+              // success or nothing to do
+              if ((result.status == Consts.HTTP_OK) && (person.address != result.payload._id)) {
+                // created new document
+                person.address = result.payload._id;
+                mustSave = true;
+              }
+              
+              updateDocAccessOk(contactFields, ContactDetails, person.contactDetails, res, function (result, res) {
+                if (result) {
+                  // success or nothing to do
+                  if ((result.status == Consts.HTTP_OK) && (person.contactDetails != result.payload._id)) {
+                    // created new document
+                    person.contactDetails = result.payload._id;
+                    mustSave = true;
+                  }
 
-            // create contact details
-            ContactDetails.create(contactFields, function (err, contact) {
-              if (!checkError (err, res)) {
-
-                person.address = address._id;
-                person.contactDetails = contact._id;
-                person.save(function (err, newperson) {
-                  if (!checkError (err, res)) {
-                    // success
-                    populateSubDocs(newperson, function (err, doc) {
-                      populateSubDocsReply(err, res, next, doc, Consts.HTTP_CREATED);
+                  if (mustSave) {
+                    // need to save person document
+                    person.save(function (err, updated) {
+                      if (!checkError (err, res)) {
+                        // success
+                        populateSubDocs(updated, function (err, doc) {
+                          populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
+                        });
+                      }
                     });
                   } else {
-                    // tidy up by removing everything
-                    removeDocuments (person._id, address._id, contact._id);
-                    var err = new Error('Unable to save person.');
-                    err.status = Consts.HTTP_INTERNAL_ERROR;
-                    checkError(err, res);
-                  }
-                });
-              } else {
-                // tidy up by removing person & address
-                removeDocuments (person._id, address._id);
-                var err = new Error('Unable to create contact details.');
-                err.status = Consts.HTTP_INTERNAL_ERROR;
-                checkError(err, res);
-              }
-            });
-          } else {
-            // tidy up by removing person
-            removeDocuments (person._id);
-            var err = new Error('Unable to create address.');
-            err.status = Consts.HTTP_INTERNAL_ERROR;
-            checkError(err, res);
-          }
-        });
-      }
-    });
-  });
-}
-
-function updatePerson (accessCheck, id, req, res, next) {
-
-  accessCheck(req, res, function (err) {
-
-    if (err) {
-      errorReply(res, err.status, err.message);
-      return;
-    }
-    
-    var addressFields = getAddressTemplate(req.body),
-      contactFields = getContactDetailsTemplate(req.body),
-      personFields = getPersonTemplate(req.body);
-
-    People.findByIdAndUpdate(id, {
-        $set: personFields
-      }, {
-        new: true // return the modified document rather than the original
-      }, function (err, person) {
-        if (!checkError (err, res)) {
-          
-          if (person) {
-
-            var mustSave = false;          
-
-            updateDocAccessOk(addressFields, Addresses, person.address, req, res, function (result, res) {
-              if (result) {
-                // success or nothing to do
-                if ((result.status == Consts.HTTP_OK) && (person.address != result.payload._id)) {
-                  // created new document
-                  person.address = result.payload._id;
-                  mustSave = true;
-                }
-                
-                updateDocAccessOk(contactFields, ContactDetails, person.contactDetails, req, res, function (result, res) {
-                  if (result) {
-                    // success or nothing to do
-                    if ((result.status == Consts.HTTP_OK) && (person.contactDetails != result.payload._id)) {
-                      // created new document
-                      person.contactDetails = result.payload._id;
-                      mustSave = true;
-                    }
-
-                    if (mustSave) {
-                      // need to save person document
-                      person.save(function (err, updated) {
-                        if (!checkError (err, res)) {
-                          // success
-                          populateSubDocs(updated, function (err, doc) {
-                            populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
-                          });
-                        }
-                      });
-                    } else {
-                      // populate person and return
-                      populateSubDocs(person, function (err, doc) {
-                        populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
-                      });
-                    }                      
-                  }
-                });
-              }
-            });
-          } else {
-            errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown person identifier');
-          }
-       }
-    });
-  });
-}
-
-
-function deletePerson (accessCheck, id, req, res, next) {
-
-  accessCheck(req, res, function (err) {
-
-    if (err) {
-      errorReply(res, err.status, err.message);
-      return;
-    }
-
-    // TODO implement a tree delete
-
-    People.findById(id, function (err, person) {
-      if (!checkError (err, res)) {
-        if (person) {
-          // delete address
-          removeDocAccessOk(Addresses, person.address, req, res, function (result) {
-            if (result) {
-              // delete contact details
-              removeDocAccessOk(ContactDetails, person.contactDetails, req, res, function (result) {
-                if (result) {
-                  person.remove(function (err, person) {
-                    if (!checkError (err, res)) {
-                      // success
-                      next(makeResult(Consts.HTTP_OK, person), res);
-                    }
-                  });
+                    // populate person and return
+                    populateSubDocs(person, function (err, doc) {
+                      populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
+                    });
+                  }                      
                 }
               });
             }
@@ -228,7 +209,82 @@ function deletePerson (accessCheck, id, req, res, next) {
           errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown person identifier');
         }
       }
-    });
+  });
+}
+
+/**
+ * Update a person document in the database
+ * @param {function} accessCheck  Access check function; one of verifyXXX()
+ * @param {string} id             ObjectId of document to update
+ * @param {Object} req            http request
+ * @param {Object} res            http response
+ * @param {function} next         next function
+ */
+function updatePerson (accessCheck, id, req, res, next) {
+
+  accessCheck(req, res, function (err) {
+    if (err) {
+      errorReply(res, err.status, err.message);
+    } else {
+      updatePersonAccessOk(id, req.body, res, next);
+    }
+  });
+}
+
+/**
+ * Delete a person document from the database without an access check
+ * @param {string} id     ObjectId of document to delete
+ * @param {Object} res    http response
+ * @param {function} next next function
+ */
+function deletePersonAccessOk (id, res, next) {
+
+  // TODO implement a tree delete
+
+  People.findById(id, function (err, person) {
+    if (!checkError (err, res)) {
+      if (person) {
+        // delete address
+        removeDocAccessOk(Addresses, person.address, res, function (result) {
+          if (result) {
+            // delete contact details
+            removeDocAccessOk(ContactDetails, person.contactDetails, res, function (result) {
+              if (result) {
+                person.remove(function (err, person) {
+                  if (!checkError (err, res)) {
+                    // success
+                    if (next) {
+                      next(makeResult(Consts.HTTP_OK, person), res);
+                    }
+                  }
+                });
+              }
+            });
+          }
+        });
+      } else {
+        errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown person identifier');
+      }
+    }
+  });
+}
+
+/**
+ * Delete a person document from the database
+ * @param {function} accessCheck  Access check function; one of verifyXXX()
+ * @param {string} id             ObjectId of document to delete
+ * @param {Object} req            http request
+ * @param {Object} res            http response
+ * @param {function} next         next function
+ */
+function deletePerson (accessCheck, id, req, res, next) {
+
+  accessCheck(req, res, function (err) {
+    if (err) {
+      errorReply(res, err.status, err.message);
+    } else {
+      deletePersonAccessOk(id, res, next);
+    }
   });
 }
 
@@ -238,7 +294,8 @@ router.route('/register')
 
   .post(function (req, res) {
 
-    createPerson(Verify.verifyNoCheck, req, res, resultReply);
+    // public api no access check
+    createPersonAccessOk(req.body, res, resultReply);
   });
 
 router.route('/count')
@@ -272,6 +329,9 @@ router.route('/:objId')
 module.exports = {
   router: router,
   createPerson: createPerson,
+  createPersonAccessOk: createPersonAccessOk,
   deletePerson: deletePerson,
-  updatePerson: updatePerson
+  deletePersonAccessOk: deletePersonAccessOk,
+  updatePerson: updatePerson,
+  updatePersonAccessOk: updatePersonAccessOk
 };

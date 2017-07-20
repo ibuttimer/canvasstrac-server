@@ -7,8 +7,8 @@ var mongoose = require('./mongoose_app').mongoose,
   utilsModule = require('../misc/utils'),
     cloneObject = utilsModule.cloneObject,
     utilsIsValidModelPath = utilsModule.isValidModelPath,
-    getUtilsTemplate = utilsModule.getTemplate,
-    getModelPathNames = utilsModule.getModelPathNames;
+    utilsGetTemplate = utilsModule.getTemplate,
+    getModelPathTypes = utilsModule.getModelPathTypes;
 
 /**
  * ModeNode object
@@ -44,8 +44,11 @@ ModelNode.prototype.preorder = function (node, callback) {
     node = this;
   }
   if (node) {
+    // callback on current node
     callback(node);
+    // Traverse the left subtree by recursively calling the pre-order function
     ModelNode.prototype.preorder(node.child, callback);
+    // Traverse the right subtree by recursively calling the pre-order function
     ModelNode.prototype.preorder(node.sibling, callback);
   }
 }
@@ -304,6 +307,24 @@ ModelNode.prototype.getTree = function () {
     tree.push(node);
   });
   return tree;
+}
+
+/**
+  * Get a list of the names & types of paths in a Mongoose schema
+  * @param {object} options - options object with the following properties:
+  *                           @see utils.excludePath() for details
+  */
+ModelNode.prototype.getModelPathTypes = function (options) {
+  var result;
+  this.forEach(function (node) {
+    var pathTypes = getModelPathTypes(node.model, options);
+    if (result === undefined) {
+      result = pathTypes;
+    } else {
+      result[node.path] = pathTypes;
+    }
+  });
+  return result;
 }
 
 ModelNode.prototype.dumpTree = function () {

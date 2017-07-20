@@ -9,8 +9,7 @@ var mongoose = require('./mongoose_app').mongoose,
   QuestionModule = require('./question'),
   utilsModule = require('../misc/utils'),
     utilsIsValidModelPath = utilsModule.isValidModelPath,
-    getUtilsTemplate = utilsModule.getTemplate,
-    getModelPathNames = utilsModule.getModelPathNames,
+    utilsGetTemplate = utilsModule.getTemplate,
   populateSubDocsUtil = require('./model_utils').populateSubDocs,
   questionPopulateOptions = require('./question').getSubDocPopulateOptions;
 
@@ -39,13 +38,13 @@ var modelNode = new ModelNode(model, { populateSubDocs: populateSubDocs });
 
 var modelTree = modelNode.getTree();
 
-/*
+/**
  * Generates a survey template object from the specified source
- * @param{object} source      - object with properties to extract
+ * @param {object} source     - object with properties to extract
  * @param {string[]} exPaths  - array of other paths to exclude
  */
 function getTemplate (source, exPaths) {
-  return getUtilsTemplate(source, model, exPaths);
+  return utilsGetTemplate(source, model, exPaths);
 }
 
 /**

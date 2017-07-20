@@ -8,8 +8,7 @@ var mongoose = require('./mongoose_app').mongoose,
     ModelNode = ModelNodeModule.ModelNode,
   utilsModule = require('../misc/utils'),
     utilsIsValidModelPath = utilsModule.isValidModelPath,
-    getUtilsTemplate = utilsModule.getTemplate,
-    getModelPathNames = utilsModule.getModelPathNames,
+    utilsGetTemplate = utilsModule.getTemplate,
   populateSubDocsUtil = require('./model_utils').populateSubDocs;
 
 // create the address schema
@@ -46,13 +45,22 @@ var modelNode = new ModelNode(model);
 
 var modelTree = modelNode.getTree();
 
-/*
+/**
  * Generates a contactDetails template object from the specified source
  * @param{object} source - object with properties to extract
  * @param {string[]} exPaths  - array of other paths to exclude
  */
 function getTemplate (source, exPaths) {
-  return getUtilsTemplate(source, model, exPaths);
+  return utilsGetTemplate(source, model, exPaths);
+}
+
+/**
+ * Generates a list of model properties & their types
+ * @param {object} options - options object with the following properties:
+ *                           @see utils.excludePath() for details
+ */
+function getModelPathTypes (options) {
+  return modelNode.getModelPathTypes(options);
 }
 
 /**
@@ -107,6 +115,7 @@ module.exports = {
   schema: schema,
   model: model,
   getTemplate: getTemplate,
+  getModelPathTypes: getModelPathTypes,
   isValidModelPath: isValidModelPath,
   getSubDocPopulateOptions: getSubDocPopulateOptions,
   getModelNodeTree: getModelNodeTree,

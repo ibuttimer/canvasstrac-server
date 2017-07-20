@@ -10,7 +10,7 @@ var mongoose = require('./mongoose_app').mongoose,
     QuestionModel = QuestionModule.model,
   utilsModule = require('../misc/utils'),
     utilsIsValidModelPath = utilsModule.isValidModelPath,
-    getUtilsTemplate = utilsModule.getTemplate,
+    utilsGetTemplate = utilsModule.getTemplate,
   questionPopulateOptions = require('./question').getSubDocPopulateOptions,
   populateSubDocsUtil = require('./model_utils').populateSubDocs;
 
@@ -37,13 +37,13 @@ modelNode.addChildBranch(QuestionModule.getModelNodeTree(), 'question');
 
 var modelTree = modelNode.getTree();
 
-/*
+/**
  * Generates an answer template object from the specified source
- * @param{object} source      - object with properties to extract
+ * @param {object} source     - object with properties to extract
  * @param {string[]} exPaths  - array of other paths to exclude
  */
 function getTemplate (source, exPaths) {
-  return getUtilsTemplate(source, model, exPaths);
+  return utilsGetTemplate(source, model, exPaths);
 }
 
 /**

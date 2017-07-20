@@ -9,8 +9,7 @@ var mongoose = require('./mongoose_app').mongoose,
   AddressModule = require('./addresses'),
   utilsModule = require('../misc/utils'),
     utilsIsValidModelPath = utilsModule.isValidModelPath,
-    getUtilsTemplate = utilsModule.getTemplate,
-    getModelPathNames = utilsModule.getModelPathNames,
+    utilsGetTemplate = utilsModule.getTemplate,
   populateSubDocsUtil = require('./model_utils').populateSubDocs;
 
 var schema = new Schema({
@@ -46,9 +45,9 @@ var modelNode = new ModelNode(model, { populateSubDocs: populateSubDocs });
 
 var modelTree = modelNode.getTree();
 
-/*
+/**
  * Generates a party template object from the specified source
- * @param{object} source      - object with properties to extract
+ * @param {object} source     - object with properties to extract
  * @param {string[]} exPaths  - array of other paths to exclude
  */
 function getTemplate (source, exPaths) {
@@ -57,7 +56,7 @@ function getTemplate (source, exPaths) {
     // exclude object ref fields by default
     exPaths = ['address', 'contactDetails'];
   }
-  return getUtilsTemplate(source, model, exPaths);
+  return utilsGetTemplate(source, model, exPaths);
 }
 
 /**

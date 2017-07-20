@@ -37,7 +37,7 @@ define({
   HTTP_NON_AUTH_INFO: 203,      // The returned metainformation in the entity-header is not the definitive set as available from the origin server, but is gathered from a local or a third-party copy.
   HTTP_NO_CONTENT: 204,         // The server has fulfilled the request but does not need to return an entity-body
   HTTP_RESET_CONTENT: 205,      // The server has fulfilled the request and the user agent SHOULD reset the document view which caused the request to be sent.
-  HTTP_PARTIAL_CONENT: 206,     // The server has fulfilled the partial GET request for the resource.ses.
+  HTTP_PARTIAL_CONTENT: 206,    // The server has fulfilled the partial GET request for the resources.
   // Redirection 3xx
   HTTP_MULTIPLE_CHOICES: 300,   // The requested resource corresponds to any one of a set of representations
   HTTP_MOVED_PERMANEMTLY: 301,  // The requested resource has been assigned a new permanent URI and any future references to this resource SHOULD use one of the returned URIs.
@@ -80,14 +80,18 @@ define({
   ROLE_CANVASSER: 60,   // canvasser level access
   ROLE_NONE: 0,         // public level access
 
+  /* menu access privileges take the form similar to linux permissions
+    i.e. durc bits for each group, 
+    e.g. 0x421 is all group create, one group read & own group update */
   // privilege definitions for menu access
   ACCESS_NONE: 0x00,    // no access
   ACCESS_CREATE: 0x01,  // create access
   ACCESS_READ: 0x02,    // read access
   ACCESS_UPDATE: 0x04,  // update access
   ACCESS_DELETE: 0x08,  // delete access
-  ACCESS_BIT_COUNT: 4,  // number of access bits per group
-  ACCESS_MASK: 0x0f,    // map of access bits
+  ACCESS_BATCH: 0x10,   // batch mode access
+  ACCESS_BIT_COUNT: 5,  // number of access bits per group
+  ACCESS_MASK: 0x1f,    // map of access bits
   // ** see below for values quick ref **
 
   ACCESS_ALL: 0x01,     // access all objects group
@@ -109,21 +113,29 @@ define({
     return ((appCode >= FIRST_ACCESS_ERR) && (appCode <= LAST_ACCESS_ERR));
   },
   APPERR_UNKNOWN_ROLE: FIRST_ACCESS_ERR,          // unknown role identifier
-  APPERR_UNKNOWN_ROLE_NTERNAL: FIRST_ACCESS_ERR + 1,// internal error unknown role identifier 
+  APPERR_UNKNOWN_ROLE_INTERNAL: FIRST_ACCESS_ERR + 1,// internal error unknown role identifier 
   APPERR_ROLE_NOPRIVILEGES: FIRST_ACCESS_ERR + 2, // assigned role doesn't have required privileges
   APPERR_USER_URL: FIRST_ACCESS_ERR + 3           // url doesn't match credentials
 
 });
 
 /* privilege values quick ref
- Own   One   Global  Hex    Dec
- crud  crud  crud    0xfff  4095
- ----  crud  crud    0x0ff  255
- -ru-  -ru-  -ru-    0x666  1638
- ----  -ru-  -ru-    0x066  102
- -ru-  -r--  -r--    0x622  1570
- -ru-  ----  ----    0x600  1536
- ----  -r--  -r--    0x022  34
+c: create
+r: read
+u: update
+d: delete
+b: batch
 
+ Own    One    Global   Hex     Dec
+ bdurc  bdurc  bdurc    0x7fff  32767
+ -ur--  durc-  durc-    0x19EF  6639
+ -ur--  durc-  bdurc    0x19FF  6655
+ -----  durc-  durc-    0x01EF  495
+ -ur--  -ur--  -ur--    0x18C6  6342
+ -----  -ur--  -ur--    0x00C6  198
+ -ur--  -r---  -r---    0x1842  6210
+ -ur--  -----  -----    0x1800  6144
+ -r---  -r---  -r---    0x0842  2114
+ -----  -r---  -r---    0x0042  66
 
-*/
+ */

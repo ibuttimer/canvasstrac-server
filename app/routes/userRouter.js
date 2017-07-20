@@ -3,34 +3,41 @@
 
 var express = require('express'),
   passport = require('passport'),
+  http = require('http'),
+  mongoose = require('../models/mongoose_app').mongoose,
   UserModule = require('../models/user'),
     User = UserModule.model,
-    getModelNodeTree = UserModule.getModelNodeTree,
+    getUserModelNodeTree = UserModule.getModelNodeTree,
     getUserTemplate = UserModule.getTemplate,
+    getUserModelPathTypes = UserModule.getModelPathTypes,
     getSubDocPopulateOptions = UserModule.getSubDocPopulateOptions,
     populateSubDocs = UserModule.populateSubDocs,
     isValidModelPath = UserModule.isValidModelPath,
     getProjection = UserModule.getProjection,
-  Roles = require('../models/roles').model,
+  RolesModule = require('../models/roles'),
+    RolesModel = RolesModule.model,
+    getPrivilegePaths = RolesModule.getPrivilegePaths,
   personRouterModule = require('./personRouter'),
-    createPerson = personRouterModule.createPerson,
-    deletePerson = personRouterModule.deletePerson,
-    updatePerson = personRouterModule.updatePerson,
+    createPersonAccessOk = personRouterModule.createPersonAccessOk,
+    deletePersonAccessOk = personRouterModule.deletePersonAccessOk,
+    updatePersonAccessOk = personRouterModule.updatePersonAccessOk,
   ModelNodeModule = require('../models/modelNode'),
     ModelNode = ModelNodeModule.ModelNode,
   Verify = require('./verify'),
   authenticate = require('../authenticate'),
   router_utils = require('./router_utils'),
     checkError = router_utils.checkError,
+    newError = router_utils.newError,
     errorReply = router_utils.errorReply,
     resultReply = router_utils.resultReply,
     populateSubDocsReply = router_utils.populateSubDocsReply,
     makeResult = router_utils.makeResult,
-    removeDoc = router_utils.removeDoc,
     removeDocAccessOk = router_utils.removeDocAccessOk,
     processCountReq = router_utils.processCountReq,
     getDocs = router_utils.getDocs,
-  getError = require('../services/errorService').getError,
+  errorServiceModule = require('../services/errorService'),
+    getError = errorServiceModule.getError,
+    isAppError = errorServiceModule.isAppError,
   utils = require('../misc/utils'),
     find = utils.find,
     cloneObject = utils.cloneObject,
@@ -40,58 +47,97 @@ var express = require('express'),
 
 var router = express.Router();
 
-function createUser (req, res, next) {
+/**
+ * Create a user
+ * @param {Object} req      http request
+ * @param {object} res      response
+ * @param {function} errCheck function to call to check for error
+ * @param {function} next   function to call with result
+ */
+function createUserAccessOk (req, res, errCheck, next) {
 
+  /* need the request object as passport.authenticate() automatically calls 
+     req.login() which together with other function etc. are added to the
+     request object by passport */
+
+  /* user info arrives as a flattened object */
   if (!req.body.password) {
     // if no password supplied, use default
     req.body.password = config.dfltPassword;
   }
 
-  var userFields = getUserTemplate(req.body, ['person']); // only exclude person, as role is required
+  var userFields = getUserTemplate(req.body, ['person']), // only exclude person, as role is required
+    userId = makeUserId(req);
 
   User.register(new User(userFields), req.body.password, function (err, user) {
-    if (!checkError (err, res)) {
+    if (!errCheck(err, res, userId)) {
 
       req.body.owner = user._id; // add person owner field
 
       // create person (no access check as done on route)
-      createPerson(Verify.verifyNoCheck, req, res, function (result, res) {
+      createPersonAccessOk(req.body, res, function (result, res) {
         if (result) {
           // person successfully created
           user.person = result.payload._id;
           user.save(function (err, newuser) {
-            if (!checkError (err, res)) {
+            if (!errCheck(err, res, userId)) {
               // success
-
               passport.authenticate('local')(req, res, function () {
                 // If this function gets called, authentication was successful.
                 // `req.user` contains the authenticated user.
-                
-                
+
                 // success
                 next(makeResult(Consts.HTTP_CREATED, newuser), res);
               });
 
             } else {
               // tidy up by removing everything
-              personRouter.deletePerson(req, user.person, res, function (result, res) { });
+              personRouter.deletePersonAccessOk(user.person, res, function (result, res) { });
               removeDocAccessOk(User, user._id);
-              var err = new Error('Unable to save user.');
-              err.status = Consts.HTTP_INTERNAL_ERROR;
-              checkError(err, res);
+              errCheck(
+                newError(Consts.HTTP_INTERNAL_ERROR, 'Unable to save user.'), 
+                res,
+                userId
+              );
             }
           });
         } else {
           // tidy up by removing user
           removeDocAccessOk(User, user._id);
-          var err = new Error('Unable to create person.');
-          err.status = Consts.HTTP_INTERNAL_ERROR;
-          checkError(err, res);
+          errCheck(
+            newError(Consts.HTTP_INTERNAL_ERROR, 'Unable to create person.'), 
+            res,
+            userId
+          );
         }
       });
     }
   });
 }
+
+function makeUserId (req) {
+  var strs = [];
+  [req.body.username, req.body.firstname, req.body.lastname].forEach(function (str) {
+    strs.push(str.slice());
+  })
+  return strs.join('/');
+}
+
+function createUser (roleQuery, req, res, errCheck, next) {
+  RolesModel.findOne(roleQuery, function (err, role) {
+    if (!errCheck(err, res)) {
+      if (role === null) {
+        errCheck(getError(Consts.APPERR_UNKNOWN_ROLE_INTERNAL), res);
+      } else {
+        req.body.role = role._id;
+
+        createUserAccessOk(req, res, errCheck, next);
+      }
+    }
+  });
+}
+
+
 
 function updateUser (id, req, res, next) {
 
@@ -104,7 +150,7 @@ function updateUser (id, req, res, next) {
     }, function (err, user) {
       if (!checkError (err, res)) {
         // update person (no access check sd done on route)
-        updatePerson(Verify.verifyNoCheck, user.person, req, res, function (result, res) {
+        updatePersonAccessOk(user.person, req.body, res, function (result, res) {
           if (result) {
             // success
             populateSubDocs(user, function (err, doc) {
@@ -120,16 +166,18 @@ function updateUser (id, req, res, next) {
 function deleteUser (id, req, res, next) {
 
   User.findById(id, function (err, doc) {
-    if (!checkError (err, res)) {
+    if (!checkError(err, res)) {
       if (doc) {
         // delete person  (no access check sd done on route)
-        deletePerson(Verify.verifyNoCheck, doc.person, req, res, function (result, res) {
+        deletePersonAccessOk(doc.person, res, function (result, res) {
           if (result) {
             // success
             doc.remove(function (err, doc) {
-              if (!checkError (err, res)) {
+              if (!checkError(err, res)) {
                 // success
-                next(makeResult(Consts.HTTP_OK, doc), res);
+                if (next) {
+                  next(makeResult(Consts.HTTP_OK, doc), res);
+                }
               }
             });
           }
@@ -149,7 +197,7 @@ router.route('/')
 
   .get(Verify.verifyAdmin, function (req, res, next) {
 
-    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply, {
+    getDocs(req, res, isValidModelPath, getUserModelNodeTree(), resultReply, {
       projection: getProjection()
     }); 
   })
@@ -157,36 +205,14 @@ router.route('/')
   .post(Verify.verifyAdmin, function (req, res) {
 
     // admin access point
-    Roles.findOne({'_id': req.body.role}, function (err, role) {
-      if (err) {
-        return res.status(Consts.HTTP_INTERNAL_ERROR).json({err: err});
-      }
-      if (role === null) {
-        checkError(getError(Consts.APPERR_UNKNOWN_ROLE_NTERNAL), res);
-        return;
-      }
-
-      createUser(req, res, resultReply);
-     });
+    createUser({'_id': req.body.role}, req, res, checkError, resultReply);
    });
 
 
 router.post('/register', function (req, res) {
   
   // public access point
-  Roles.findOne({'level': Consts.ROLE_NONE}, function (err, role) {
-    if (err) {
-      return res.status(Consts.HTTP_INTERNAL_ERROR).json({err: err});
-    }
-    if (role === null) {
-      checkError(getError(Consts.APPERR_UNKNOWN_ROLE_NTERNAL), res);
-      return;
-    }
-
-    req.body.role = role._id;
-
-    createUser(req, res, resultReply);
-  });
+  createUser({'level': Consts.ROLE_NONE}, req, res, checkError, resultReply);
 });
 
 router.post('/login', function (req, res, next) {
@@ -214,43 +240,47 @@ router.post('/login', function (req, res, next) {
         "src": req.body.src
       }, getTokenLife(req));
 
-      Roles.findOne({'_id': user.role}, function (err, role) {
+      // retrieve functionality access masks
+      RolesModel.findOne({'_id': user.role}, function (err, role) {
         if (err) {
           return res.status(Consts.HTTP_INTERNAL_ERROR).json({err: err});
         }
         if (role === null) {
-          checkError(getError(Consts.APPERR_UNKNOWN_ROLE_NTERNAL), res);
+          checkError(getError(Consts.APPERR_UNKNOWN_ROLE_INTERNAL), res);
         } else {
-          res.status(Consts.HTTP_OK).json({
+          var payload = addTokenToPayload({
             message: 'Login successful!',
             success: true,
-            token: token.token,
-            expires: token.expires,
-            votingsys: role.votingsys,
-            roles: role.roles,
-            users: role.users,
-            elections: role.elections,
-            candidates: role.candidates,
-            canvasses: role.canvasses,
             id: user._id
+          }, token);
+
+          // add functionality access masks
+          getPrivilegePaths().forEach(function (path) {
+            payload[path] = role[path];
           });
+
+          res.status(Consts.HTTP_OK).json(payload);
         }
       });
     });
   })(req, res, next);
 });
 
+function addTokenToPayload (payload, token) {
+  payload.token = token.token;
+  payload.expires = token.expires;
+  return payload;
+}
+
 router.route('/token/:objId')
 
   .get(Verify.verifySelf, function (req, res, next) {
     var token = Verify.refreshToken(Verify.extractToken(req), getTokenLife(req));
-    
-    res.status(Consts.HTTP_OK).json({
-      message: 'Token refresh successful!',
-      success: true,
-      token: token.token,
-      expires: token.expires
-    });
+
+    res.status(Consts.HTTP_OK).json(addTokenToPayload({
+        message: 'Token refresh successful!',
+        success: true,
+      }, token));
   });
 
 router.get('/logout', function (req, res) {
@@ -300,6 +330,94 @@ router.route('/count')
     processCountReq (req, res, isValidModelPath, User);
   });
 
+router.route('/batch')
+
+  .post(Verify.verifyHasAdminAccess, function (req, res, next) {
+
+    var userBatch = req.body.user,
+      result = {
+        created: 0,
+        failed: 0,
+        errors: []
+      },
+      sendResult = function (todoCnt, resInfo, res) {
+        if ((resInfo.created + resInfo.failed) === todoCnt) {
+          var status;
+          if (resInfo.created === todoCnt) {
+            status = Consts.HTTP_CREATED;
+          } else if (resInfo.failed === todoCnt) {
+            status = Consts.HTTP_BAD_REQUEST;
+          } else {
+            status = Consts.HTTP_PARTIAL_CONTENT;
+          }
+          res.status(status).json(resInfo);
+        }
+      };
+
+    // if user batch object & create array
+    if (userBatch && Array.isArray(userBatch.create)) {
+        var delProps = getUserModelPathTypes({
+          exVersionId: true,
+          exTimestamp: true,
+          exTypes: [mongoose.Schema.Types.ObjectId.schemaName]
+        }),
+        rmProp = function (props, from) {
+          for (var prop in props) {
+            if (typeof props[prop] === 'object') {
+              rmProp(props[prop], from);
+            } else {
+              delete from[prop];
+            }
+          }
+        };
+
+        userBatch.create.forEach(function (user, index, array) {
+          var userReq = new http.IncomingMessage(), // new http request to handle creation
+            query;
+
+          // add the missing bits
+          userReq.body = {};
+          userReq._passport = req._passport;
+          Object.assign(userReq.body, user);  // merge user info
+
+          if (user.role) {
+            query = {'name': user.role};
+          } else {
+            query = {'level': Consts.ROLE_NONE};
+          }
+
+          createUser(query, userReq, res, 
+            // error check function
+            function (err, res, userId) {
+              var isErr = false;
+              if (err) {
+                isErr = true;
+                ++result.failed;
+                result.errors.push({
+                  name: err.name,
+                  message: err.message,
+                  user: userId
+                });
+                sendResult(array.length, result, res);
+              }
+              return isErr;
+            }, 
+            // next function
+            function (opResult, res) {
+              if (opResult) {
+                // success
+                ++result.created;
+                sendResult(array.length, result, res);
+              }
+            }
+        );
+      });
+    } else {
+      // nothing to do
+      res.status(Consts.HTTP_NO_CONTENT);
+    }
+  });
+
 
 /* get/update/delete individual users
   NOTE: needs to be here, i.e. after 'facebook' etc. otherwise 'facebook' is matched as 'objId' */
@@ -308,7 +426,7 @@ router.route('/:objId')
   .get(Verify.verifySelfOrAdmin, function (req, res, next) {
     // only admin or the user themselves may access their user info
 
-    getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply, {
+    getDocs(req, res, isValidModelPath, getUserModelNodeTree(), resultReply, {
       projection: getProjection(),
       objName: 'user'
     }); 

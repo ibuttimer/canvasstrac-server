@@ -17,7 +17,7 @@ var Consts = require('../consts'),
     { message: 'Unknown role. You are not authorized to perform this operation!',
       status: Consts.HTTP_FORBIDDEN, appCode: Consts.APPERR_UNKNOWN_ROLE },
     { message: 'Unknown role.',
-      status: Consts.HTTP_INTERNAL_ERROR, appCode: Consts.APPERR_UNKNOWN_ROLE_NTERNAL },
+      status: Consts.HTTP_INTERNAL_ERROR, appCode: Consts.APPERR_UNKNOWN_ROLE_INTERNAL },
     { message: 'You are not authorized to perform this operation!',
       status: Consts.HTTP_FORBIDDEN, appCode: Consts.APPERR_ROLE_NOPRIVILEGES },
     { message: 'You are not authorized to perform this operation!',
@@ -33,6 +33,7 @@ errors.sort(function (a, b) {
  * @param {string} message Error message
  * @param {number} status Http status
  * @param {number} appCode Application error code
+ * @return {object} Error object
  */
 function makeError (message, status, appCode) {
   var error = new Error(message);
@@ -42,10 +43,9 @@ function makeError (message, status, appCode) {
 }
 
 /**
- * Verify a JSON web token
- * @param{object} token   - token to verify
- * @param{object} res     - response
- * @param{function} next  - function to call with result
+ * Generate an app error object
+ * @param {number} appCode Application error code
+ * @return {object} Error object
  */
 function getError(appCode) {
   var error = cache[appCode];
@@ -63,8 +63,19 @@ function getError(appCode) {
   return error;
 }
 
+/**
+ * Chec if an error object is an app error
+ * @param {object} error  Error object
+ * @return {object} Error object
+ */
+function isAppError(error) {
+  return ((toString.call(error) === '[object Error]') &&
+            error.appCode);
+}
+
 module.exports = {
-  getError: getError
+  getError: getError,
+  isAppError: isAppError
 };
 
 

@@ -8,8 +8,6 @@
         load("canvasstrac-server/dev/dbSetup.js")
 */
 
-//var db = connect('localhost:27017/canvassTrac');
-
 function testEquality(objA, objB, properties) {
   var equal = true;
   for (var i = 0; (i < properties.length) && equal; ++i) {
@@ -47,28 +45,132 @@ var Roles = {
   ROLE_STAFF: 70,       // staff level access
   ROLE_CANVASSER: 60,   // canvasser level access
   ROLE_NONE: 0          // public level access
+},
+// menu access consts copied from consts.js
+ACCESS = {
+  ACCESS_NONE: 0x00,    // no access
+  ACCESS_CREATE: 0x01,  // create access
+  ACCESS_READ: 0x02,    // read access
+  ACCESS_UPDATE: 0x04,  // update access
+  ACCESS_DELETE: 0x08,  // delete access
+  ACCESS_BATCH: 0x10,   // batch mode access
+  ACCESS_BIT_COUNT: 5,  // number of access bits per group
+  ACCESS_MASK: 0x1f,    // map of access bits
+  // ** see below for values quick ref **
+
+  ACCESS_ALL: 0x01,     // access all objects group
+  ACCESS_ONE: 0x02,     // access single object group
+  ACCESS_OWN: 0x04,     // access own object group
+  ACCESS_GROUPMASK: 0x07,// map of access group bits
 };
+
+function makePrivilegeMask (all, one, own) {
+  var mask = ACCESS.ACCESS_NONE,
+    priv,
+    shift,
+    map = {};
+  map[ACCESS.ACCESS_ALL] = all;
+  map[ACCESS.ACCESS_ONE] = one;
+  map[ACCESS.ACCESS_OWN] = own;
+
+  for (var grp = ACCESS.ACCESS_ALL, shift = 0; 
+            (grp & ACCESS.ACCESS_GROUPMASK) != 0; grp <<= 1, shift += ACCESS.ACCESS_BIT_COUNT) {
+    priv = map[grp];
+    if (priv) {
+      for (var i = 0, ll = priv.length; i < ll; ++i) {
+        switch (priv.charAt(i).toLowerCase()) {
+          case 'c':
+            mask |= (ACCESS.ACCESS_CREATE << shift);
+            break;
+          case 'r':
+            mask |= (ACCESS.ACCESS_READ << shift);
+            break;
+          case 'u':
+            mask |= (ACCESS.ACCESS_UPDATE << shift);
+            break;
+          case 'd':
+            mask |= (ACCESS.ACCESS_DELETE << shift);
+            break;
+          case 'b':
+            mask |= (ACCESS.ACCESS_BATCH << shift);
+            break;
+        }
+      }
+    }
+  }
+  return mask;
+}
+
 var predefRoles = [
-  { name: "Administrator", level: Roles.ROLE_ADMIN },
-  { name: "Manager", level: Roles.ROLE_MANAGER },
-  { name: "Group Leader", level: Roles.ROLE_GROUP_LEAD },
-  { name: "Staff", level: Roles.ROLE_STAFF },
-  { name: "Canvasser", level: Roles.ROLE_CANVASSER },
-  { name: "None", level: Roles.ROLE_NONE },
+  { name: "Administrator", level: Roles.ROLE_ADMIN,
+    //                               all     one     own
+    votingsysPriv: makePrivilegeMask('crud', 'crud', ''),
+    rolesPriv: makePrivilegeMask('crud', 'crud', ''),
+    usersPriv: makePrivilegeMask('crudb', 'crud', 'ru'),
+    electionsPriv: makePrivilegeMask('crud', 'crud', ''),
+    candidatesPriv: makePrivilegeMask('crud', 'crud', ''),
+    canvassesPriv: makePrivilegeMask('crud', 'crud', '')
+  },
+  { name: "Manager", level: Roles.ROLE_MANAGER,
+    //                               all     one     own
+    votingsysPriv: makePrivilegeMask('crud', 'crud', ''),
+    rolesPriv: makePrivilegeMask('ru', 'ru', ''),
+    usersPriv: makePrivilegeMask('crud', 'crud', 'ru'),
+    electionsPriv: makePrivilegeMask('crud', 'crud', ''),
+    candidatesPriv: makePrivilegeMask('crud', 'crud', ''),
+    canvassesPriv: makePrivilegeMask('crud', 'crud', '')
+  },
+  { name: "Group Leader", level: Roles.ROLE_GROUP_LEAD,
+    //                               all     one     own
+    votingsysPriv: makePrivilegeMask('crud', 'crud', ''),
+    rolesPriv: makePrivilegeMask('r', 'r', ''),
+    usersPriv: makePrivilegeMask('crud', 'crud', 'ru'),
+    electionsPriv: makePrivilegeMask('crud', 'crud', ''),
+    candidatesPriv: makePrivilegeMask('crud', 'crud', ''),
+    canvassesPriv: makePrivilegeMask('crud', 'crud', '')
+  },
+  { name: "Staff", level: Roles.ROLE_STAFF,
+    //                               all     one     own
+    votingsysPriv: makePrivilegeMask('crud', 'crud', ''),
+    rolesPriv: makePrivilegeMask('r', 'r', ''),
+    usersPriv: makePrivilegeMask('ru', 'ru', 'ru'),
+    electionsPriv: makePrivilegeMask('crud', 'crud', ''),
+    candidatesPriv: makePrivilegeMask('crud', 'crud', ''),
+    canvassesPriv: makePrivilegeMask('crud', 'crud', '')
+  },
+  { name: "Canvasser", level: Roles.ROLE_CANVASSER,
+    //                               all     one     own
+    votingsysPriv: makePrivilegeMask('r', 'r', ''),
+    rolesPriv: makePrivilegeMask('r', 'r', ''),
+    usersPriv: makePrivilegeMask('r', 'r', 'ru'),
+    electionsPriv: makePrivilegeMask('r', 'r', ''),
+    candidatesPriv: makePrivilegeMask('r', 'r', ''),
+    canvassesPriv: makePrivilegeMask('r', 'r', '')
+  },
+  { name: "None", level: Roles.ROLE_NONE,
+    //                               all     one     own
+    votingsysPriv: makePrivilegeMask('r', 'r', ''),
+    rolesPriv: makePrivilegeMask('r', 'r', ''),
+    usersPriv: makePrivilegeMask('r', 'r', 'ru'),
+    electionsPriv: makePrivilegeMask('r', 'r', ''),
+    candidatesPriv: makePrivilegeMask('r', 'r', ''),
+    canvassesPriv: makePrivilegeMask('r', 'r', '')
+  },
 ];
+
 var rolesCollect = db.roles;
 
 var deleted = 0,
   created = 0,
-  processed = 0;
+  updated = 0;
 predefRoles.forEach(function (predef, index, array) {
   var cursor = rolesCollect.find({"level": predef.level});
   if (cursor.hasNext()) {
     // exists in database
     var dbObj = cursor.next();
     rolesCollect.findOneAndUpdate({"level": predef.level}, 
-                              {$set: {"name": predef.name}});
-    ++processed;
+                              {$set: predef});
+    ++updated;
   } else {
     // create
     rolesCollect.insert(predef);
@@ -95,7 +197,7 @@ list.forEach(function (item, index, array) {
   var res = rolesCollect.deleteOne({"_id": item});
   deleted += res.deletedCount;
 });
-print("Roles: processed " + processed + ", created " + created + ", deleted " + deleted);
+print("Roles: updated " + updated + ", created " + created + ", deleted " + deleted);
 
 
 /* Voting systems initialisation */
@@ -113,9 +215,7 @@ var predefVotingSystems = [
 ];
 var votingSysCollect = db.votingsystems;
 
-deleted = 0;
-created = 0;
-processed = 0;
+deleted = created = updated = 0;
 predefVotingSystems.forEach(function (predef, index, array) {
   var findParam = {"abbreviation": predef.abbreviation};
   var cursor = votingSysCollect.find(findParam);
@@ -124,7 +224,7 @@ predefVotingSystems.forEach(function (predef, index, array) {
     var dbObj = cursor.next();
     votingSysCollect.findOneAndUpdate({"abbreviation": predef.abbreviation}, 
                               {$set: {"name": predef.name, "description": predef.description, "preferenceLevels": predef.napreferenceLevelsme}});
-    ++processed;
+    ++updated;
   } else {
     // create
     votingSysCollect.insert(predef);
@@ -134,24 +234,29 @@ predefVotingSystems.forEach(function (predef, index, array) {
 
   array[index]._id = cursor._id;  // save for later
 });
-print("Voting systems: processed " + processed + ", created " + created + ", deleted " + deleted);
+print("Voting systems: updated " + updated + ", created " + created + ", deleted " + deleted);
 
+
+var USA = 'United States of America (USA)';
 
 /* Political parties initialisation */
 var predefParties = [
   { party: {
       name: 'Conserative Party',
       description: 'A political party of those of a conserative nature.',
-      note: 'Very popular with conseratives!'
+      note: 'Very popular with conseratives, according to https://www.forbes.com/pictures/gfii45img/most-conservative-no-1/#591397af792a'
     },
     addr: {
-      addrLine1: '1 Nochange St.',
-      addrLine2: 'Statusquoville',
-      addrLine3: 'Plus ca change',
-      town: 'Con town',
-      city: 'Serve city',
-      county: 'Ative County',
-      postcode: 'C1'
+      addrLine1: '1313 East Baseline Road',
+      addrLine2: '',
+      addrLine3: '',
+      town: 'Gilbert',
+      city: '',
+      county: '',
+      state: 'Arizona',
+      postcode: 'AZ 85233',
+      country: USA,
+      gps: '33.3777623,-111.80334390000002'
     },
     contact: {
       phone: '123-456-123456789',
@@ -165,16 +270,19 @@ var predefParties = [
   { party: {
       name: 'Progressive Party',
       description: 'A political party of those of a progressive nature.',
-      note: 'Very popular with non-conseratives!'
+      note: 'Very popular with non-conseratives, according to https://www.forbes.com/pictures/gfii45img/most-liberal-no-1/#4e1f6dcc5c41'
     },
     addr: {
-      addrLine1: '99 Allchange St.',
-      addrLine2: 'Progressus Hill',
-      addrLine3: 'Progressio',
-      town: 'Prog town',
-      city: 'Ress city',
-      county: 'Ive County',
-      postcode: 'P1'
+      addrLine1: '1000 Lombard Street',
+      addrLine2: '',
+      addrLine3: '',
+      town: '',
+      city: 'San Francisco',
+      county: '',
+      state: 'California',
+      postcode: 'CA 94109',
+      country: USA,
+      gps: '37.802458,-122.418207'
     },
     contact: {
       phone: '123-987-987654321',
@@ -188,16 +296,19 @@ var predefParties = [
   { party: {
       name: 'Apathy Party',
       description: 'A political party of those who do not care about politics.',
-      note: 'Very popular with no-one as they do not care about politics.'
+      note: 'Very popular with no-one as they do not care about politics, according to https://www.forbes.com/2010/11/02/cities-stress-quality-of-life-lifestyle-real-estate-relaxed_slide_11.html'
     },
     addr: {
-      addrLine1: '149 Wherever St.',
-      addrLine2: 'Indifferent Court',
-      addrLine3: 'Carenot',
-      town: 'Ap town',
-      city: 'At city',
-      county: 'Hy County',
-      postcode: 'A1'
+      addrLine1: '1000 Summit Avenue',
+      addrLine2: '',
+      addrLine3: '',
+      town: '',
+      city: 'Saint Paul',
+      county: '',
+      state: 'Minnesota',
+      postcode: 'MN 55105',
+      country: USA,
+      gps: '44.9413888,-93.14269200000001'
     },
     contact: {
       phone: '123-001-112233445',
@@ -215,15 +326,18 @@ var contactCollect = db.contactdetails;
 
 partiesCollect.drop();
 
-function insertOrUpdate(collection, existingId, doc, ownerId) {
+function insertOrUpdate(collection, existingId, doc, ownerId, dbg) {
   var result = {};
+  if (dbg) {
+    print('existingId', existingId);
+    printjson(doc);
+  }
   if (existingId) {
-
-  print('existingId', existingId);
-  printjson(doc);
-    
     var doc = collection.findOneAndUpdate({_id: existingId}, {$set: doc}, {returnNewDocument: true});
-  print('doc', doc);
+    if (dbg) {
+      print('found');
+      printjson(doc);
+    }
     if (doc) {
       result._id = existingId;
       result.action = 'update';
@@ -247,14 +361,14 @@ function insertOrUpdate(collection, existingId, doc, ownerId) {
       result.action = 'notinserted';
     }
   }
-  print('result', result);
-  
+  if (dbg) {
+    print('result');
+    printjson(result);
+  }  
   return result;
 }
 
-deleted = 0;
-created = 0;
-processed = 0;
+deleted = created = updated = 0;
 predefParties.forEach(function (predef, index, array) {
   var findParam = {"name": predef.party.name};
   var cursor = partiesCollect.find(findParam);
@@ -262,7 +376,7 @@ predefParties.forEach(function (predef, index, array) {
     // exists in database
     var dbObj = cursor.next();
     partiesCollect.findOneAndUpdate(findParam, {$set: predef.party});
-    ++processed;
+    ++updated;
   } else {
     // create
     partiesCollect.insert(predef.party);
@@ -286,7 +400,7 @@ predefParties.forEach(function (predef, index, array) {
     partiesCollect.findOneAndUpdate(findParam,{$set: need2update});
   }
 });
-print("Political parties: processed " + processed + ", created " + created + ", deleted " + deleted);
+print("Political parties: updated " + updated + ", created " + created + ", deleted " + deleted);
 
 
 /* Candidates initialisation
@@ -297,13 +411,16 @@ var predefCandidates = [
       lastname: 'Slowchange'
     }, 
     addr: {
-      addrLine1: '2 Nochange St.',
-      addrLine2: 'Statusquoville',
-      addrLine3: 'Plus ca change',
-      town: 'Con town',
-      city: 'Serve city',
-      county: 'Ative County',
-      postcode: 'C1'
+      addrLine1: '1314 East Baseline Road',
+      addrLine2: '',
+      addrLine3: '',
+      town: 'Gilbert',
+      city: '',
+      county: '',
+      state: 'Arizona',
+      postcode: 'AZ 85233',
+      country: USA,
+      gps: '33.3790239,-111.80260929999997'
     },
     contact: {
       phone: '123-456-012345678',
@@ -319,13 +436,16 @@ var predefCandidates = [
       lastname: 'Allchange'
     },
     addr: {
-      addrLine1: '100 Allchange St.',
-      addrLine2: 'Progressus Hill',
-      addrLine3: 'Progressio',
-      town: 'Prog town',
-      city: 'Ress city',
-      county: 'Ive County',
-      postcode: 'P1'
+      addrLine1: '1010 Lombard Street',
+      addrLine2: '',
+      addrLine3: '',
+      town: '',
+      city: 'San Francisco',
+      county: '',
+      state: 'California',
+      postcode: 'CA 94109',
+      country: USA,
+      gps: '37.802377,-122.41837620000001'
     },
     contact: {
       phone: '123-987-098765432',
@@ -341,13 +461,16 @@ var predefCandidates = [
       lastname: 'Care'
     },
     addr: {
-      addrLine1: '150 Wherever St.',
-      addrLine2: 'Indifferent Court',
-      addrLine3: 'Carenot',
-      town: 'Ap town',
-      city: 'At city',
-      county: 'Hy County',
-      postcode: 'A1'
+      addrLine1: '1001 Summit Avenue',
+      addrLine2: '',
+      addrLine3: '',
+      town: '',
+      city: 'Saint Paul',
+      county: '',
+      state: 'Minnesota',
+      postcode: 'MN 55105',
+      country: USA,
+      gps: '44.9413864,-93.14224089999999'
     },
     contact: {
       phone: '123-001-011223344',
@@ -365,11 +488,11 @@ var peopleCollect = db.people;
 
 /* TODO: sort out find for subdoc or redesign schema, probably need to redesign
   as currently a candidate just holds references to a person & party */
-candidatesCollect.drop();   // just for now, may need to redo schemas
 
-deleted = 0;
-created = 0;
-processed = 0;
+deleted = candidatesCollect.count();
+created = updated = 0;
+
+candidatesCollect.drop();   // just for now, may need to redo schemas
 
 predefCandidates.forEach(function (predef, index, array) {
   
@@ -379,7 +502,7 @@ predefCandidates.forEach(function (predef, index, array) {
     // exists in database
     var dbObj = cursor.next();
     peopleCollect.findOneAndUpdate(findParam, {$set: predef.person});
-    ++processed;
+    ++updated;
   } else {
     // create
     peopleCollect.insert(predef.person);
@@ -410,8 +533,7 @@ predefCandidates.forEach(function (predef, index, array) {
     ++created;
   }
 });
-print("Candidates: processed " + processed + ", created " + created + ", deleted " + deleted);
-
+print("Candidates: updated " + updated + ", created " + created + ", deleted " + deleted);
 
 /* Election initialisation */
 var predefElections = [
@@ -424,11 +546,11 @@ var predefElections = [
 ];
 var electionsCollect = db.elections;
 
+deleted = electionsCollect.count();
+created = updated = 0;
+
 electionsCollect.drop();
 
-deleted = 0;
-created = 0;
-processed = 0;
 predefElections.forEach(function (predef, index, array) {
   
   predef.candidates = [];
@@ -442,57 +564,51 @@ predefElections.forEach(function (predef, index, array) {
     ++created;
   }
 });
-print("Elections: processed " + processed + ", created " + created + ", deleted " + deleted);
+print("Elections: updated " + updated + ", created " + created + ", deleted " + deleted);
 
 
 
-// /* Address initialisation */
-// var predefStreets = [
-//   'Orange', 'Avacado', 'Lime', 'Pineapple', 'Apple', 'Banana', 'Grape'
-// ];
-// var predefTowns = [
-//   'Fruit town', 'One-of-Five town'
-// ];
-// var predefCities = [
-//   { "city": 'Citrus city', "county": 'Citrus County' },
-//   { "city": 'Fruity city', "county": 'Fruit County' }
-// ];
+/* Address initialisation */
+var predefAddresses = [
+  {
+    addr: {
+      addrLine1: 'Hollywood Boulevard',
+      addrLine2: '',
+      addrLine3: '',
+      town: '',
+      city: 'Los Angeles',
+      county: '',
+      state: 'California',
+      postcode: 'CA 90028',
+      country: USA,
+      gps: ''
+    },
+    houses: [
+      6170, 6172, 6174, 6176, 6178, 6180
+    ]
+  }
+];
 
-// deleted = 0;
-// created = 0;
-// processed = 0;
-// predefCities.forEach(function (city, cidx) {
-//   predefTowns.forEach(function (town, tidx) {
-//     predefStreets.forEach(function (street, sidx) {
-//       for (var num = 1; num < 10; ++num) {
-//         var addr = {
-//           "addrLine1": num + ' ' + street + ' St.',
-//           "addrLine2": street + 'ville',
-//           "addrLine3": street,
-//           "town": town,
-//           "city": city.county,
-//           "county": city.city,
-//           "postcode": 'P' + sidx + '-' + tidx + '-' + cidx
-//         };
-//         var cursor = addressCollect.find({"postcode": addr.postcode});
-//         if (cursor.hasNext()) {
-//           // exists in database
-//           var dbObj = cursor.next();
-//           addressCollect.findOneAndUpdate({"postcode": addr.postcode}, {$set: addr});
-//           ++processed;
-//         } else {
-//           // create
-//           addressCollect.insert(addr);
-//           ++created;
-//         }
-//       }  
-//     });
-//   });
-// });
+deleted = created = updated = 0;
+predefAddresses.forEach(function (predef, index, array) {
+  predef.houses.forEach(function (hseNum) {
 
-// print("Addresses: processed " + processed + ", created " + created + ", deleted " + deleted);
+    var addr = Object.assign({}, predef.addr);
+    addr.addrLine1 = hseNum + ' ' + addr.addrLine1;
 
-
-
-
+    var findParam = {"addrLine1": addr.addrLine1};
+    var cursor = addressCollect.find(findParam);
+    if (cursor.hasNext()) {
+      // exists in database
+      var dbObj = cursor.next();
+      addressCollect.findOneAndUpdate(findParam, {$set: addr});
+      ++updated;
+    } else {
+      // create
+      addressCollect.insert(addr);
+      ++created;
+    }
+  });
+});
+print("Addresses: updated " + updated + ", created " + created + ", deleted " + deleted);
 

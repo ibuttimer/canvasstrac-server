@@ -8,8 +8,8 @@ var mongoose = require('./mongoose_app').mongoose,
     ModelNode = ModelNodeModule.ModelNode,
   utilsModule = require('../misc/utils'),
     utilsIsValidModelPath = utilsModule.isValidModelPath,
-    getUtilsTemplate = utilsModule.getTemplate,
-    getModelPathNames = utilsModule.getModelPathNames,
+    utilsGetModelPathNames = utilsModule.getModelPathNames,
+    utilsGetTemplate = utilsModule.getTemplate,
   populateSubDocsUtil = require('./model_utils').populateSubDocs;
 
 // create the address schema
@@ -23,46 +23,61 @@ var schema = new Schema({
     min: 0,
     required: true
   },
-  votingsys: {  // see Consts.ACCESS_CREATE etc. for values
+  // NOTE: naming standard for privilege fields is 'xxxPriv'
+  votingsysPriv: {  // see Consts.ACCESS_CREATE etc. for values
     type: Number,
     min: 0
   },
-  roles: {    // see Consts.ACCESS_CREATE etc. for values
+  rolesPriv: {    // see Consts.ACCESS_CREATE etc. for values
     type: Number,
     min: 0
   },
-  users: {    // see Consts.ACCESS_CREATE etc. for values
+  usersPriv: {    // see Consts.ACCESS_CREATE etc. for values
     type: Number,
     min: 0
   },
-  elections: {  // see Consts.ACCESS_CREATE etc. for values
+  electionsPriv: {  // see Consts.ACCESS_CREATE etc. for values
     type: Number,
     min: 0
   },
-  candidates: {  // see Consts.ACCESS_CREATE etc. for values
+  candidatesPriv: {  // see Consts.ACCESS_CREATE etc. for values
     type: Number,
     min: 0
   },
-  canvasses: {  // see Consts.ACCESS_CREATE etc. for values
+  canvassesPriv: {  // see Consts.ACCESS_CREATE etc. for values
     type: Number,
     min: 0
   }
 });
 
 // create a model using schema &
-var model = mongoose.model('Role', schema);
+var model = mongoose.model('Role', schema),
+  modelNode = new ModelNode(model),
+  modelTree = modelNode.getTree(),
+  privilegePaths = utilsGetModelPathNames(model, {
+    exVersionId: true,
+    exTimestamp: true,
+    exFunc: function (path, type) {
+      return !path.endsWith('Priv');  // exclude if doesn't end to 'Priv'
+    }
+  });
 
-var modelNode = new ModelNode(model);
-
-var modelTree = modelNode.getTree();
-
-/*
+/**
  * Generates a role template object from the specified source
- * @param{object} source      - object with properties to extract
+ * @param {object} source     - object with properties to extract
  * @param {string[]} exPaths  - array of other paths to exclude
  */
 function getTemplate (source, exPaths) {
-  return getUtilsTemplate(source, model, exPaths);
+  return utilsGetTemplate(source, model, exPaths);
+}
+
+/**
+ * Generates a list of model properties & their types
+ * @param {object} options - options object with the following properties:
+ *                           @see utils.excludePath() for details
+ */
+function getModelPathTypes (options) {
+  return modelNode.getModelPathTypes(options);
 }
 
 /**
@@ -112,13 +127,23 @@ function populateSubDocs (docs, next) {
   populateSubDocsUtil(model, docs, getSubDocPopulateOptions(), next);
 }
 
+/**
+ * Get the names of privilege related paths in this model
+ * @returns {string[]} names of paths
+ */
+function getPrivilegePaths () {
+  return privilegePaths;
+}
+
 
 module.exports = {
   schema: schema,
   model: model,
   getTemplate: getTemplate,
+  getModelPathTypes: getModelPathTypes,
   isValidModelPath: isValidModelPath,
   getSubDocPopulateOptions: getSubDocPopulateOptions,
   getModelNodeTree: getModelNodeTree,
-  populateSubDocs: populateSubDocs
+  populateSubDocs: populateSubDocs,
+  getPrivilegePaths: getPrivilegePaths
 };

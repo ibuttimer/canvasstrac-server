@@ -165,36 +165,81 @@ function createObject (properties, values) {
 }
 
 /*
-  * Get a list of the names of paths in a Mongoose schema
-  * @param {object} model        - mongoose model object to get paths from
-  * @param {boolean} exVersionId - exclude version & id paths
-  * @param {boolean} exTimestamp - exclude timestamp paths
-  * @param {string[]} exPaths    - array of other paths to exclude
+  * Check if a path should be excluded
+  * @param {string} path         - path name
+  * @param {string} type         - path schema type
+  * @param {object} options      - options object with the following properties:
+  *   @param {boolean} exVersionId - exclude version & id paths
+  *   @param {boolean} exTimestamp - exclude timestamp paths
+  *   @param {string[]} exPaths    - array of paths to exclude
+  *   @param {string[]} exTypes    - array of schema types to exclude
+  *   @param {function} exFunc     - predicate function returning true to exclude path
   */
-function getModelPathNames (model, exVersionId, exTimestamp, exPaths) {
+function excludePath (path, type, options) {
+  options = options || {};
+  if (isNullOrUndefined(options.exPaths)) { options.exPaths = []; }
+  if (isNullOrUndefined(options.exTypes)) { options.exTypes = []; }
+
+  var exclude;
+  switch (path) {
+    case '_id': // mongoose id path
+    case '__v': // mongoose version path
+      exclude = (options.exVersionId ? true : false);
+      break;
+    case 'createdAt': // default mongoose created path name
+    case 'updatedAt': // default mongoose updated path name
+      exclude = (options.exTimestamp ? true : false);
+      break;
+    default:
+      exclude = (options.exPaths.indexOf(path) >= 0) || 
+                  (options.exTypes.indexOf(type.options.type.schemaName) >= 0);
+      if (!exclude && (typeof options.exFunc === 'function')) {
+        exclude = options.exFunc(path, type);
+      }
+      break;
+  }
+  return exclude;
+}
+
+/**
+  * Get a list of the names of paths in a Mongoose schema
+  * Note: versionId & timestamp fields included by default.
+  * @param {object} model        - mongoose model object to get paths from
+  * @param {object} options      - options object with the following properties:
+  *                                 @see excludePath() for details
+  */
+function getModelPathNames (model, options) {
   // set defaults for arguments not passed
-  if (!exVersionId) { exVersionId = false; }
-  if (!exTimestamp) { exTimestamp = false; }
-  if (!exPaths) { exPaths = []; }
+  options = options || {};
+  if (isNullOrUndefined(options.exVersionId)) { options.exVersionId = false; }
+  if (isNullOrUndefined(options.exTimestamp)) { options.exTimestamp = false; }
 
   var list = [];
-  model.schema.eachPath(function (path, index, array) {
-    var exclude;
-    switch (path) {
-      case '_id': // mongoose id path
-      case '__v': // mongoose version path
-        exclude = exVersionId;
-        break;
-      case 'createdAt': // default mongoose created path name
-      case 'updatedAt': // default mongoose updated path name
-        exclude = exTimestamp;
-        break;
-      default:
-        exclude = (exPaths.indexOf(path) >= 0);
-        break;
-    }
-    if (!exclude) {
+  model.schema.eachPath(function (path, type) {
+    if (!excludePath(path, type, options)) {
       list.push(path);
+    }
+  });
+  return list;
+}
+
+/**
+  * Get a list of the names & types of paths in a Mongoose schema
+  * Note: versionId & timestamp fields excluded by default.
+  * @param {object} model        - mongoose model object to get info for
+  * @param {object} options      - options object with the following properties:
+  *                                 @see excludePath() for details
+  */
+function getModelPathTypes (model, options) {
+  // set defaults for arguments not passed
+  options = options || {};
+  if (isNullOrUndefined(options.exVersionId)) { options.exVersionId = true; }
+  if (isNullOrUndefined(options.exTimestamp)) { options.exTimestamp = true; }
+
+  var list = {};
+  model.schema.eachPath(function (path, type) {
+    if (!excludePath(path, type, options)) {
+      list[path] = type.instance;
     }
   });
   return list;
@@ -208,8 +253,15 @@ function getModelPathNames (model, exVersionId, exTimestamp, exPaths) {
  * @returns false or ModelNode if valid path 
  */
 function validModelPathTest (modelNode, path, exPaths) {
+
+  // TODO refactor validModelPathTest() to accept exclude object as per excludePath()
+  
   var model = modelNode.model,
-    paths = getModelPathNames(model, true, true, exPaths),
+    paths = getModelPathNames(model, {
+      exVersionId: true,
+      exTimestamp: true,
+      exPaths: exPaths
+    }),
     valid = false;  // always return false for not valid result
   if (paths.length > 0) {
     if (paths.indexOf(path) >= 0) {
@@ -227,6 +279,9 @@ function validModelPathTest (modelNode, path, exPaths) {
  * @returns false or ModelNode if valid path 
  */
 function isValidModelPath (modelNodes, path, exPaths) {
+
+  // TODO refactor isValidModelPath() to accept exclude object as per excludePath()
+
   var paths,
     chkArray,
     valid = false;
@@ -249,7 +304,14 @@ function isValidModelPath (modelNodes, path, exPaths) {
   * @return {object} object with only valid model paths as properties and corresponding values
   */
 function getTemplate (source, model, exPaths) {
-  var paths = getModelPathNames(model, true, true, exPaths);
+
+  // TODO refactor getTemplate() to accept exclude object as per excludePath()
+
+  var paths = getModelPathNames(model, {
+      exVersionId: true,
+      exTimestamp: true,
+      exPaths: exPaths
+    });
   var fields;
   if (paths.length === 0) {
     fields = {};
@@ -467,6 +529,7 @@ module.exports = {
   arrayRelativeComplementAinB: arrayRelativeComplementAinB,
   arrayRelativeComplementBinA: arrayRelativeComplementBinA,
   getModelPathNames: getModelPathNames,
+  getModelPathTypes: getModelPathTypes,
   isValidModelPath: isValidModelPath,
   getTemplate: getTemplate,
   objectIdToString: objectIdToString
