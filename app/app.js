@@ -40,6 +40,7 @@ var canvassRouter = require('./routes/canvassRouter').router;
 var canvassAssignmentRouter = require('./routes/canvassAssignmentRouter').router;
 var canvassResultRouter = require('./routes/canvassResultRouter').router;
 var messageRouter = require('./routes/messageRouter').router;
+var noticeRouter = require('./routes/noticeRouter').router;
 
 
 var app = express(),
@@ -123,6 +124,7 @@ app.use('/db/canvasses', canvassRouter);
 app.use('/db/canvassassignment', canvassAssignmentRouter);
 app.use('/db/canvassresult', canvassResultRouter);
 app.use('/db/message', messageRouter);
+app.use('/db/notice', noticeRouter);
 
 
 

@@ -8,80 +8,62 @@ var mongoose = require('./mongoose_app').mongoose,
     ModelNode = ModelNodeModule.ModelNode,
   utilsModule = require('../misc/utils'),
     utilsIsValidModelPath = utilsModule.isValidModelPath,
-    utilsGetModelPathNames = utilsModule.getModelPathNames,
     utilsGetTemplate = utilsModule.getTemplate,
   populateSubDocsUtil = require('./model_utils').populateSubDocs;
 
 // create the address schema
-var schema = new Schema({
-  name: {
-    type: String,
-    required: true
-  },
-  level: {
-    type: Number,
-    min: 0,
-    required: true
-  },
-  // NOTE: naming standard for privilege fields is 'xxxPriv'
-  votingsysPriv: {  // see Consts.ACCESS_CREATE etc. for values
-    type: Number,
-    min: 0
-  },
-  rolesPriv: {    // see Consts.ACCESS_CREATE etc. for values
-    type: Number,
-    min: 0
-  },
-  usersPriv: {    // see Consts.ACCESS_CREATE etc. for values
-    type: Number,
-    min: 0
-  },
-  electionsPriv: {  // see Consts.ACCESS_CREATE etc. for values
-    type: Number,
-    min: 0
-  },
-  candidatesPriv: {  // see Consts.ACCESS_CREATE etc. for values
-    type: Number,
-    min: 0
-  },
-  canvassesPriv: {  // see Consts.ACCESS_CREATE etc. for values
-    type: Number,
-    min: 0
-  },
-  noticePriv: {  // see Consts.ACCESS_CREATE etc. for values
-    type: Number,
-    min: 0
-  }
-});
-
-// create a model using schema &
-var model = mongoose.model('Role', schema),
-  modelNode = new ModelNode(model),
-  modelTree = modelNode.getTree(),
-  privilegePaths = utilsGetModelPathNames(model, {
-    exVersionId: true,
-    exTimestamp: true,
-    exFunc: function (path, type) {
-      return !path.endsWith('Priv');  // exclude if doesn't end to 'Priv'
+var INFO_MSG = 1,
+  WARN_MSG = 2,
+  CRITICAL_MSG = 3,
+  schema = new Schema({
+    level: {
+      type: Number,
+      required: true,
+      default: INFO_MSG
+    },
+    title: {
+      type: String,
+      required: true,
+      default: ''
+    },
+    message: {
+      type: String,
+      required: true,
+      default: ''
+    },
+    fromDate: {
+      type: Date,
+      required: true,
+      default: ''
+    },
+    toDate: {
+      type: Date,
+      required: true,
+      default: ''
     }
+  }, {
+    timestamps: true
   });
 
+// create a model using schema
+var model = mongoose.model('Notice', schema);
+
+var modelNode = new ModelNode(model, { populateSubDocs: populateSubDocs });
+
+var modelTree = modelNode.getTree();
+
 /**
- * Generates a role template object from the specified source
+ * Generates an address template object from the specified source
  * @param {object} source     - object with properties to extract
  * @param {string[]} exPaths  - array of other paths to exclude
  */
 function getTemplate (source, exPaths) {
+  // set defaults for arguments not passed
+  if (!exPaths) {
+    // exclude object ref fields by default
+    exPaths = [];
+  }
   return utilsGetTemplate(source, model, exPaths);
-}
-
-/**
- * Generates a list of model properties & their types
- * @param {object} options - options object with the following properties:
- *                           @see utils.excludePath() for details
- */
-function getModelPathTypes (options) {
-  return modelNode.getModelPathTypes(options);
 }
 
 /**
@@ -131,23 +113,16 @@ function populateSubDocs (docs, next) {
   populateSubDocsUtil(model, docs, getSubDocPopulateOptions(), next);
 }
 
-/**
- * Get the names of privilege related paths in this model
- * @returns {string[]} names of paths
- */
-function getPrivilegePaths () {
-  return privilegePaths;
-}
-
 
 module.exports = {
   schema: schema,
   model: model,
+  INFO_MSG: INFO_MSG,
+  WARN_MSG: WARN_MSG,
+  CRITICAL_MSG: CRITICAL_MSG,
   getTemplate: getTemplate,
-  getModelPathTypes: getModelPathTypes,
   isValidModelPath: isValidModelPath,
   getSubDocPopulateOptions: getSubDocPopulateOptions,
   getModelNodeTree: getModelNodeTree,
-  populateSubDocs: populateSubDocs,
-  getPrivilegePaths: getPrivilegePaths
+  populateSubDocs: populateSubDocs
 };

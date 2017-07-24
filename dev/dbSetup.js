@@ -109,7 +109,8 @@ var predefRoles = [
     usersPriv: makePrivilegeMask('crudb', 'crud', 'ru'),
     electionsPriv: makePrivilegeMask('crud', 'crud', ''),
     candidatesPriv: makePrivilegeMask('crud', 'crud', ''),
-    canvassesPriv: makePrivilegeMask('crud', 'crud', '')
+    canvassesPriv: makePrivilegeMask('crud', 'crud', ''),
+    noticePriv: makePrivilegeMask('crud', 'crud', '')
   },
   { name: "Manager", level: Roles.ROLE_MANAGER,
     //                               all     one     own
@@ -118,7 +119,8 @@ var predefRoles = [
     usersPriv: makePrivilegeMask('crud', 'crud', 'ru'),
     electionsPriv: makePrivilegeMask('crud', 'crud', ''),
     candidatesPriv: makePrivilegeMask('crud', 'crud', ''),
-    canvassesPriv: makePrivilegeMask('crud', 'crud', '')
+    canvassesPriv: makePrivilegeMask('crud', 'crud', ''),
+    noticePriv: makePrivilegeMask('cru', 'crud', '')
   },
   { name: "Group Leader", level: Roles.ROLE_GROUP_LEAD,
     //                               all     one     own
@@ -127,7 +129,8 @@ var predefRoles = [
     usersPriv: makePrivilegeMask('crud', 'crud', 'ru'),
     electionsPriv: makePrivilegeMask('crud', 'crud', ''),
     candidatesPriv: makePrivilegeMask('crud', 'crud', ''),
-    canvassesPriv: makePrivilegeMask('crud', 'crud', '')
+    canvassesPriv: makePrivilegeMask('crud', 'crud', ''),
+    noticePriv: makePrivilegeMask('cru', 'crud', '')
   },
   { name: "Staff", level: Roles.ROLE_STAFF,
     //                               all     one     own
@@ -136,7 +139,8 @@ var predefRoles = [
     usersPriv: makePrivilegeMask('ru', 'ru', 'ru'),
     electionsPriv: makePrivilegeMask('crud', 'crud', ''),
     candidatesPriv: makePrivilegeMask('crud', 'crud', ''),
-    canvassesPriv: makePrivilegeMask('crud', 'crud', '')
+    canvassesPriv: makePrivilegeMask('crud', 'crud', ''),
+    noticePriv: makePrivilegeMask('cru', 'crud', '')
   },
   { name: "Canvasser", level: Roles.ROLE_CANVASSER,
     //                               all     one     own
@@ -145,7 +149,8 @@ var predefRoles = [
     usersPriv: makePrivilegeMask('r', 'r', 'ru'),
     electionsPriv: makePrivilegeMask('r', 'r', ''),
     candidatesPriv: makePrivilegeMask('r', 'r', ''),
-    canvassesPriv: makePrivilegeMask('r', 'r', '')
+    canvassesPriv: makePrivilegeMask('r', 'r', ''),
+    noticePriv: makePrivilegeMask('r', 'r', '')
   },
   { name: "None", level: Roles.ROLE_NONE,
     //                               all     one     own
@@ -154,7 +159,8 @@ var predefRoles = [
     usersPriv: makePrivilegeMask('r', 'r', 'ru'),
     electionsPriv: makePrivilegeMask('r', 'r', ''),
     candidatesPriv: makePrivilegeMask('r', 'r', ''),
-    canvassesPriv: makePrivilegeMask('r', 'r', '')
+    canvassesPriv: makePrivilegeMask('r', 'r', ''),
+    noticePriv: makePrivilegeMask('r', 'r', '')
   },
 ];
 
