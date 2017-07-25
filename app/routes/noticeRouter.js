@@ -33,6 +33,13 @@ function saveDoc (doc, res) {
   });
 }
 
+function getCurrentQuery() {
+  var today = new Date();
+  return { 
+    fromDate: { $lte : today },
+    toDate: { $gte : today }
+  };
+}
 
 router.route('/')
 
@@ -72,15 +79,23 @@ router.route('/')
     });
   });
 
+router.route('/count')
+
+  .get(function (req, res, next) {
+
+    var query = model.count(getCurrentQuery());
+    query.exec(function (err, doc) {
+      if (!checkError(err, res)) {
+        res.json({count: doc});
+      }
+    });
+  });
+
 router.route('/current')
 
   .get(function (req, res, next) {
     
-    var today = new Date();
-    model.find({ 
-      fromDate: { $lte : today },
-      toDate: { $gte : today }
-    }).exec(function (err, doc) {
+    model.find(getCurrentQuery()).exec(function (err, doc) {
         if (!checkError(err, res)) {
           // success
           res.json(doc);
