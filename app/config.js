@@ -37,6 +37,7 @@ var fs = require('fs'),
   prop;
 
 if (fs.existsSync(path)) {
+  console.log('reading config from: ' + path);
   cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
 } else {
   // setup template
@@ -49,6 +50,7 @@ if (fs.existsSync(path)) {
 // check if cfg properties have been set and if not read from environment
 for (prop in cfg) {
   if (cfg[prop].indexOf('@@') == 0) {
+    console.log('reading config[' + prop + '] from environment');
     cfg[prop] = process.env[prop];
   }
 }

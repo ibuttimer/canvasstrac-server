@@ -3,25 +3,31 @@
 
     <div class="form-group">
       <div class="col-sm-12">
-        <div class="col-sm-3">
-          <h5>Addresses</h5>
-          <h5>Complete</h5>
-          <h5>Pending</h5>
-          <h5>Canvasses</h5>
+        <div class="col-sm-6">
+          <table class="table table-bordered">
+            <tbody>
+              <tr>
+                <th data-toggle="tooltip" data-placement="left" data-container="body" title="Number of addresses assigned to canvass">Addresses
+                </th>
+                <td>{{addresses.count}}</td>
+                <td></td>
+              </tr>
+              <tr>
+                <th>Completed</th>
+                <td>{{canvassComplete.value}}</td>
+                <td>{{canvassComplete.percent}} %</td>
+              </tr>
+              <tr>
+                <th>Pending</th>
+                <td>{{canvassPending.value}}</td>
+                <td>{{canvassPending.percent}} %</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-
-        <div class="col-sm-1"></div>
-
-        <div class="col-sm-2">
-          <h5>{{addresses.count}}</h5>
-          <h5>{{canvassComplete}}</h5>
-          <h5>{{canvassPending}}</h5>
-          <h5>{{resultCount}}</h5>
-        </div>
-
-        <div class="col-sm-3">
+        <div class="col-sm-3 col-sm-offset-1">
           <canvas id="completedPie" class="chart chart-pie"
-            chart-data="[canvassComplete, canvassPending]" chart-labels="canvassLabels" chart-options="chartOptions">
+            chart-data="[canvassComplete.value, canvassPending.value]" chart-labels="canvassLabels" chart-options="pieChartOptions">
           </canvas>
         </div>
       </div>
@@ -32,17 +38,27 @@
         <h4>Quick Responses</h4>
       </div>
       <div class="col-sm-12">
-        <div class="col-sm-3">
-          <h5 ng-repeat="label in quickLabels">{{label}}</h5>
+        <div class="col-sm-6">
+          <table class="table table-bordered">
+            <tbody>
+              <tr>
+                <th data-toggle="tooltip" data-placement="left" data-container="body" title="Number of quick responses submitted">Responses
+                </th>
+                <td>{{quickDataCnt}}</td>
+                <td data-toggle="tooltip" data-placement="left" data-container="body" title="Number of quick responses submitted as a percent of total responses">{{toPercent(quickDataCnt,canvassComplete.value)}} %
+                </td>
+              </tr>
+              <tr ng-repeat="qr in quickLabelData">
+                <th>{{qr.label}}</th>
+                <td>{{qr.data.value}}</td>
+                <td>{{qr.data.percent}} %</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="col-sm-1"></div>
-        <div class="col-sm-2">
-          <h5 ng-repeat="cnt in quickData track by $index">{{cnt}}</h5>
-        </div>
-
-        <div class="col-sm-3">
+        <div class="col-sm-3 col-sm-offset-1">
           <canvas id="quickResponsePie" class="chart chart-pie"
-            chart-data="quickData" chart-labels="quickLabels" chart-options="chartOptions">
+            chart-data="quickData" chart-labels="quickLabels" chart-options="pieChartOptions">
           </canvas>
         </div>
       </div>
@@ -53,13 +69,27 @@
         <h4>Support Indicators</h4>
       </div>
       <div class="col-sm-12">
-        <div class="col-sm-2">
-          <h5 ng-repeat="label in supportLabels">{{label}}</h5>
+        <div class="col-sm-4">
+          <table class="table table-bordered">
+            <tbody>
+              <tr>
+                <th data-toggle="tooltip" data-placement="left" data-container="body" title="Number of support indications submitted">Indications
+                </th>
+                <td>{{supportDataCnt}}</td>
+                <td data-toggle="tooltip" data-placement="left" data-container="body" title="Number of support indications submitted as a percent of total responses">{{toPercent(supportDataCnt,canvassComplete.value)}} %
+                </td>
+              </tr>
+              <tr ng-repeat="qr in supportLabelData">
+                <th>{{qr.label}}</th>
+                <td>{{qr.data.value}}</td>
+                <td ng-if="$index === 0" data-toggle="tooltip" data-placement="left" data-container="body" title="Number of {{qr.label}} support responses as a percent of total responses">{{qr.data.percent}} %
+                </td>
+                <td ng-if="$index > 0" data-toggle="tooltip" data-placement="left" data-container="body" title="Number of {{qr.label}} support indications as a percent of support indications">{{qr.data.percent}} %
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="col-sm-2">
-          <h5 ng-repeat="cnt in supportData track by $index">{{cnt}}</h5>
-        </div>
-
         <div class="col-sm-8">
           <canvas id="supportBar" class="chart chart-bar"
             chart-data="supportData" chart-labels="supportLabels" chart-options="barChartOptions">

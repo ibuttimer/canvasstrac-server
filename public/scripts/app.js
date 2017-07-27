@@ -45,8 +45,8 @@
   window.__env.reloadMargin = "60";
 
   window.__env.DEV_MODE = false;
-  window.__env.DEV_USER1 = "ac";
-  window.__env.DEV_PASSWORD1 = "password";
+  window.__env.DEV_USER1 = "";
+  window.__env.DEV_PASSWORD1 = "";
   window.__env.DEV_USER2 = "";
   window.__env.DEV_PASSWORD2 = "";
   window.__env.DEV_USER3 = "";
@@ -141,7 +141,7 @@ angular.module('ct.config', [])
         return state + '_' + substate;
       },
       substates = [
-        'NEW', 'VIEW', 'EDIT', 'DEL'
+        'NEW', 'VIEW', 'EDIT', 'DEL', 'BATCH'
       ],
       makeStdStateName = function (name) {
         // e.g. dashState
@@ -169,13 +169,17 @@ angular.module('ct.config', [])
       [ { property: 'VOTINGSYS', path: cfgState, base: 'votingsystem', disabled: true },
         { property: 'ROLES', path: cfgState, base: 'role', disabled: true },
         { property: 'USERS', path: cfgState, base: 'user' },
+        { property: 'NOTICE', path: cfgState, base: 'notice' },
         { property: 'ELECTION', path: campaignState, base: 'election' },
         { property: 'CANDIDATE', path: campaignState, base: 'candidate', disabled: true },
         { property: 'CANVASS', path: campaignState, base: 'canvass' }
       ].forEach(function (state) {
-        stateConstant[state.property] = makeStates(state.path, state.base);
+        /* make state properties, e.g. USERS = 'app.cfg.user'
+                                        USERS_NEW = 'app.cfg.user-new' */
+        stateConstant[state.property] = makeStates(state.path, state.base); // path.base
         substates.forEach(function (substate) {
-          stateConstant[makeSubStatePropName(state.property, substate)] = makeStates(state.path, state.base, substate.toLowerCase());
+          stateConstant[makeSubStatePropName(state.property, substate)] = // state_substate
+            makeStates(state.path, state.base, substate.toLowerCase()); // path.base-substate
         });
 
         if (state.disabled) {
@@ -315,7 +319,7 @@ angular.module('ct.config', [])
       ALLOCATED_CANVASSER: 'allocatedCanvasser',  // canvassers with allocated addresses in canvass
       ALLOCATION_UNDOS: 'allocationUndos',        // undo objects for allocations
       getPagerName: function (base) {
-          // eg assignedAddrPager
+        // eg assignedAddrPager
         return base + 'Pager';
       },
       getFilterName: function (base) {
@@ -347,9 +351,9 @@ angular.module('NgDialogUtil', ['ngDialog'])
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-NgDialogFactory.$inject = ['authFactory', 'ngDialog', '$state', 'STATES', 'RSPCODE'];
+NgDialogFactory.$inject = ['authFactory', 'ngDialog', '$state', 'STATES', 'RSPCODE', 'miscUtilFactory'];
 
-function NgDialogFactory (authFactory, ngDialog, $state, STATES, RSPCODE) {
+function NgDialogFactory (authFactory, ngDialog, $state, STATES, RSPCODE, miscUtilFactory) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -474,7 +478,7 @@ function NgDialogFactory (authFactory, ngDialog, $state, STATES, RSPCODE) {
 
     options.data = {
       title: title,
-      message: msg
+      message: [msg]
     };
 
     if (authErr) {
@@ -504,12 +508,11 @@ function NgDialogFactory (authFactory, ngDialog, $state, STATES, RSPCODE) {
    * @param {string} message message to display
    */
   function message (title, message) {
-
-    // response is message
+    var messages = miscUtilFactory.toArray(message);
     ngDialog.openConfirm({
       template: 'views/messagemodal.html',
       className: 'ngdialog-theme-default',
-      data: { title: title, message: message }
+      data: { title: title, message: messages }
     });
   }
 
@@ -519,10 +522,11 @@ function NgDialogFactory (authFactory, ngDialog, $state, STATES, RSPCODE) {
    * @param {string} message message to display
    */
   function errormessage (title, message) {
+    var messages = miscUtilFactory.toArray(message);
     ngDialog.openConfirm({
       template: 'views/errormodal.html',
       className: 'ngdialog-theme-default',
-      data: { title: title, message: message }
+      data: { title: title, message: messages }
     });
   }
 
@@ -626,7 +630,7 @@ angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCordova', 'ngCo
       HTTP_NON_AUTH_INFO: 203,      // The returned metainformation in the entity-header is not the definitive set as available from the origin server, but is gathered from a local or a third-party copy.
       HTTP_NO_CONTENT: 204,         // The server has fulfilled the request but does not need to return an entity-body
       HTTP_RESET_CONTENT: 205,      // The server has fulfilled the request and the user agent SHOULD reset the document view which caused the request to be sent.
-      HTTP_PARTIAL_CONENT: 206,     // The server has fulfilled the partial GET request for the resource.ses.
+      HTTP_PARTIAL_CONTENT: 206,    // The server has fulfilled the partial GET request for the resources.
       // Redirection 3xx
       HTTP_MULTIPLE_CHOICES: 300,   // The requested resource corresponds to any one of a set of representations
       HTTP_MOVED_PERMANEMTLY: 301,  // The requested resource has been assigned a new permanent URI and any future references to this resource SHOULD use one of the returned URIs.
@@ -707,21 +711,229 @@ angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCordova', 'ngCo
       ACCESS_READ: 0x02,    // read access
       ACCESS_UPDATE: 0x04,  // update access
       ACCESS_DELETE: 0x08,  // delete access
-      ACCESS_BIT_COUNT: 4,  // number of access bits per group
-      ACCESS_MASK: 0x0f,    // map of access bits
+      ACCESS_BATCH: 0x10,   // batch mode access
+      ACCESS_BIT_COUNT: 5,  // number of access bits per group
+      ACCESS_MASK: 0x1f,    // map of access bits
 
       ACCESS_ALL: 0x01,     // access all objects group
       ACCESS_ONE: 0x02,     // access single object group
-      ACCESS_OWN: 0x03,     // access own object group
+      ACCESS_OWN: 0x04,     // access own object group
       ACCESS_GROUPMASK: 0x07,// map of access group bits
       
       // menu access properties in login response
-      VOTINGSYS: 'votingsys',
-      ROLES: 'roles',
-      USERS: 'users',
-      ELECTIONS: 'elections',
-      CANDIDATES: 'candidates',
-      CANVASSES: 'canvasses'
+      VOTINGSYS: 'votingsysPriv',
+      ROLES: 'rolesPriv',
+      USERS: 'usersPriv',
+      ELECTIONS: 'electionsPriv',
+      CANDIDATES: 'candidatesPriv',
+      CANVASSES: 'canvassesPriv',
+      NOTICES: 'noticePriv'
+    };
+  })())
+  .constant('MISC', (function () {
+    return {
+      // countries of the world
+      COUNTRIES: [
+        'Afghanistan',
+        'Albania',
+        'Algeria',
+        'Andorra',
+        'Angola',
+        'Anguilla',
+        'Antigua & Barbuda',
+        'Argentina',
+        'Armenia',
+        'Australia',
+        'Austria',
+        'Azerbaijan',
+        'Bahamas',
+        'Bahrain',
+        'Bangladesh',
+        'Barbados',
+        'Belarus',
+        'Belgium',
+        'Belize',
+        'Benin',
+        'Bermuda',
+        'Bhutan',
+        'Bolivia',
+        'Bosnia & Herzegovina',
+        'Botswana',
+        'Brazil',
+        'Brunei Darussalam',
+        'Bulgaria',
+        'Burkina Faso',
+        'Myanmar/Burma',
+        'Burundi',
+        'Cambodia',
+        'Cameroon',
+        'Canada',
+        'Cape Verde',
+        'Cayman Islands',
+        'Central African Republic',
+        'Chad',
+        'Chile',
+        'China',
+        'Colombia',
+        'Comoros',
+        'Congo',
+        'Costa Rica',
+        'Croatia',
+        'Cuba',
+        'Cyprus',
+        'Czech Republic',
+        'Democratic Republic of the Congo',
+        'Denmark',
+        'Djibouti',
+        'Dominican Republic',
+        'Dominica',
+        'Ecuador',
+        'Egypt',
+        'El Salvador',
+        'Equatorial Guinea',
+        'Eritrea',
+        'Estonia',
+        'Ethiopia',
+        'Fiji',
+        'Finland',
+        'France',
+        'French Guiana',
+        'Gabon',
+        'Gambia',
+        'Georgia',
+        'Germany',
+        'Ghana',
+        'Great Britain',
+        'Greece',
+        'Grenada',
+        'Guadeloupe',
+        'Guatemala',
+        'Guinea',
+        'Guinea-Bissau',
+        'Guyana',
+        'Haiti',
+        'Honduras',
+        'Hungary',
+        'Iceland',
+        'India',
+        'Indonesia',
+        'Iran',
+        'Iraq',
+        'Ireland',
+        'Israel and the Occupied Territories',
+        'Italy',
+        'Ivory Coast (Cote d\'Ivoire)',
+        'Jamaica',
+        'Japan',
+        'Jordan',
+        'Kazakhstan',
+        'Kenya',
+        'Kosovo',
+        'Kuwait',
+        'Kyrgyz Republic (Kyrgyzstan)',
+        'Laos',
+        'Latvia',
+        'Lebanon',
+        'Lesotho',
+        'Liberia',
+        'Libya',
+        'Liechtenstein',
+        'Lithuania',
+        'Luxembourg',
+        'Republic of Macedonia',
+        'Madagascar',
+        'Malawi',
+        'Malaysia',
+        'Maldives',
+        'Mali',
+        'Malta',
+        'Martinique',
+        'Mauritania',
+        'Mauritius',
+        'Mayotte',
+        'Mexico',
+        'Moldova, Republic of',
+        'Monaco',
+        'Mongolia',
+        'Montenegro',
+        'Montserrat',
+        'Morocco',
+        'Mozambique',
+        'Namibia',
+        'Nepal',
+        'Netherlands',
+        'New Zealand',
+        'Nicaragua',
+        'Niger',
+        'Nigeria',
+        'Korea, Democratic Republic of (North Korea)',
+        'Norway',
+        'Oman',
+        'Pacific Islands',
+        'Pakistan',
+        'Panama',
+        'Papua New Guinea',
+        'Paraguay',
+        'Peru',
+        'Philippines',
+        'Poland',
+        'Portugal',
+        'Puerto Rico',
+        'Qatar',
+        'Reunion',
+        'Romania',
+        'Russian Federation',
+        'Rwanda',
+        'Saint Kitts and Nevis',
+        'Saint Lucia',
+        'Saint Vincent\'s & Grenadines',
+        'Samoa',
+        'Sao Tome and Principe',
+        'Saudi Arabia',
+        'Senegal',
+        'Serbia',
+        'Seychelles',
+        'Sierra Leone',
+        'Singapore',
+        'Slovak Republic (Slovakia)',
+        'Slovenia',
+        'Solomon Islands',
+        'Somalia',
+        'South Africa',
+        'Korea, Republic of (South Korea)',
+        'South Sudan',
+        'Spain',
+        'Sri Lanka',
+        'Sudan',
+        'Suriname',
+        'Swaziland',
+        'Sweden',
+        'Switzerland',
+        'Syria',
+        'Tajikistan',
+        'Tanzania',
+        'Thailand',
+        'Timor Leste',
+        'Togo',
+        'Trinidad & Tobago',
+        'Tunisia',
+        'Turkey',
+        'Turkmenistan',
+        'Turks & Caicos Islands',
+        'Uganda',
+        'Ukraine',
+        'United Arab Emirates',
+        'United States of America (USA)',
+        'Uruguay',
+        'Uzbekistan',
+        'Venezuela',
+        'Vietnam',
+        'Virgin Islands (UK)',
+        'Virgin Islands (US)',
+        'Yemen',
+        'Zambia',
+        'Zimbabwe'
+      ]
     };
   })())
   .config(function () {
@@ -1120,7 +1332,6 @@ function miscUtilFactory () {
     readSafe: readSafe,
     toArray: toArray,
     findArrayIndex: findArrayIndex,
-    arrayPolyfill: arrayPolyfill,
 
     listForEach: listForEach,
     listFind: listFind,
@@ -1292,148 +1503,6 @@ function miscUtilFactory () {
     }
     return undefined;
   }
-
-  
-  /**
-   * Provides polyfill implementations of some Array functions
-   * @throws {TypeError} [[Description]]
-   * @returns {[[Type]]} [[Description]]
-   */
-  function arrayPolyfill () {
-    // only implement if no native implementation is available
-    // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/isArray
-    if (typeof Array.isArray === 'undefined') {
-      Array.isArray = function (obj) {
-        return Object.prototype.toString.call(obj) === '[object Array]';
-      };
-    }
-    // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/find
-    if (!Array.prototype.find) {
-      Array.prototype.find = function(predicate) {
-        //'use strict';
-        if (this === null) {
-          throw new TypeError('Array.prototype.find called on null or undefined');
-        }
-        if (typeof predicate !== 'function') {
-          throw new TypeError('predicate must be a function');
-        }
-        var list = Object(this);
-        var length = list.length >>> 0;
-        var thisArg = arguments[1];
-        var value;
-
-        for (var i = 0; i < length; i++) {
-          value = list[i];
-          if (predicate.call(thisArg, value, i, list)) {
-            return value;
-          }
-        }
-        return undefined;
-      };
-    }
-    // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/findIndex
-    if (!Array.prototype.findIndex) {
-      Array.prototype.findIndex = function(predicate) {
-        //'use strict';
-        if (this === null) {
-          throw new TypeError('Array.prototype.findIndex called on null or undefined');
-        }
-        if (typeof predicate !== 'function') {
-          throw new TypeError('predicate must be a function');
-        }
-        var list = Object(this);
-        var length = list.length >>> 0;
-        var thisArg = arguments[1];
-        var value;
-
-        for (var i = 0; i < length; i++) {
-          value = list[i];
-          if (predicate.call(thisArg, value, i, list)) {
-            return i;
-          }
-        }
-        return -1;
-      };
-    }
-    // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/filter
-    if (!Array.prototype.filter) {
-      Array.prototype.filter = function(fun/*, thisArg*/) {
-        //'use strict';
-        if (this === void 0 || this === null) {
-          throw new TypeError();
-        }
-
-        var t = Object(this);
-        var len = t.length >>> 0;
-        if (typeof fun !== 'function') {
-          throw new TypeError();
-        }
-
-        var res = [];
-        var thisArg = arguments.length >= 2 ? arguments[1] : void 0;
-        for (var i = 0; i < len; i++) {
-          if (i in t) {
-            var val = t[i];
-
-            // NOTE: Technically this should Object.defineProperty at
-            //       the next index, as push can be affected by
-            //       properties on Object.prototype and Array.prototype.
-            //       But that method's new, and collisions should be
-            //       rare, so use the more-compatible alternative.
-            if (fun.call(thisArg, val, i, t)) {
-              res.push(val);
-            }
-          }
-        }
-
-        return res;
-      };
-    }
-    // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/fill
-    if (!Array.prototype.fill) {
-      Array.prototype.fill = function(value) {
-
-        // Steps 1-2.
-        if (this === null) {
-          throw new TypeError('this is null or not defined');
-        }
-
-        var O = Object(this);
-
-        // Steps 3-5.
-        var len = O.length >>> 0;
-
-        // Steps 6-7.
-        var start = arguments[1];
-        var relativeStart = start >> 0;
-
-        // Step 8.
-        var k = relativeStart < 0 ?
-          Math.max(len + relativeStart, 0) :
-          Math.min(relativeStart, len);
-
-        // Steps 9-10.
-        var end = arguments[2];
-        var relativeEnd = end === undefined ?
-          len : end >> 0;
-
-        // Step 11.
-        var final = relativeEnd < 0 ?
-          Math.max(len + relativeEnd, 0) :
-          Math.min(relativeEnd, len);
-
-        // Step 12.
-        while (k < final) {
-          O[k] = value;
-          k++;
-        }
-
-        // Step 13.
-        return O;
-      };
-    }
-  }
-
 
   /**
    * Initialise the 'selected' property of all objects in an array
@@ -5710,9 +5779,6 @@ resourceFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'stor
 
 function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, miscUtilFactory, pagerFactory, compareFactory, standardFactoryFactory, resourceListFactory, queryFactory, consoleService, SCHEMA_CONST, RESOURCE_CONST) {
 
-  // jic no native implementation is available
-  miscUtilFactory.arrayPolyfill();
-
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     NAME: 'resourceFactory',
@@ -7165,12 +7231,14 @@ angular.module('ct.clientCommon')
     fromStore: false,
 
     // access properties
-    votingsys: 0,
-    roles: 0,
-    users: 0,
-    elections: 0,
-    candidates: 0,
-    canvasses: 0,
+    // NOTE: need to match ACCESS.VOTINGSYS etc. from cliemt.module.js
+    votingsysPriv: 0,
+    rolesPriv: 0,
+    usersPriv: 0,
+    electionsPriv: 0,
+    candidatesPriv: 0,
+    canvassesPriv: 0,
+    noticePriv: 0,
 
     // mirroring user model properties
     id: '',
@@ -7221,7 +7289,8 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
     ACCESS.USERS,
     ACCESS.ELECTIONS,
     ACCESS.CANDIDATES,
-    ACCESS.CANVASSES
+    ACCESS.CANVASSES,
+    ACCESS.NOTICES
   ],
   responseProperties = menuAccessProperties.concat([
     'token',
@@ -7234,7 +7303,8 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
     { chr: 'c', bit: ACCESS.ACCESS_CREATE },
     { chr: 'r', bit: ACCESS.ACCESS_READ },
     { chr: 'u', bit: ACCESS.ACCESS_UPDATE },
-    { chr: 'd', bit: ACCESS.ACCESS_DELETE }
+    { chr: 'd', bit: ACCESS.ACCESS_DELETE },
+    { chr: 'b', bit: ACCESS.ACCESS_BATCH }
   ],
   a1o = [
     { chr: 'a', bit: ACCESS.ACCESS_ALL },
@@ -7532,6 +7602,9 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
    * @returns {number} Access setting
    */
   function getAccess (menu, group) {
+    /* menu access privileges take the form similar to linux permissions
+      i.e. crudb bits for each group, 
+      e.g. 00100 00010 00001 (0x1041) is all group create, one group read & own group update */
     var access = ACCESS.ACCESS_NONE,
       privileges = menuAccessProperties.find(function (name) {
         return (name === menu);
@@ -7663,6 +7736,7 @@ angular.module('ct.clientCommon')
       schemaProvider.getStringModelPropArgs('town', { field: 'TOWN' }),
       schemaProvider.getStringModelPropArgs('city', { field: 'CITY' }),
       schemaProvider.getStringModelPropArgs('county', { field: 'COUNTY' }),
+      schemaProvider.getStringModelPropArgs('state', { field: 'STATE' }),
       schemaProvider.getStringModelPropArgs('country', { field: 'COUNTRY' }),
       schemaProvider.getStringModelPropArgs('postcode', { field: 'PCODE' }),
       schemaProvider.getStringModelPropArgs('gps', { field: 'GPS' }),
@@ -7690,6 +7764,8 @@ angular.module('ct.clientCommon')
         schema.addFieldFromModelProp('city', 'City', ids.CITY),
       ADDRESS_COUNTY_IDX = 
         schema.addFieldFromModelProp('county', 'County', ids.COUNTY),
+      ADDRESS_STATE_IDX = 
+        schema.addFieldFromModelProp('state', 'State', ids.STATE),
       ADDRESS_POSTCODE_IDX =
         schema.addFieldFromModelProp('postcode', 'Postcode', ids.PCODE),
       ADDRESS_GPS_IDX =
@@ -7697,7 +7773,7 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-                      [ADDRESS_ADDR_IDX, ADDRESS_TOWN_IDX, ADDRESS_CITY_IDX, ADDRESS_COUNTY_IDX, ADDRESS_POSTCODE_IDX], 
+                      [ADDRESS_ADDR_IDX, ADDRESS_TOWN_IDX, ADDRESS_CITY_IDX, ADDRESS_COUNTY_IDX, ADDRESS_STATE_IDX, ADDRESS_POSTCODE_IDX], 
                       ID_TAG);
 
       $provide.constant('ADDRSCHEMA', {
@@ -7710,6 +7786,7 @@ angular.module('ct.clientCommon')
         ADDRESS_TOWN_IDX: ADDRESS_TOWN_IDX,
         ADDRESS_CITY_IDX: ADDRESS_CITY_IDX,
         ADDRESS_COUNTY_IDX: ADDRESS_COUNTY_IDX,
+        ADDRESS_STATE_IDX: ADDRESS_STATE_IDX,
         ADDRESS_POSTCODE_IDX: ADDRESS_POSTCODE_IDX,
         ADDRESS_GPS_IDX: ADDRESS_GPS_IDX,
 
@@ -7799,6 +7876,9 @@ function addressFactory($filter, $injector, baseURL, consoleService, storeFactor
           case ADDRSCHEMA.ADDRESS_COUNTY_IDX:
             sortFxn = compareCounty;
             break;
+          case ADDRSCHEMA.ADDRESS_STATE_IDX:
+            sortFxn = compareState;
+            break;
           case ADDRSCHEMA.ADDRESS_POSTCODE_IDX:
             sortFxn = comparePostcode;
             break;
@@ -7811,24 +7891,32 @@ function addressFactory($filter, $injector, baseURL, consoleService, storeFactor
     return sortFxn;
   }
 
+  function compareStringFields (idx, a, b) {
+    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, idx, a, b);
+  }
+
   function compareAddress (a, b) {
-    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_ADDR_IDX, a, b);
+    return compareStringFields(ADDRSCHEMA.ADDRESS_ADDR_IDX, a, b);
   }
 
   function compareTown (a, b) {
-    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_TOWN_IDX, a, b);
+    return compareStringFields(ADDRSCHEMA.ADDRESS_TOWN_IDX, a, b);
   }
 
   function compareCity (a, b) {
-    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_CITY_IDX, a, b);
+    return compareStringFields(ADDRSCHEMA.ADDRESS_CITY_IDX, a, b);
   }
 
   function compareCounty (a, b) {
-    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_COUNTY_IDX, a, b);
+    return compareStringFields(ADDRSCHEMA.ADDRESS_COUNTY_IDX, a, b);
+  }
+
+  function compareState (a, b) {
+    return compareStringFields(ADDRSCHEMA.ADDRESS_STATE_IDX, a, b);
   }
 
   function comparePostcode (a, b) {
-    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_POSTCODE_IDX, a, b);
+    return compareStringFields(ADDRSCHEMA.ADDRESS_POSTCODE_IDX, a, b);
   }
 
   function stringifyAddress (addr, join) {
@@ -8011,9 +8099,6 @@ angular.module('ct.clientCommon')
 
       var args = angular.copy(details[i]);
       args.id = i;
-      
-      var x = schemaProvider.getModelPropObject(args);
-      console.log(x.toString());
       
       modelProps.push(schemaProvider.getModelPropObject(args));
     }
@@ -8258,7 +8343,8 @@ function userFactory($injector, $filter, storeFactory, resourceFactory, compareF
     addInterface: factory, // add standard factory functions to this factory
     resources: {
       user: resourceFactory.getResourceConfigWithId('users'),
-      count: resourceFactory.getResourceConfig('users/count')
+      count: resourceFactory.getResourceConfig('users/count'),
+      batch: resourceFactory.getResourceConfig('users/batch')
     }
   });
 
@@ -8466,7 +8552,7 @@ angular.module('ct.clientCommon')
           type: questionTypeIds.QUESTION_RANKING,
           name: 'Ranking',
           showOptions: true,
-          range: getOptionCountArray(1, 10)
+          range: getOptionCountArray(2, 10)
         },
         {
           type: questionTypeIds.QUESTION_QUERY,
@@ -11108,6 +11194,262 @@ function messageFactory($filter, $injector, baseURL, consoleService, storeFactor
 /*global angular */
 'use strict';
 
+angular.module('ct.clientCommon')
+
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+
+    var INFO_MSG = 1,
+      WARN_MSG = 2,
+      CRITICAL_MSG = 3,
+      noticeTypeObjs = [
+        { level: INFO_MSG, name: 'Informational', 
+          icon: 'fa-info-circle', style: 'bg-info' },
+        { level: WARN_MSG, name: 'Warning', 
+          icon: 'fa-window-close', style: 'bg-warning' },
+        { level: CRITICAL_MSG, name: 'Critical', 
+          icon: 'fa-exclamation-triangle', style: 'bg-danger' }
+      ],
+      details = [
+        SCHEMA_CONST.ID,
+        schemaProvider.getNumberModelPropArgs('level', INFO_MSG, { field: 'LEVEL' }),
+        schemaProvider.getStringModelPropArgs('title', { field: 'TITLE' }),
+        schemaProvider.getStringModelPropArgs('message', { field: 'MESSAGE' }),
+        schemaProvider.getDateModelPropArgs('fromDate', undefined, { field: 'FROMDATE' }),
+        schemaProvider.getDateModelPropArgs('toDate', undefined, { field: 'TODATE' }),
+        SCHEMA_CONST.CREATEDAT,
+        SCHEMA_CONST.UPDATEDAT
+      ],
+      ids = {},
+      modelProps = [];
+
+    for (var i = 0; i < details.length; ++i) {
+      ids[details[i].field] = i;          // id is index
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
+    }
+
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('notice'),
+      schema = schemaProvider.getSchema('Notice', modelProps, ids, ID_TAG),
+      LEVEL_IDX = 
+        schema.addFieldFromModelProp('level', 'Level', ids.LEVEL),
+      TITLE_IDX = 
+        schema.addFieldFromModelProp('title', 'Title', ids.TITLE),
+      MESSAGE_IDX = 
+        schema.addFieldFromModelProp('message', 'Message', ids.MESSAGE),
+      FROMDATE_IDX =
+        schema.addFieldFromModelProp('fromDate', 'From Date', ids.FROMDATE),
+      TODATE_IDX =
+        schema.addFieldFromModelProp('toDate', 'To Date', ids.TODATE),
+
+      // generate list of sort options
+      sortOptions = schemaProvider.makeSortList(schema, 
+                      [LEVEL_IDX, TITLE_IDX, FROMDATE_IDX], 
+                      ID_TAG);
+
+      $provide.constant('NOTICESCHEMA', {
+        IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
+        MODELPROPS: modelProps,
+
+        SCHEMA: schema,
+        // row indices
+        LEVEL_IDX: LEVEL_IDX,
+        TITLE_IDX: TITLE_IDX,
+        MESSAGE_IDX: MESSAGE_IDX,
+        FROMDATE_IDX: FROMDATE_IDX,
+        TODATE_IDX: TODATE_IDX,
+        
+        NOTICETYPEOBJS: noticeTypeObjs,
+
+        SORT_OPTIONS: sortOptions,
+        ID_TAG: ID_TAG
+      });
+  }])
+
+  .factory('noticeFactory', noticeFactory);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+noticeFactory.$inject = ['$filter', '$injector', 'baseURL', 'consoleService', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'SCHEMA_CONST', 'NOTICESCHEMA'];
+
+function noticeFactory($filter, $injector, baseURL, consoleService, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, SCHEMA_CONST, NOTICESCHEMA) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  var factory = {
+      NAME: 'noticeFactory',
+
+      readRspObject: readRspObject,
+      readResponse: readResponse,
+
+      getSortFunction: getSortFunction,
+
+      getNoticeTypeObj: getNoticeTypeObj
+    },
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: NOTICESCHEMA.ID_TAG,
+    schema: NOTICESCHEMA.SCHEMA,
+    sortOptions: NOTICESCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      notice: resourceFactory.getResourceConfigWithId('notice'),
+      current: resourceFactory.getResourceConfigWithId('notice/current'),
+      count: resourceFactory.getResourceConfigWithId('notice/count'),
+    }
+  });
+  
+  return factory;
+
+  /* function implementation
+    -------------------------- */
+
+  /**
+   * Read a server response notice object
+   * @param {object} response   Server response
+   * @param {object} args       arguments object
+   *                            @see Schema.readProperty() for details
+   * @returns {object}  notice object
+   */
+  function readRspObject (response, args) {
+    if (!args) {
+      args = {};
+    }
+    if (!args.convert) {
+      args.convert = readRspObjectValueConvert;
+    }
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
+
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = NOTICESCHEMA.SCHEMA.read(response, stdArgs);
+
+    con.debug('Read notice rsp object: ' + object);
+
+    return object;
+  }
+
+  /**
+   * Convert values read from a server notice response
+   * @param {number}    schema id 
+   * @param {object}    read value
+   * @returns {object}  Converted value
+   */
+  function readRspObjectValueConvert (id, value) {
+    switch (id) {
+      case NOTICESCHEMA.IDs.FROMDATE:
+      case NOTICESCHEMA.IDs.TODATE:
+        value = new Date(value);
+        break;
+      default:
+        // other fields require no conversion
+        break;
+    }
+    return value;
+  }
+
+
+  /**
+   * Read an notice response from the server and store it
+   * @param {object}   response   Server response
+   * @param {object}   args       process arguments object with following properties
+   *    {string|Array} objId      id/array of ids of notice object to save response data to
+   *    {number}       flags      storefactory flags
+   *    {function}     next       function to call after processing
+   * @return {object}  notice ResourceList object
+   */
+  function readResponse (response, args) {
+    var notice = readRspObject(response, args);
+    return storeRspObject(notice, args);
+  }
+
+  /**
+   * Store an notice object
+   * @param {object}   obj        Object to store
+   * @param {object}   args       process arguments object as per resourceFactory.storeServerRsp()
+   *                              without 'factory' argument
+   *                              @see resourceFactory.storeServerRsp()
+   * @return {object}  notice ResourceList object
+   */
+  function storeRspObject (obj, args) {
+    var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
+      factory: $injector.get(factory.NAME)
+    });
+    return resourceFactory.storeServerRsp(obj, storeArgs);
+  }
+  
+  
+  function getSortFunction (options, sortBy) {
+    var sortFxn = resourceFactory.getSortFunction(options, sortBy);
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === NOTICESCHEMA.ID_TAG) {
+        switch (sortItem.index) {
+          case NOTICESCHEMA.LEVEL_IDX:
+            sortFxn = compareLevel;
+            break;
+          case NOTICESCHEMA.TITLE_IDX:
+            sortFxn = compareTitle;
+            break;
+          case NOTICESCHEMA.FROMDATE_IDX:
+            sortFxn = compareFromDate;
+            break;
+          case NOTICESCHEMA.TODATE_IDX:
+            sortFxn = compareToDate;
+            break;
+          default:
+            sortFxn = undefined;
+            break;
+        }
+      }
+    }
+    return sortFxn;
+  }
+
+  function compareLevel (a, b) {
+    return compareFactory.compareNumberFields(NOTICESCHEMA.SCHEMA, NOTICESCHEMA.LEVEL_IDX, a, b);
+  }
+
+  function compareTitle (a, b) {
+    return compareFactory.compareStringFields(NOTICESCHEMA.SCHEMA, NOTICESCHEMA.TITLE_IDX, a, b);
+  }
+
+  function compareFromDate (a, b) {
+    return compareFactory.compareDateFields(NOTICESCHEMA.SCHEMA, NOTICESCHEMA.FROMDATE_IDX, a, b);
+  }
+
+  function compareToDate (a, b) {
+    return compareFactory.compareDateFields(NOTICESCHEMA.SCHEMA, NOTICESCHEMA.TODATE_IDX, a, b);
+  }
+  
+  function getNoticeTypeObj (level, prop) {
+    var result,
+      obj = NOTICESCHEMA.NOTICETYPEOBJS.find(function (levelObj) {
+        return (levelObj.level === level);
+      });
+    if (obj) {
+      if (prop) {
+        result = obj[prop];
+      } else {
+        result = obj;
+      }
+    }
+    return result;
+  }
+
+}
+
+
+
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
 angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordova', 'ui.bootstrap', 'NgDialogUtil', 'ct.clientCommon', 'chart.js', 'ngIdle', 'timer'])
 
   .config(['$stateProvider', '$urlRouterProvider', 'STATES', function ($stateProvider, $urlRouterProvider, STATES) {
@@ -11227,6 +11569,61 @@ angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordov
               'content@': {
                 templateUrl : 'users/newuser.html',
                 controller  : 'UserController'
+              }
+            }
+          }
+        },
+        { state: STATES.USERS_BATCH,
+          config: {
+            url: getUrl(STATES.USERS_BATCH),
+            views: {
+              'content@': {
+                templateUrl : 'users/batchuser.html',
+                controller  : 'UserBatchController'
+              }
+            }
+          }
+        },
+        { state: STATES.NOTICE,
+          config: {
+            url: getUrl(STATES.NOTICE),
+            views: {
+              'content@': {
+                templateUrl : 'notices/noticedash.html',
+                controller  : 'NoticeDashController'
+              }
+            }
+          }
+        },
+        { state: STATES.NOTICE_VIEW,
+          config: {
+            url: getUrl(STATES.NOTICE_VIEW, ':id'),
+            views: {
+              'content@': {
+                templateUrl : 'notices/newnotice.html',
+                controller  : 'NoticeController'
+              }
+            }
+          }
+        },
+        { state: STATES.NOTICE_EDIT,
+          config: {
+            url: getUrl(STATES.NOTICE_EDIT, ':id'),
+            views: {
+              'content@': {
+                templateUrl : 'notices/newnotice.html',
+                controller  : 'NoticeController'
+              }
+            }
+          }
+        },
+        { state: STATES.NOTICE_NEW,
+          config: {
+            url: getUrl(STATES.NOTICE_NEW),
+            views: {
+              'content@': {
+                templateUrl : 'notices/newnotice.html',
+                controller  : 'NoticeController'
               }
             }
           }
@@ -11633,9 +12030,6 @@ function utilFactory ($rootScope, miscUtilFactory) {
   }
   
   function arrayFxnTests(array, test) {
-    // jic no native implementation is available
-    miscUtilFactory.arrayPolyfill();
-    
     if (typeof test !== 'function') {
       throw new TypeError('test is non-function');
     }
@@ -11661,6 +12055,7 @@ angular.module('canvassTrac')
       VIEW: { icon: 'fa fa-eye fa-fw', class: 'btn btn-info' },
       EDIT: { icon: 'fa fa-pencil-square-o fa-fw', class: 'btn btn-warning' },
       DEL: { icon: 'fa fa-trash-o fa-fw', class: 'btn btn-danger' },
+      BATCH: { icon: 'fa fa-files-o fa-fw', class: 'btn btn-secondary' },
       SEL: { icon: 'fa fa-check-square-o fa-fw', class: 'btn btn-default' },
       UNSEL: { icon: 'fa fa-square-o fa-fw', class: 'btn btn-default' }
     };
@@ -11673,9 +12068,9 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-controllerUtilFactory.$inject = ['authFactory', 'miscUtilFactory', 'utilFactory', 'STATES', 'ACCESS', 'DECOR'];
+controllerUtilFactory.$inject = ['authFactory', 'miscUtilFactory', 'utilFactory', 'STATES', 'ACCESS', 'DECOR', 'CONFIG'];
 
-function controllerUtilFactory (authFactory, miscUtilFactory, utilFactory, STATES, ACCESS, DECOR) {
+function controllerUtilFactory (authFactory, miscUtilFactory, utilFactory, STATES, ACCESS, DECOR, CONFIG) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -11697,41 +12092,62 @@ function controllerUtilFactory (authFactory, miscUtilFactory, utilFactory, STATE
     { txt: viewTxt, icon: DECOR.VIEW.icon, tip: 'View selected', class: DECOR.VIEW.class },
     { txt: editTxt, icon: DECOR.EDIT.icon, tip: 'Edit selected', class: DECOR.EDIT.class },
     { txt: delTxt, icon: DECOR.DEL.icon, tip: 'Delete selected', class: DECOR.DEL.class }
-  ];
+  ],
+  StateAccessMap = {
+    // map mwnu names to access names
+    VOTINGSYS: ACCESS.VOTINGSYS,
+    ROLES: ACCESS.ROLES,
+    USERS: ACCESS.USERS,
+    ELECTION: ACCESS.ELECTIONS,
+    CANDIDATE: ACCESS.CANDIDATES,
+    CANVASS: ACCESS.CANVASSES,
+    NOTICE: ACCESS.NOTICES
+  };
 
   return factory;
 
   /* function implementation
     -------------------------- */
 
+  /**
+   * Set standard scope variables
+   * @param {string} menu  Name of menu, as per STATES properties e.g. 'CANVASS', 'USERS. etc.
+   * @param {object} scope Scope to add variables to
+   */
   function setScopeVars (menu, scope) {
     var states = STATES.SET_SCOPE_VARS(menu),
       props = Object.getOwnPropertyNames(states),
       access;
 
+    /* group is combination of 'a' (access to all) & '1' (access to one)
+      privilege is combination of 'c' (create), 'r' (read), 'u' (update) & 'd' (delete) */
     props.forEach(function (prop) {
       switch (prop) {
         case 'dashState':
-          access = { group: 'a', privilege: 'r' };
+          access = { group: 'a', privilege: 'r' };  // need all read for dash
           break;
         case 'newState':
-          access = { group: '1', privilege: 'c' };
+          access = { group: '1', privilege: 'c' };  // need 1 create for new
           break;
         case 'viewState':
-          access = { group: '1', privilege: 'r' };
+          access = { group: '1', privilege: 'r' };  // need 1 read for view
           break;
         case 'editState':
-          access = { group: '1', privilege: 'u' };
+          access = { group: '1', privilege: 'u' };  // need 1 update for edit
           break;
         case 'delState':
-          access = { group: 'a1', privilege: 'd' };
+          access = { group: 'a1', privilege: 'd' };  // need all/1 delete for delete
+          break;
+        case 'batchState':
+          access = { group: 'a1', privilege: 'b' };  // need all/1 batch for delete
           break;
         default:
           access = undefined;
           break;
       }
       if (access) {
-        if (!authFactory.isAccess(ACCESS.CANVASSES, access.group, access.privilege)) {
+        if (!CONFIG.NOAUTH &&
+            !authFactory.isAccess(StateAccessMap[menu], access.group, access.privilege)) {
           // no access so remove state
           states[prop] = undefined;
         }
@@ -12081,11 +12497,15 @@ function menuService(authFactory, MENUS, CONFIG, USER) {
 
     Object.getOwnPropertyNames(baseMenu).forEach(function (name) {
       if (name !== 'root') {
-        // NOTE: name is the property value from the MENUS config phase & matches the access property in the login response
-        menu[name] = {
+        /* NOTE: name is the property value from the MENUS config phase in 
+            header.controller.js, matches the access property in the login 
+            response (e.g. ACCESS.VOTINGSYS etc.)
+        */
+        var submenu = {
           header: baseMenu[name].header,
           items: []
-        };
+        }; 
+
         // add items to the menu if user has access
         baseMenu[name].items.forEach(function (item) {
           substate = menu.root.substates.find(function (state) {
@@ -12098,11 +12518,14 @@ function menuService(authFactory, MENUS, CONFIG, USER) {
               entry = angular.copy(item);
               entry.name = entry.name.trim(); // remove any whitespace used to set alignment in dropdown menu
 
-              menu[name].items.push(entry);
+              submenu.items.push(entry);
               ++count;
             }
           }
         });
+        if (submenu.items.length) {
+          menu[name] = submenu;
+        }
       }
     });
     if (!count) {
@@ -12128,9 +12551,9 @@ angular.module('canvassTrac')
   .controller('HomeController', HomeController);
 
 
-HomeController.$inject = ['$scope', '$rootScope', 'menuService', 'HOMESCRN', 'CONFIG'];
+HomeController.$inject = ['$scope', '$rootScope', 'menuService', 'noticeFactory', 'HOMESCRN', 'CONFIG'];
 
-function HomeController ($scope, $rootScope, menuService, HOMESCRN, CONFIG) {
+function HomeController ($scope, $rootScope, menuService, noticeFactory, HOMESCRN, CONFIG) {
 
 
   $scope.message = HOMESCRN.message;
@@ -12158,6 +12581,24 @@ function HomeController ($scope, $rootScope, menuService, HOMESCRN, CONFIG) {
     setMenus(false);
   });
 
+  $scope.levelToIcon = levelToIcon;
+  $scope.levelToStyle = levelToStyle;
+
+
+  $scope.notices = noticeFactory.query('current',
+    // success function
+    function (response) {
+      // response is actual data
+      $scope.notices = response;
+    },
+    // error function
+    function (response) {
+      // response is message
+      NgDialogFactory.error(response, 'Unable to retrieve Notices');
+    }
+  );
+
+
 
   function setMenus (loggedIn) {
     var menus = {},
@@ -12172,6 +12613,15 @@ function HomeController ($scope, $rootScope, menuService, HOMESCRN, CONFIG) {
       }
     }
     $scope.menuEntries = menuEntries;
+  }
+
+
+  function levelToIcon (level) {
+    return noticeFactory.getNoticeTypeObj(level, 'icon');
+  }
+
+  function levelToStyle (level) {
+    return noticeFactory.getNoticeTypeObj(level, 'style');
   }
 
 }
@@ -12202,15 +12652,18 @@ angular.module('canvassTrac')
     var prop,
       tree, toCheck,
       dropdownNew = '\xA0\xA0\xA0New',  // add nbsp
+      dropdownBatch = '\xA0\xA0\xA0Batch',  // add nbsp
       configuration = 'Configuration',
       votingSysDash = 'Voting Systems',
       rolesDash = 'Roles',
       userDash = 'Users',
+      noticeDash = 'Notices',
       campaign = 'Campaign',
       electionDash = 'Elections',
       candidateDash = 'Candidates',
       canvassDash = 'Canvasses',
       accessAllRead = { group: 'a', privilege: 'r' },
+      accessAllBatch = { group: 'a', privilege: 'b' },
       access1Read = { group: '1', privilege: 'r' },
       access1Update = { group: '1', privilege: 'u' },
       access1Create = { group: '1', privilege: 'c' },
@@ -12284,7 +12737,27 @@ angular.module('canvassTrac')
                   { name: dropdownNew,
                     icon: 'fa fa-user-plus fa-fw',
                     class: DECOR.NEW.class,
-                    sref: STATES.USERS_NEW }
+                    sref: STATES.USERS_NEW },
+                  { name: dropdownBatch,
+                    icon: DECOR.BATCH.icon,
+                    class: DECOR.BATCH.class,
+                    sref: STATES.USERS_BATCH }
+                ]
+              }
+            },
+            { sref: STATES.NOTICE,
+              property: ACCESS.NOTICES,  // NOTE: matches access property in login response
+              value: {
+                header: noticeDash,
+                items: [
+                  { name: noticeDash,
+                    icon: 'fa fa-comments fa-fw',
+                    class: DECOR.DASH.class,
+                    sref: STATES.NOTICE },
+                  { name: dropdownNew,
+                    icon: DECOR.NEW.icon,
+                    class: DECOR.NEW.class,
+                    sref: STATES.NOTICE_NEW }
                 ]
               }
             }
@@ -12426,7 +12899,15 @@ angular.module('canvassTrac')
           { state: STATES.USERS, name: userDash, access: accessAllRead },
           { state: STATES.USERS_VIEW, name: 'View User', access: access1Read },
           { state: STATES.USERS_EDIT, name: 'Update User', access: access1Update },
-          { state: STATES.USERS_NEW, name: 'New User', access: access1Create }
+          { state: STATES.USERS_NEW, name: 'New User', access: access1Create },
+          { state: STATES.USERS_BATCH, name: 'User Batch Mode', access: accessAllBatch }
+        ]
+      },
+      { state: STATES.NOTICE, entries: [
+          { state: STATES.NOTICE, name: noticeDash, access: accessAllRead },
+          { state: STATES.NOTICE_VIEW, name: 'View Notice', access: access1Read },
+          { state: STATES.NOTICE_EDIT, name: 'Update Notice', access: access1Update },
+          { state: STATES.NOTICE_NEW, name: 'New Notice', access: access1Create }
         ]
       }
     ].forEach(function (cfgBlock) {
@@ -13261,6 +13742,7 @@ function userService($state, userFactory, NgDialogFactory, controllerUtilFactory
               ADDRSCHEMA.IDs.TOWN,
               ADDRSCHEMA.IDs.CITY,
               ADDRSCHEMA.IDs.COUNTY,
+              ADDRSCHEMA.IDs.STATE,
               ADDRSCHEMA.IDs.COUNTRY,
               ADDRSCHEMA.IDs.PCODE,
               ADDRSCHEMA.IDs.GPS
@@ -13479,9 +13961,9 @@ angular.module('canvassTrac')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-UserController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'roleFactory', 'userFactory', 'userService', 'NgDialogFactory', 'stateFactory', 'consoleService', 'controllerUtilFactory', 'DEBUG'];
+UserController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'roleFactory', 'userFactory', 'userService', 'NgDialogFactory', 'stateFactory', 'consoleService', 'controllerUtilFactory', 'DEBUG', 'MISC'];
 
-function UserController($scope, $rootScope, $state, $stateParams, roleFactory, userFactory, userService, NgDialogFactory, stateFactory, consoleService, controllerUtilFactory, DEBUG) {
+function UserController($scope, $rootScope, $state, $stateParams, roleFactory, userFactory, userService, NgDialogFactory, stateFactory, consoleService, controllerUtilFactory, DEBUG, MISC) {
 
   var con = consoleService.getLogger('UserController');
 
@@ -13520,17 +14002,20 @@ function UserController($scope, $rootScope, $state, $stateParams, roleFactory, u
       NgDialogFactory.error(response);
     }
   );
+  $scope.countries = MISC.COUNTRIES;
 
   /* function implementation
   -------------------------- */
 
   function getTitle() {
     $scope.editDisabled = true;
+    $scope.passSetable = false;
 
     var title;
     if ($state.is($scope.newState)) {
       title = 'Create User';
       $scope.editDisabled = false;
+      $scope.passSetable = true;
     } else if ($state.is($scope.viewState)) {
       title = 'View User';
     } else if ($state.is($scope.editState)) {
@@ -13661,6 +14146,142 @@ function UserDeleteController($scope, utilFactory) {
 
   /* function implementation
   -------------------------- */
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .directive('file', function(){
+      // Based on http://angularjstutorial.blogspot.ie/2012/12/angularjs-with-input-file-directive.html#.WWi57YjyuHs
+      return {
+          scope: {
+              file: '='   // bidirectional binding
+          },
+          /**
+           * Directive link function
+           * @param {object} scope   Scope object
+           * @param {object} element jqLite-wrapped element that this directive matches
+           * @param {object} attrs   hash object with key-value pairs of normalized attribute names and their corresponding attribute values
+           */
+          link: function(scope, element, attrs){
+              element.bind('change', function(event){
+                  var file = event.target.files[0];
+                  scope.file = file ? file : undefined;
+                  scope.$apply();
+              });
+          }
+      };
+  })
+
+  .controller('UserBatchController', UserBatchController);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+UserBatchController.$inject = ['$scope', 'roleFactory', 'userFactory', 'userService', 'NgDialogFactory', 'stateFactory', 'controllerUtilFactory', 'miscUtilFactory', 'USERSCHEMA', 'STATES', 'UTIL', 'DEBUG'];
+
+function UserBatchController($scope, roleFactory, userFactory, userService, NgDialogFactory, stateFactory, controllerUtilFactory, miscUtilFactory, USERSCHEMA, STATES, UTIL, DEBUG) {
+
+  if (DEBUG.devmode) {
+    $scope.debug = DEBUG;
+  }
+
+  $scope.param = {};
+  $scope.errors = [];
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  $scope.processForm = processForm;
+
+
+  /* function implementation
+  -------------------------- */
+
+  function processForm() {
+
+    $scope.errors = [];
+
+    if ($scope.param.file) {
+      var reader = new FileReader();
+      reader.onload = function (event) {
+        // The file's text will be printed here
+        console.log(event.target.result);
+        
+        var obj;
+        try {
+          obj = JSON.parse(event.target.result);
+          
+          userFactory.save('batch', obj,
+            // success function
+            function (response) {
+              $scope.errors = response.errors;
+
+              $scope.param = {};
+              $scope.userBatchForm.$setPristine();
+
+              var info = getResultTitleMsg(response);
+              NgDialogFactory.message(info.title, info.msg);
+            },
+            // error function
+            function (response) {
+              $scope.errors = response.data.errors;
+            
+              var info = getResultTitleMsg(response.data);
+              NgDialogFactory.errormessage(info.title, info.msg);
+            }
+          );
+          
+        }
+        catch (ex) {
+          NgDialogFactory.errormessage('Error', ex.message);
+        }
+        
+      };
+      reader.readAsText($scope.param.file);
+    }
+    
+  }
+  
+  function getResultTitleMsg (result) {
+    var title,
+      msg = [];
+    if (result.failed > 0) {
+      if (result.created === 0) {
+        title = 'Processing Unsuccessful';
+      } else {
+        title = 'Processing Partially Completed';
+        msg.push(puraliseMsg(result.created, 'user', 'created'));
+      }
+      msg.push(puraliseMsg(result.failed, 'error', 'error during processing'));
+    } else if ((result.failed === 0) && (result.created === 0)) {
+      title = 'Nothing Processed';
+      msg.push('Please verify input file');
+    } else {
+      title = 'Processing Completed';
+      msg.push(puraliseMsg(result.created, 'user', 'created'));
+    }
+    return {
+      title: title,
+      msg: msg
+    };
+  }
+
+  function puraliseMsg (count, noun, base) {
+    var msg;
+    if (count === 1) {
+      msg = '1 ' + noun + ' ' + base;
+    } else if (count === 0) {
+      msg = 'No ' + noun + 's ' + base;
+    } else {
+      msg = count + ' ' + noun + 's ' + base;
+    }
+    return msg;
+  }
 
 }
 
@@ -15420,9 +16041,6 @@ function CanvassController($scope, $state, $stateParams, $filter, $injector, can
   }
 
   function setPerPage(pagers, pages) {
-    // jic no native implementation is available
-    miscUtilFactory.arrayPolyfill();
-    
     var list;
     if (Array.isArray(pagers)) {
       list = pagers;
@@ -16816,36 +17434,37 @@ function CanvassResultController($scope, $rootScope, $state, canvassFactory, ele
              CANVASSASSIGN.ASSIGNMENTCHOICES, 'Has Allocation', true);
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
-  $scope.filterList = filterList;
-  $scope.sortList = sortList;
   $scope.getQuestionTypeName = questionFactory.getQuestionTypeName;
   $scope.showPieChart = showPieChart;
   $scope.showBarChart = showBarChart;
   $scope.showPolarAreaChart = showPolarAreaChart;
   $scope.showChart = showChart;
   $scope.showResultDetail = showResultDetail;
-
+  $scope.toPercent = toPercent;
 
   // generate quick response labels & data
   $scope.quickLabels = [];
-  $scope.quickData = [];
+  $scope.quickData = new Array(quickDetails.length);
   quickDetails.forEach(function (detail) {
     $scope.quickLabels.push(detail.label);
-    $scope.quickData.push(0);
   });
+  $scope.pieChartOptions = {
+    legend: {
+      display: true
+    }
+  };
 
   // generate support labels & data
   $scope.supportLabels = ['Unknown'];
   $scope.supportData = [0];
   for (i = CANVASSRES_SCHEMA.SUPPORT_MIN; i <= CANVASSRES_SCHEMA.SUPPORT_MAX; ++i) {
-    $scope.supportLabels.push(i.toString());
+    $scope.supportLabels.push('Level ' + i.toString());
     $scope.supportData.push(0);
   }
   $scope.resultCount = 0;
 
   $scope.canvassLabels = ['Completed', 'Pending'];
-  $scope.canvassComplete = 0;
-  $scope.canvassPending = 0;
+  $scope.canvassComplete = $scope.canvassPending = makeCountPercent(0, 0);
 
   $scope.survey = surveyFactory.getObj(RES.ACTIVE_SURVEY);
 
@@ -16873,8 +17492,8 @@ function CanvassResultController($scope, $rootScope, $state, canvassFactory, ele
         ++pending;
       }
     });
-    $scope.canvassComplete = completed;
-    $scope.canvassPending = pending;
+    $scope.canvassComplete = makeCountPercent(completed, resList.count);
+    $scope.canvassPending = makeCountPercent(pending, resList.count);
   }
 
   function processsResults (resList) {
@@ -16889,7 +17508,9 @@ function CanvassResultController($scope, $rootScope, $state, canvassFactory, ele
     $scope.resultCount = filteredList.length;
 
     var quickData = new Array($scope.quickData.length),
-      supportData = new Array($scope.supportData.length);
+      supportData = new Array($scope.supportData.length),
+      quickCnt = 0,   // number of quick responses
+      supportCnt = 0; // number of support responses
     quickData.fill(0);
     supportData.fill(0);
 
@@ -16899,22 +17520,54 @@ function CanvassResultController($scope, $rootScope, $state, canvassFactory, ele
         if (result[quickDetails[i].property] !== quickDetails[i].dfltValue) {
           // quick responses are mutually exclusive, so if one isn't its default value, thats it
           ++quickData[i];
+          ++quickCnt;
           break;
         }
       }
 
-      // ca;c support
+      // calc support
       if (result[supportProperty] === CANVASSRES_SCHEMA.SUPPORT_UNKNOWN) {
         ++supportData[0];
       } else {
         i = result[supportProperty] - CANVASSRES_SCHEMA.SUPPORT_MIN + 1;
         if (i < supportData.length) {
           ++supportData[i];
+          ++supportCnt;
         }
       }
     });
+
+    $scope.quickLabelData = makeLabelData($scope.quickLabels, quickData, quickCnt);
     $scope.quickData = quickData;
+    $scope.quickDataCnt = quickCnt;
+    $scope.supportLabelData = makeLabelData($scope.supportLabels, supportData,
+      function (index) {
+        if (index === 0) {  // unknown
+          return $scope.resultCount;
+        } else {
+          return supportCnt;
+        }
+      });
     $scope.supportData = supportData;
+    $scope.supportDataCnt = supportCnt;
+  }
+
+  function makeLabelData (labels, values, total) {
+    var ll = labels.length,
+      labelData = new Array(ll),
+      totalCnt;
+    for (var i = 0; i < ll; ++i) {
+      if (angular.isFunction(total)) {
+        totalCnt = total(i);
+      } else {
+        totalCnt = total;
+      }
+      labelData[i] = {
+        label: labels[i],
+        data: makeCountPercent(values[i], totalCnt)
+      };
+    }
+    return labelData;
   }
 
   function processQuestions (resList) {
@@ -17012,36 +17665,32 @@ function CanvassResultController($scope, $rootScope, $state, canvassFactory, ele
       i,
       seriesIdx,
       value,
-      total = 0,
-      resData,
+      total = 0,    // total number of options selected
+      resData = question.resData,
+      data,
       details = []; // combined label & count info
 
     if (questionFactory.showQuestionOptions(question.type)) {
-      resData = question.resData;
       // selection from options
       if (resData.series) {
         seriesIdx = resData.series.length - 1;
       } else {
         seriesIdx = -1;
       }
+      if (seriesIdx >= 0) {
+        data = resData.data[seriesIdx];
+      } else {
+        data = resData.data;
+      }
       for (i = 0; i < resData.labels.length; ++i) {
-        if (seriesIdx >= 0) {
-          value = resData.data[seriesIdx][i];
-        } else {
-          value = resData.data[i];
-        }
         details.push({
           label: resData.labels[i],
-          value: value
+          value: data[i] //value
         });
-        total += value;
+        total += data[i]  /*value*/;
       }
       details.forEach(function (detail) {
-        value = (detail.value * 100) / total;
-        if (!Number.isInteger(value)) {
-          value = value.toFixed(1);
-        }
-        detail.percent = value;
+        detail.percent = toPercent(detail.value, total);
       });
     } else if (questionFactory.showTextInput(question.type)) {
       // text input
@@ -17052,7 +17701,8 @@ function CanvassResultController($scope, $rootScope, $state, canvassFactory, ele
                   data: {
                     question: question,
                     chart: chartCtrl(question),
-                    details: details
+                    details: details,
+                    respCnt: $scope.resultCount
                   }});
 
     dialog.closePromise.then(function (data) {
@@ -17063,11 +17713,31 @@ function CanvassResultController($scope, $rootScope, $state, canvassFactory, ele
   }
 
 
+  function toPercent (value, total, digits) {
+    var percent;
+    if (total === 0) {
+      percent = 0;
+    } else {
+      percent = (value * 100) / total;
+      if (!Number.isInteger(percent)) {
+        if (!angular.isNumber(digits)) {
+          digits = 1;  // to 1 digit by default
+        }
+        percent = percent.toFixed(digits);
+      }
+    }
+    return percent;
+  }
 
+  function makeCountPercent (value, total, digits) {
+    return {
+      value: value,
+      percent: toPercent(value, total, digits)
+    };
+  }
 
 
   function setupGroup(id, factory, label, assignmentChoices, assignmentLabel,  nameFields) {
-
     factories[id] = factory;
 
     $scope[id] = factory.getList(id, storeFactory.CREATE_INIT);
@@ -17075,183 +17745,6 @@ function CanvassResultController($scope, $rootScope, $state, canvassFactory, ele
     $scope[id].assignmentChoices = assignmentChoices;
     $scope[id].assignmentLabel = assignmentLabel;
     $scope[id].nameFields = nameFields;
-
-    var filter = RES.getFilterName(id);
-    $scope[filter] = storeFactory.newObj(filter, function () {
-        return newFilter(factory);
-      }, storeFactory.CREATE_INIT);
-
-    var pager = RES.getPagerName(id);
-    $scope[pager] = pagerFactory.newPager(pager, [], 1, $scope.perPage, 5);
-
-    setFilter(id, $scope[filter]);
-    factory.setPager(id, $scope[pager]);
-  }
-
-  function getAssignmentChoiceIndex (value) {
-    var idx = -1;
-    for (var i = CANVASSASSIGN.ASSIGNMENT_YES_IDX; i <= CANVASSASSIGN.ASSIGNMENT_ALL_IDX; ++i) {
-      if (value === CANVASSASSIGN.ASSIGNMENTCHOICES[i].val) {
-        idx = i;
-        break;
-      }
-    }
-    return idx;
-  }
-
-  function filterFunction (list, tests, filter) {
-    var incTest,
-      dfltFilter = angular.copy(filter);  // filter for use by default filter function
-    if (filter && filter.assignment) {
-      // remove assignment from default filter otherwise there'll be no moatches
-      delete dfltFilter.assignment;
-
-      var idx = getAssignmentChoiceIndex(filter.assignment);
-      if ((idx >= 0) && (idx < tests.length)) {
-        incTest = tests[idx];
-      }
-    }
-
-    // list specific filter function
-    var filterList = list.factory.getFilteredList(list, dfltFilter, incTest);
-
-    // apply allocated criteria
-//    if (incTest) {
-//      var outList = [];
-//      filterList.forEach(function (element) {
-//        if (incTest(element)) {
-//          outList.push(element);
-//        }
-//      });
-//      filterList = outList;
-//    }
-    list.filterList = filterList;
-  }
-
-  function addrFilterFunction (list, filter) {
-    // address specific filter function
-    filterFunction(list, [
-        function (element) {  // yes test
-          return (element.canvasser);
-        },
-        function (element) {  // no test
-          return (!element.canvasser);
-        }
-      ], filter);
-  }
-
-  function cnvsrFilterFunction (list, filter) {
-    // canvasser specific filter function
-    filterFunction(list, [
-        function (element) {  // yes test
-          return (element.addresses && element.addresses.length);
-        },
-        function (element) {  // no test
-          return (!element.addresses || !element.addresses.length);
-        }
-      ], filter);
-  }
-
-  function newFilter(factory, data) {
-    var customFilter,
-      filter;
-    // override default customFilter with enhanced version
-    if (factory.ID_TAG === ADDRSCHEMA.ID_TAG) {
-      customFilter = addrFilterFunction;
-    } else {
-      customFilter = cnvsrFilterFunction;
-    }
-
-    filter = factory.newFilter(data, customFilter);
-    // add assignment specific fields
-    if (data && data.assignment) {
-      filter.filterBy.assignment = data.assignment;
-    }
-    return filter;
-  }
-
-
-
-
-
-  function setFilter (id , filter) {
-    var factory = factories[id],
-      // allocatedAddrFilterStr or allocatedCanvasserFilterStr
-      filterStr = RES.getFilterStrName(id),
-      filterStrPrefix;
-    if (!filter) {
-      filter = newFilter(factory);
-    }
-    if (filter.filterBy.assignment) {
-      // set filter string prefix to assignment text
-      var idx = getAssignmentChoiceIndex(filter.filterBy.assignment);
-      if ((idx >= 0) && (idx < CANVASSASSIGN.ASSIGNMENTCHOICES.length)) {
-        var list = factory.getList(id);
-        if (list) {
-          filterStrPrefix = list.assignmentLabel + ': '+           CANVASSASSIGN.ASSIGNMENTCHOICES[idx].text;
-        }
-      }
-    }
-
-    $scope[filterStr] = filter.toString(filterStrPrefix);
-
-    // add canvasser restriction to filter
-    if ((id === RES.ALLOCATED_CANVASSER) && $scope.canvasser) {
-      filter.role = $scope.canvasser._id;
-    }
-
-    return factory.setFilter(id, filter);
-  }
-
-  function sortList (resList) {
-    return resList.sort();
-  }
-
-  function filterList (resList, action) {
-
-    if (action === 'c') {       // clear filter
-      setFilter(resList.id);
-//      if (resList.id === RES.UNASSIGNED_CANVASSER) {
-//        resList.setList([]);  // clear list of addresses
-//      }
-      resList.applyFilter();
-    } else if (action === 'a') {  // no filter, get all
-      var list = setFilter(resList.id);
-      if (list) {
-        resList.factory.getFilteredResource(resList, list.filter, resList.label);
-      }
-    } else {  // set filter
-      var filter = angular.copy(resList.filter.getFilterValue());
-
-      var dialog = NgDialogFactory.open({ template: 'canvasses/assignmentfilter.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'AssignmentFilterController',
-                    data: {action: resList.id,
-                           ctrl: { title: resList.title,
-                                  assignmentChoices: resList.assignmentChoices,
-                                  assignmentLabel: resList.assignmentLabel,
-                                  nameFields: resList.nameFields},
-                           filter: filter}});
-
-      dialog.closePromise.then(function (data) {
-        if (!NgDialogFactory.isNgDialogCancel(data.value)) {
-
-//          ngDialogData.filter.assignment
-
-          var factory = factories[data.value.action],
-            filter = newFilter(factory, data.value.filter);
-
-          var resList = setFilter(data.value.action, filter);
-          if (resList) {
-            if (resList.id === RES.UNASSIGNED_CANVASSER) {
-              // request filtered addresses from server
-              $scope.equestCanvassers(resList, filter);
-            } else {
-              resList.applyFilter();
-            }
-          }
-        }
-      });
-    }
-
   }
 
 }
@@ -17278,10 +17771,12 @@ function ResultDetailController ($scope, CHARTS) {
   $scope.showPieChart = showPieChart;
   $scope.showBarChart = showBarChart;
   $scope.showPolarAreaChart = showPolarAreaChart;
+  $scope.indexToStyle = indexToStyle;
 
   $scope.question = $scope.ngDialogData.question;
   $scope.chart = $scope.ngDialogData.chart;
   $scope.details = $scope.ngDialogData.details;
+  $scope.respCnt = $scope.ngDialogData.respCnt;
 
   /* function implementation
   -------------------------- */
@@ -17298,6 +17793,10 @@ function ResultDetailController ($scope, CHARTS) {
     return (chart === CHARTS.POLAR);
   }
 
+  function indexToStyle (index) {
+    // different colours for alternate entries
+    return (((indexToStyle % 2) === 0) ? 'bg-info' : 'bg-primary');
+  }
 
 }
 
@@ -17643,6 +18142,7 @@ function QuestionController($scope, questionFactory, NgDialogFactory, questionTy
   $scope.getOkText = getOkText;
   $scope.selectedItemChanged = selectedItemChanged;
 	$scope.questionTypes = questionTypes;
+  $scope.isRequired = isRequired;
 
   if ($scope.ngDialogData.question.type) {
     selectedItemChanged('init', $scope.ngDialogData.question);
@@ -17694,6 +18194,7 @@ function QuestionController($scope, questionFactory, NgDialogFactory, questionTy
 
       if (!showNumOpts) {
         value.numoptions = 0;
+        value.rangeMin = value.rangeMax = 0;
         value.options = undefined;
       }
       
@@ -17703,6 +18204,8 @@ function QuestionController($scope, questionFactory, NgDialogFactory, questionTy
       if (value.options === undefined) {
         value.options = [];
       }
+      value.rangeMin = 1;
+      value.rangeMax = value.numoptions;
       if (value.options.length < value.numoptions) {
         for (var i = value.options.length; i < value.numoptions; ++i) {
           value.options.push('');
@@ -17711,9 +18214,17 @@ function QuestionController($scope, questionFactory, NgDialogFactory, questionTy
         value.options.splice(value.numoptions, (value.options.length - value.numoptions)) ;
       }
     }
-    
-    
-    
+  }
+
+  function isRequired (index, options) {
+    var required = $scope.showNumOptions; // default all options are required if displayed
+    if (required && $scope.showRankingNumber) {
+      // only first & last are required for ranking
+      if ((index > 0) && (index < (options.length - 1))) {
+        required = false;
+      }
+    }
+    return required;
   }
 
 }
@@ -17750,6 +18261,460 @@ function AddressFilterController($scope) {
     $scope.ngDialogData.filter = {};
   }
   
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('ct.clientCommon')
+
+  .service('noticeService', noticeService);
+
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+noticeService.$inject = ['$state', 'noticeFactory', 'NgDialogFactory', 'controllerUtilFactory'];
+
+function noticeService($state, noticeFactory, NgDialogFactory, controllerUtilFactory) {
+
+  /*jshint validthis:true */
+  this.confirmDeleteNotice = function (scope, deleteList, onSuccess, onFailure) {
+
+    NgDialogFactory.openAndHandle({
+        template: 'notices/confirmdelete_notice.html',
+        scope: scope, className: 'ngdialog-theme-default',
+        controller: 'NoticeDeleteController',
+        data: { list: deleteList }
+      },
+      // process function
+      function (value) {
+        // perform delete
+        var delParams = {};
+        angular.forEach(value, function (entry) {
+          delParams[entry._id] = true;
+        });
+
+        noticeFactory.delete('notice', delParams,
+          // success function
+          onSuccess,
+          // error function
+          function (response) {
+            if (onFailure) {
+              onFailure(response);
+            } else {
+              NgDialogFactory.error(response, 'Delete Unsuccessful');
+            }
+          }
+        );
+      });
+  };
+
+  /*jshint validthis:true */
+  this.getStateButton = function (scope, state) {
+    var button = controllerUtilFactory.getStateButton(state, scope),
+      isDash = $state.is(scope.dashState);
+
+    button.forEach(function (element) {
+      if (element.state === scope.newState) {
+        element.tip = 'Create new notice';
+      } else if (element.state === scope.viewState) {
+        if (isDash) {
+          element.tip = 'View selected notice';
+        } else {
+          element.tip = 'View this notice';
+        }
+      } else if (element.state === scope.editState) {
+        if (isDash) {
+          element.tip = 'Edit selected notice';
+        } else {
+          element.tip = 'Edit this notice';
+        }
+      } else if (element.state === scope.delState) {
+        if (isDash) {
+          element.tip = 'Delete selected notice(s)';
+        } else {
+          element.tip = 'Delete this notice';
+        }
+      }
+    });
+
+    return button;
+  };
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .controller('NoticeDashController', NoticeDashController)
+
+  .filter('filterDashNotice', ['UTIL', function (UTIL) {
+    return function (input, title, op, level) {
+
+      if (!op) {
+        op = UTIL.OP_OR;
+      }
+      var out = [];
+      if (title || angular.isNumber(level)) {
+        // filter by title & level values
+        var titleLwr;
+        if (title) {
+          titleLwr = title.toLowerCase();
+        }
+        angular.forEach(input, function (notice) {
+          var titleOk,
+            levelOk = (notice.level === level);
+
+          if (title) {
+            titleOk = (notice.title.toLowerCase().indexOf(titleLwr) >= 0);
+          } else {
+            titleOk = false;
+          }
+          if (((op === UTIL.OP_OR) && (titleOk || levelOk)) ||
+              ((op === UTIL.OP_AND) && (titleOk && levelOk))) {
+            out.push(notice);
+          }
+        });
+      } else {
+        out = input;
+      }
+      return out;
+    };
+  }]);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+NoticeDashController.$inject = ['$scope', '$rootScope', '$state', 'noticeFactory', 'noticeService', 'NgDialogFactory', 'stateFactory', 'utilFactory', 'controllerUtilFactory', 'miscUtilFactory', 'NOTICESCHEMA', 'STATES', 'UTIL', 'DEBUG'];
+
+function NoticeDashController($scope, $rootScope, $state, noticeFactory, noticeService, NgDialogFactory, stateFactory, utilFactory, controllerUtilFactory, miscUtilFactory, NOTICESCHEMA, STATES, UTIL, DEBUG) {
+
+  controllerUtilFactory.setScopeVars('NOTICE', $scope);
+
+  if (DEBUG.devmode) {
+    $scope.debug = DEBUG;
+  }
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  $scope.filterOps = UTIL.OP_LIST;
+  $scope.initFilter = initFilter;
+  $scope.toggleSelection = toggleSelection;
+  $scope.formatDate = utilFactory.formatDate;
+  $scope.levelToName = levelToName;
+  $scope.levelToIcon = levelToIcon;
+
+  $scope.changeStateParam = changeStateParam;
+  $scope.dashDelete = dashDelete;
+  $scope.setSelect = setSelect;
+  $scope.getStateButton = getStateButton;
+
+  stateFactory.addInterface($scope);  // add stateFactory menthods to scope
+
+  $scope.noticeTypes = NOTICESCHEMA.NOTICETYPEOBJS;
+
+  initFilter();
+  getNotices();
+
+  /* function implementation
+  -------------------------- */
+
+  function initFilter() {
+    $scope.filterText = undefined;
+    $scope.filterLevel = undefined;
+    $scope.filterOp = undefined;
+    setSelect(0);
+  }
+
+  function toggleSelection (entry) {
+    setNotice(
+      controllerUtilFactory.toggleSelection($scope, entry, $scope.notices, initNotice)
+    );
+  }
+
+
+  function getNotices () {
+    $scope.notices = noticeFactory.query('notice',
+      // success function
+      function (response) {
+        // response is actual data
+        $scope.notices = response;
+
+        initFilter();
+      },
+      // error function
+      function (response) {
+        // response is message
+        NgDialogFactory.error(response, 'Unable to retrieve Notices');
+      }
+    );
+  }
+
+  function changeStateParam () {
+    return {
+      id: $scope.notice._id
+    };
+  }
+
+  function setNotice (notice) {
+    $scope.notice = notice;
+  }
+
+  function levelToName (level, prop) {
+    return noticeFactory.getNoticeTypeObj(level, 'name');
+  }
+
+  function levelToIcon (level) {
+    return noticeFactory.getNoticeTypeObj(level, 'icon');
+  }
+
+  function initNotice () {
+    // include only required fields
+    setNotice(NOTICESCHEMA.SCHEMA.getObject());
+  }
+
+
+  function dashDelete() {
+    var selectedList = miscUtilFactory.getSelectedList($scope.notices);
+    noticeService.confirmDeleteNotice($scope, selectedList,
+      // success function
+      function (/*response*/) {
+        getNotices();
+      });
+  }
+
+  function getStateButton (state) {
+    return noticeService.getStateButton($scope, state);
+  }
+
+  function setSelect(sel) {
+    return controllerUtilFactory.setSelect($scope, $scope.notices, sel);
+  }
+
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .directive('convertToNumber', function() {
+    /* copied from https://code.angularjs.org/1.4.7/docs/api/ng/directive/select */
+    return {
+      require: 'ngModel',
+      link: function(scope, element, attrs, ngModel) {
+        ngModel.$parsers.push(function(val) {
+          return parseInt(val, 10);
+        });
+        ngModel.$formatters.push(function(val) {
+          return '' + val;
+        });
+      }
+    };
+  })
+
+  .controller('NoticeController', NoticeController);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+NoticeController.$inject = ['$scope', '$rootScope', '$state', '$stateParams', 'noticeFactory', 'noticeService', 'NgDialogFactory', 'stateFactory', 'controllerUtilFactory', 'consoleService', 'STATES', 'NOTICESCHEMA', 'RESOURCE_CONST', 'DEBUG'];
+
+function NoticeController($scope, $rootScope, $state, $stateParams, noticeFactory, noticeService, NgDialogFactory, stateFactory, controllerUtilFactory, consoleService, STATES, NOTICESCHEMA, RESOURCE_CONST, DEBUG) {
+
+  var con = consoleService.getLogger('NoticeController');
+
+  con.debug('NoticeController id', $stateParams.id);
+
+  controllerUtilFactory.setScopeVars('NOTICE', $scope);
+
+  if (DEBUG.devmode) {
+    $scope.debug = DEBUG;
+  }
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  $scope.getTitle = getTitle;
+  $scope.processForm = processForm;
+
+  $scope.changeStateParam = changeStateParam;
+  $scope.singleDelete = singleDelete;
+  $scope.getStateButton = getStateButton;
+
+  $scope.gotoDash = gotoDash;
+
+  stateFactory.addInterface($scope);  // add stateFactory menthods to scope
+
+  $scope.noticeTypes = NOTICESCHEMA.NOTICETYPEOBJS;
+
+  initItem($stateParams.id);
+
+  /* function implementation
+  -------------------------- */
+
+  function getTitle() {
+    $scope.editDisabled = true;
+
+    var title;
+    if ($state.is($scope.newState)) {
+      title = 'Create Notice';
+      $scope.editDisabled = false;
+    } else if ($state.is($scope.viewState)) {
+      title = 'View Notice';
+    } else if ($state.is($scope.editState)) {
+      title = 'Update Notice';
+      $scope.editDisabled = false;
+    } else {
+      title = '';
+    }
+    return title;
+  }
+
+
+  function processForm() {
+    if ($state.is($scope.newState)) {
+      createNotice();
+    } else if ($state.is($scope.viewState)) {
+      gotoDash();
+    } else if ($state.is($scope.editState)) {
+      updateNotice();
+    }
+  }
+
+  function initItem(id) {
+    if (!id) {
+      $scope.notice = NOTICESCHEMA.SCHEMA.getObject();
+    } else {
+      $scope.notice = noticeFactory.get('notice', {id: id},
+        // success function
+        function (response) {
+
+          $scope.notice = noticeFactory.readResponse(response, {
+            objId: undefined, // no objId means not stored, just returned
+            factory: 'noticeFactory',
+            storage: RESOURCE_CONST.STORE_OBJ
+          });
+        },
+        // error function
+        function (response) {
+          // response is message
+          NgDialogFactory.error(response, 'Unable to retrieve Notice');
+        }
+      );
+    }
+  }
+
+
+  function createNotice() {
+
+    con.log('createNotice', $scope.notice);
+
+    noticeFactory.save('notice', $scope.notice,
+      // success function
+      function (/*response*/) {
+        initItem();
+        gotoDash();
+      },
+      // error function
+      function (response) {
+        // response is message
+        NgDialogFactory.error(response, 'Creation Unsuccessful');
+      }
+    );
+  }
+
+  function updateNotice() {
+
+    con.log('updateNotice', $scope.notice);
+
+    noticeFactory.update('notice', {id: $scope.notice._id}, $scope.notice,
+      // success function
+      function (/*response*/) {
+        initItem();
+        gotoDash();
+      },
+      // error function
+      function (response) {
+        // response is message
+        NgDialogFactory.error(response, 'Update Unsuccessful');
+      }
+    );
+  }
+
+  function changeStateParam () {
+    return {
+      id: $scope.notice._id
+    };
+  }
+
+  function singleDelete() {
+
+    var deleteList = [
+      JSON.parse(JSON.stringify($scope.notice))
+    ];
+
+    noticeService.confirmDeleteNotice($scope, deleteList,
+      // success function
+      function (/*response*/) {
+        gotoDash();
+      });
+  }
+
+  function getStateButton (state) {
+    return noticeService.getStateButton($scope, state);
+  }
+
+  function gotoDash() {
+    $state.go($scope.dashState);
+  }
+
+}
+
+
+/*jslint node: true */
+/*global angular */
+'use strict';
+
+angular.module('canvassTrac')
+
+  .controller('NoticeDeleteController', NoticeDeleteController);
+
+/* Manually Identify Dependencies
+  https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
+*/
+
+NoticeDeleteController.$inject = ['$scope', 'utilFactory', 'noticeFactory'];
+
+function NoticeDeleteController($scope, utilFactory, noticeFactory) {
+
+  // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
+  $scope.formatDate = utilFactory.formatDate;
+  $scope.levelToName = levelToName;
+  $scope.levelToIcon = levelToIcon;
+
+
+  /* function implementation
+  -------------------------- */
+
+  function levelToName (level, prop) {
+    return noticeFactory.getNoticeTypeObj(level, 'name');
+  }
+
+  function levelToIcon (level) {
+    return noticeFactory.getNoticeTypeObj(level, 'icon');
+  }
 
 }
 

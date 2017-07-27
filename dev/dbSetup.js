@@ -4,8 +4,12 @@
 /* Run this script in the mongo shell to create/update the basic data required by the 
   application.
   E.g. if the mongo client is running from c:\app folder & the app is in c:\app\canvasstrac,
-      it may be run as follows:
+      it may be loaded as follows:
         load("canvasstrac-server/dev/dbSetup.js")
+      To see command, run
+        canvasstrac()
+      To create all collections, run
+        canvasstrac('-c')
 */
 
 function testEquality(objA, objB, properties) {
@@ -31,6 +35,73 @@ function isEmpty (object) {
   } 
   return empty;
 }
+
+/**
+ * Insert a new document or update an existing one
+ * @param {*} collection  Collection to add/update doc in
+ * @param {*} existingId  Id os existing document
+ * @param {*} doc         The doc data
+ * @param {*} ownerId     Value for document owner property
+ * @param {boolean} dbg   Shoe debug flag
+ * @return {object} Result object with '_id' & 'action' properties
+ */
+function insertOrUpdate(collection, existingId, doc, ownerId, dbg) {
+  var result = {};
+  if (dbg) {
+    print('existingId', existingId);
+    printjson(doc);
+  }
+  if (existingId) {
+    var doc = collection.findOneAndUpdate({_id: existingId}, {$set: doc}, {returnNewDocument: true});
+    if (dbg) {
+      print('found');
+      printjson(doc);
+    }
+    if (doc) {
+      result._id = existingId;
+      result.action = 'update';
+    } else {
+      result.action = 'notexist';
+    }
+  } else {
+    if (ownerId) {
+      doc.owner = ownerId;
+    }
+    var writeResult = collection.insert(doc);
+    if (writeResult.nInserted == 1) {
+      var ins = collection.findOne(doc);
+      if (ins) {
+        result._id = ins._id;
+        result.action = 'insert';
+      } else {
+        result.action = 'notfound';
+      }
+    } else {
+      result.action = 'notinserted';
+    }
+  }
+  if (dbg) {
+    print('result');
+    printjson(result);
+  }  
+  return result;
+}
+
+// db collections
+var rolesCollect = db.roles,
+  votingSysCollect = db.votingsystems,
+  partiesCollect = db.parties,
+  addressCollect = db.addresses,
+  contactCollect = db.contactdetails,
+  candidatesCollect = db.candidates,
+  peopleCollect = db.people,
+  electionsCollect = db.elections,
+  // common use
+  deleted = 0,
+  created = 0,
+  updated = 0;
+
+
 
 /* Role initialisation
     NOTE: The level value 
@@ -164,47 +235,47 @@ var predefRoles = [
   },
 ];
 
-var rolesCollect = db.roles;
+/**
+ * Create the basic roles required by the system
+ */  
+function createRoles() {
+  deleted = created = updated = 0;
+  predefRoles.forEach(function (predef, index, array) {
+    var cursor = rolesCollect.find({"level": predef.level});
+    if (cursor.hasNext()) {
+      // exists in database
+      var dbObj = cursor.next();
+      rolesCollect.findOneAndUpdate({"level": predef.level}, 
+                                {$set: predef});
+      ++updated;
+    } else {
+      // create
+      rolesCollect.insert(predef);
+      ++created;
+    }
+  });
 
-var deleted = 0,
-  created = 0,
-  updated = 0;
-predefRoles.forEach(function (predef, index, array) {
-  var cursor = rolesCollect.find({"level": predef.level});
-  if (cursor.hasNext()) {
-    // exists in database
-    var dbObj = cursor.next();
-    rolesCollect.findOneAndUpdate({"level": predef.level}, 
-                              {$set: predef});
-    ++updated;
-  } else {
-    // create
-    rolesCollect.insert(predef);
-    ++created;
-  }
-});
-
-// delete roles in db other than those just added
-var cursor = rolesCollect.find({});
-var list = [];
-while (cursor.hasNext()) {
-  var dbObj = cursor.next(),
-      i;
-  for (i = 0; i < predefRoles.length; ++i) {
-    if (testEquality(dbObj, predefRoles[i], ['name', 'level'])) {
-      break;
+  // delete roles in db other than those just added
+  var cursor = rolesCollect.find({});
+  var list = [];
+  while (cursor.hasNext()) {
+    var dbObj = cursor.next(),
+        i;
+    for (i = 0; i < predefRoles.length; ++i) {
+      if (testEquality(dbObj, predefRoles[i], ['name', 'level'])) {
+        break;
+      }
+    }
+    if (i == predefRoles.length) {
+      list.push(dbObj._id);
     }
   }
-  if (i == predefRoles.length) {
-    list.push(dbObj._id);
-  }
+  list.forEach(function (item, index, array) {
+    var res = rolesCollect.deleteOne({"_id": item});
+    deleted += res.deletedCount;
+  });
+  print("Roles: updated " + updated + ", created " + created + ", deleted " + deleted);
 }
-list.forEach(function (item, index, array) {
-  var res = rolesCollect.deleteOne({"_id": item});
-  deleted += res.deletedCount;
-});
-print("Roles: updated " + updated + ", created " + created + ", deleted " + deleted);
-
 
 /* Voting systems initialisation */
 var predefVotingSystems = [
@@ -219,29 +290,32 @@ var predefVotingSystems = [
     preferenceLevels: ['1st', '2nd', '3rd', 'Nth', 'None', 'Undecided' ]
   }
 ];
-var votingSysCollect = db.votingsystems;
 
-deleted = created = updated = 0;
-predefVotingSystems.forEach(function (predef, index, array) {
-  var findParam = {"abbreviation": predef.abbreviation};
-  var cursor = votingSysCollect.find(findParam);
-  if (cursor.hasNext()) {
-    // exists in database
-    var dbObj = cursor.next();
-    votingSysCollect.findOneAndUpdate({"abbreviation": predef.abbreviation}, 
-                              {$set: {"name": predef.name, "description": predef.description, "preferenceLevels": predef.napreferenceLevelsme}});
-    ++updated;
-  } else {
-    // create
-    votingSysCollect.insert(predef);
-    ++created;
-  }
-  cursor = votingSysCollect.findOne(findParam);
+/**
+ * Create the basic voting systems required by the system
+ */
+function createVotingSystems() {
+  deleted = created = updated = 0;
+  predefVotingSystems.forEach(function (predef, index, array) {
+    var findParam = {"abbreviation": predef.abbreviation};
+    var cursor = votingSysCollect.find(findParam);
+    if (cursor.hasNext()) {
+      // exists in database
+      var dbObj = cursor.next();
+      votingSysCollect.findOneAndUpdate({"abbreviation": predef.abbreviation}, 
+                                {$set: {"name": predef.name, "description": predef.description, "preferenceLevels": predef.napreferenceLevelsme}});
+      ++updated;
+    } else {
+      // create
+      votingSysCollect.insert(predef);
+      ++created;
+    }
+    cursor = votingSysCollect.findOne(findParam);
 
-  array[index]._id = cursor._id;  // save for later
-});
-print("Voting systems: updated " + updated + ", created " + created + ", deleted " + deleted);
-
+    array[index]._id = cursor._id;  // save for later
+  });
+  print("Voting systems: updated " + updated + ", created " + created + ", deleted " + deleted);
+}
 
 var USA = 'United States of America (USA)';
 
@@ -326,93 +400,53 @@ var predefParties = [
     }
   }
 ];
-var partiesCollect = db.parties;
-var addressCollect = db.addresses;
-var contactCollect = db.contactdetails;
 
-partiesCollect.drop();
+/**
+ * Create the basic political parties required by the system
+ */
+function createParties() {
+  partiesCollect.drop();
 
-function insertOrUpdate(collection, existingId, doc, ownerId, dbg) {
-  var result = {};
-  if (dbg) {
-    print('existingId', existingId);
-    printjson(doc);
-  }
-  if (existingId) {
-    var doc = collection.findOneAndUpdate({_id: existingId}, {$set: doc}, {returnNewDocument: true});
-    if (dbg) {
-      print('found');
-      printjson(doc);
-    }
-    if (doc) {
-      result._id = existingId;
-      result.action = 'update';
+  deleted = created = updated = 0;
+  predefParties.forEach(function (predef, index, array) {
+    var findParam = {"name": predef.party.name};
+    var cursor = partiesCollect.find(findParam);
+    if (cursor.hasNext()) {
+      // exists in database
+      var dbObj = cursor.next();
+      partiesCollect.findOneAndUpdate(findParam, {$set: predef.party});
+      ++updated;
     } else {
-      result.action = 'notexist';
+      // create
+      partiesCollect.insert(predef.party);
+      ++created;
     }
-  } else {
-    if (ownerId) {
-      doc.owner = ownerId;
+    cursor = partiesCollect.findOne(findParam);
+
+    array[index].party['_id'] = cursor._id; // save id for later
+
+    var need2update = {};
+
+    var result = insertOrUpdate(addressCollect, cursor.address, predef.addr, cursor._id);
+    if (result.action === 'insert') {
+      need2update['address'] = result._id;
     }
-    var writeResult = collection.insert(doc);
-    if (writeResult.nInserted == 1) {
-      var ins = collection.findOne(doc);
-      if (ins) {
-        result._id = ins._id;
-        result.action = 'insert';
-      } else {
-        result.action = 'notfound';
-      }
-    } else {
-      result.action = 'notinserted';
+    result = insertOrUpdate(contactCollect, cursor.contactDetails, predef.contact, cursor._id);
+    if (result.action === 'insert') {
+      need2update['contactDetails'] = result._id;
     }
-  }
-  if (dbg) {
-    print('result');
-    printjson(result);
-  }  
-  return result;
+    if (!isEmpty(need2update)) {
+      partiesCollect.findOneAndUpdate(findParam,{$set: need2update});
+    }
+  });
+  print("Political parties: updated " + updated + ", created " + created + ", deleted " + deleted);
 }
-
-deleted = created = updated = 0;
-predefParties.forEach(function (predef, index, array) {
-  var findParam = {"name": predef.party.name};
-  var cursor = partiesCollect.find(findParam);
-  if (cursor.hasNext()) {
-    // exists in database
-    var dbObj = cursor.next();
-    partiesCollect.findOneAndUpdate(findParam, {$set: predef.party});
-    ++updated;
-  } else {
-    // create
-    partiesCollect.insert(predef.party);
-    ++created;
-  }
-  cursor = partiesCollect.findOne(findParam);
-
-  array[index].party['_id'] = cursor._id; // save id for later
-
-  var need2update = {};
-
-  var result = insertOrUpdate(addressCollect, cursor.address, predef.addr, cursor._id);
-  if (result.action === 'insert') {
-    need2update['address'] = result._id;
-  }
-  result = insertOrUpdate(contactCollect, cursor.contactDetails, predef.contact, cursor._id);
-  if (result.action === 'insert') {
-    need2update['contactDetails'] = result._id;
-  }
-  if (!isEmpty(need2update)) {
-    partiesCollect.findOneAndUpdate(findParam,{$set: need2update});
-  }
-});
-print("Political parties: updated " + updated + ", created " + created + ", deleted " + deleted);
-
 
 /* Candidates initialisation
   one for each predef party in *same* order */
 var predefCandidates = [
-  { person: {
+  { party: 'Conserative Party',   // must match party name in db
+    person: {
       firstname: 'Joe',
       lastname: 'Slowchange'
     }, 
@@ -437,7 +471,8 @@ var predefCandidates = [
       twitter: "@joe.slowchange"
     }
   },
-  { person: {
+  { party: 'Progressive Party',   // must match party name in db
+    person: {
       firstname: 'Mary',
       lastname: 'Allchange'
     },
@@ -462,7 +497,8 @@ var predefCandidates = [
       twitter: "@mary.allchange"
     }
   },
-  { person: {
+  { party: 'Apathy Party',   // must match party name in db
+    person: {
       firstname: 'Donal',
       lastname: 'Care'
     },
@@ -488,90 +524,110 @@ var predefCandidates = [
     }
   }
 ];
-var candidatesCollect = db.candidates;
-var peopleCollect = db.people;
 
+/**
+ * Create the sample candidates
+ */
+function createCandidates() {
+  /* TODO: sort out find for subdoc or redesign schema, probably need to redesign
+    as currently a candidate just holds references to a person & party */
 
-/* TODO: sort out find for subdoc or redesign schema, probably need to redesign
-  as currently a candidate just holds references to a person & party */
+  deleted = candidatesCollect.count();
+  created = updated = 0;
 
-deleted = candidatesCollect.count();
-created = updated = 0;
+  candidatesCollect.drop();   // just for now, may need to redo schemas
 
-candidatesCollect.drop();   // just for now, may need to redo schemas
+  predefCandidates.forEach(function (predef, index, array) {
+    
+    var findParam = {"firstname": predef.person.firstname, "lastname": predef.person.lastname};
+    var cursor = peopleCollect.find(findParam);
+    if (cursor.hasNext()) {
+      // exists in database
+      var dbObj = cursor.next();
+      peopleCollect.findOneAndUpdate(findParam, {$set: predef.person});
+      ++updated;
+    } else {
+      // create
+      peopleCollect.insert(predef.person);
+      ++created;
+    }
+    cursor = peopleCollect.findOne(findParam);
 
-predefCandidates.forEach(function (predef, index, array) {
-  
-  var findParam = {"firstname": predef.person.firstname, "lastname": predef.person.lastname};
-  var cursor = peopleCollect.find(findParam);
-  if (cursor.hasNext()) {
-    // exists in database
-    var dbObj = cursor.next();
-    peopleCollect.findOneAndUpdate(findParam, {$set: predef.person});
-    ++updated;
-  } else {
-    // create
-    peopleCollect.insert(predef.person);
-    ++created;
-  }
-  cursor = peopleCollect.findOne(findParam);
+    var need2update = {};
 
-  var need2update = {};
+    var result = insertOrUpdate(addressCollect, cursor.address, predef.addr, cursor._id);
+    if (result.action === 'insert') {
+      need2update['address'] = result._id;
+    }
+    result = insertOrUpdate(contactCollect, cursor.contactDetails, predef.contact, cursor._id);
+    if (result.action === 'insert') {
+      need2update['contactDetails'] = result._id;
+    }
+    if (!isEmpty(need2update)) {
+      peopleCollect.findOneAndUpdate(findParam,{$set: need2update});
+    }
 
-  var result = insertOrUpdate(addressCollect, cursor.address, predef.addr, cursor._id);
-  if (result.action === 'insert') {
-    need2update['address'] = result._id;
-  }
-  result = insertOrUpdate(contactCollect, cursor.contactDetails, predef.contact, cursor._id);
-  if (result.action === 'insert') {
-    need2update['contactDetails'] = result._id;
-  }
-  if (!isEmpty(need2update)) {
-    peopleCollect.findOneAndUpdate(findParam,{$set: need2update});
-  }
-
-  // TODO bad hackery
-
-  var result = insertOrUpdate(candidatesCollect, undefined, 
-                {"person": cursor._id, "party": predefParties[index].party._id}, undefined);
-  if (result.action === 'insert') {
-    array[index]._id = result._id; // save id for later
-    ++created;
-  }
-});
-print("Candidates: updated " + updated + ", created " + created + ", deleted " + deleted);
+    var party = partiesCollect.findOne({"name": predef.party});
+    if (party) {
+      // create candidate entry
+      var result = insertOrUpdate(candidatesCollect, undefined, 
+                    { "person": cursor._id, "party": party._id }, undefined);
+      if (result.action === 'insert') {
+        array[index]._id = result._id; // save id for later
+        ++created;
+      }
+    } else {
+      print("Unable to find party '" + predef.party + "' for candidate " + predef.person.firstname + " " + predef.person.lastname);
+    }
+  });
+  print("Candidates: updated " + updated + ", created " + created + ", deleted " + deleted);
+}
 
 /* Election initialisation */
 var predefElections = [
-  { name: 'Sample Election',
-    description: 'Election to demonstrate functionlaity.',
-    seats: 1,
-    electionDate: Date.now(),
-    system: predefVotingSystems[0]._id
+  {
+    system: 'FPTP', // must match abbreviation of existing voting system
+    election: {
+      name: 'Sample Election',
+      description: 'Election to demonstrate functionlaity.',
+      seats: 1,
+      electionDate: Date.now(),
+    }
   }
 ];
-var electionsCollect = db.elections;
 
-deleted = electionsCollect.count();
-created = updated = 0;
+/**
+ * Create sample elections
+ */
+function createElections() {
 
-electionsCollect.drop();
+  deleted = electionsCollect.count();
+  created = updated = 0;
 
-predefElections.forEach(function (predef, index, array) {
-  
-  predef.candidates = [];
-  for (var i = 0; i < predefCandidates.length; ++i) {
-    predef.candidates.push(predefCandidates[i]._id);
-  }
+  electionsCollect.drop();
 
-  var result = insertOrUpdate(electionsCollect, undefined, predef, undefined);
-  if (result.action === 'insert') {
-    array[index]._id = result._id; // save id for later
-    ++created;
-  }
-});
-print("Elections: updated " + updated + ", created " + created + ", deleted " + deleted);
+  predefElections.forEach(function (predef, index, array) {
+    
+    var system = votingSysCollect.findOne({"abbreviation": predef.system});
+    if (system) {
+      // create election entry
+      var election = Object.assign({}, predef.election);
+      election.candidates = [];
+      var cursor = candidatesCollect.find();
+      while (cursor.hasNext()) {
+        election.candidates.push(cursor.next()._id);
+      }
 
+      var result = insertOrUpdate(electionsCollect, undefined, election, undefined);
+      if (result.action === 'insert') {
+        ++created;
+      }
+    } else {
+      print("Unable to find voting system '" + predef.system + "' for election " + predef.election.name);
+    }
+  });
+  print("Elections: updated " + updated + ", created " + created + ", deleted " + deleted);
+}
 
 
 /* Address initialisation */
@@ -595,26 +651,146 @@ var predefAddresses = [
   }
 ];
 
-deleted = created = updated = 0;
-predefAddresses.forEach(function (predef, index, array) {
-  predef.houses.forEach(function (hseNum) {
+/**
+ * Create sample canvass addresses
+ */
+function createAddresses() {
+  deleted = created = updated = 0;
+  predefAddresses.forEach(function (predef, index, array) {
+    predef.houses.forEach(function (hseNum) {
 
-    var addr = Object.assign({}, predef.addr);
-    addr.addrLine1 = hseNum + ' ' + addr.addrLine1;
+      var addr = Object.assign({}, predef.addr);
+      addr.addrLine1 = hseNum + ' ' + addr.addrLine1;
 
-    var findParam = {"addrLine1": addr.addrLine1};
-    var cursor = addressCollect.find(findParam);
-    if (cursor.hasNext()) {
-      // exists in database
-      var dbObj = cursor.next();
-      addressCollect.findOneAndUpdate(findParam, {$set: addr});
-      ++updated;
-    } else {
-      // create
-      addressCollect.insert(addr);
-      ++created;
+      var findParam = {"addrLine1": addr.addrLine1};
+      var cursor = addressCollect.find(findParam);
+      if (cursor.hasNext()) {
+        // exists in database
+        var dbObj = cursor.next();
+        addressCollect.findOneAndUpdate(findParam, {$set: addr});
+        ++updated;
+      } else {
+        // create
+        addressCollect.insert(addr);
+        ++created;
+      }
+    });
+  });
+  print("Addresses: updated " + updated + ", created " + created + ", deleted " + deleted);
+}
+
+
+var collections = [
+  'roles',
+  'votingsystems',
+  'parties',
+  'candidates',
+  'elections',
+  'addresses'
+];
+/**
+ * Create collections
+ * @param {string[]} args   collections to create
+ */
+function createCollections (args) {
+  var exe = [ // exe flags NOTE matches order of collections
+    { flag: false, cmd: createRoles }, // create roles
+    { flag: false, cmd: createVotingSystems },  // create voting systems
+    { flag: false, cmd: createParties },  // create parties
+    { flag: false, cmd: createCandidates },  // create candidates
+    { flag: false, cmd: createElections },  // create elections
+    { flag: false, cmd: createAddresses },  // create addresses
+  ],
+  usedArgCount = 0; // number of arguments used
+
+  if (!args || !args.length) {
+    // default do all
+    exe.forEach(function (exeFlag) {
+      exeFlag.flag = true;
+    });
+  }
+  for (usedArgCount = 0; usedArgCount < args.length; ++usedArgCount) {
+    var index = collections.findIndex(function (coll) {
+      return (coll === args[usedArgCount]);
+    });
+    if (index >= 0) {
+      exe[index].flag = true; // mark for execution
+    }
+  }
+  exe.forEach(function (exeFlag) {
+    if (exeFlag.flag) {
+      exeFlag.cmd();  // execute
     }
   });
-});
-print("Addresses: updated " + updated + ", created " + created + ", deleted " + deleted);
+  return usedArgCount;
+}
 
+var cmdPrefix = '--', 
+  scmdPrefix = '-',
+  canvasstracCmds = [
+    { cmd: 'help', scmd: 'h', help: 'Display help' },
+    { cmd: 'create', scmd: 'c', help: [ 'Create database collections.', 'Options are:' ].concat(collections, 'Default option is all') },
+  ];
+
+/**
+ * Display help 
+ */
+function displayHelp() {
+  print('Usage: canvasstrac(<args>)');
+  print('       where <args> is a string of commands');
+  canvasstracCmds.forEach(function (cmd) {
+    var helpArray;
+    if (Array.isArray(cmd.help)) {
+      helpArray = cmd.help;
+    } else {
+      helpArray = [cmd.help];
+    }
+    print('       ' + cmdPrefix + cmd.cmd + ', ' + scmdPrefix + cmd.scmd + ' : ' + helpArray[0]);
+    helpArray.slice(1).forEach(function (hlp) {
+      print('         ' + hlp);
+    });
+  });
+}
+
+/**
+ * Command function
+ * @param {string} cmd  Commands to execute
+ */
+function canvasstrac(cmd) {
+
+  if (!cmd) {
+    cmd = scmdPrefix + 'h'; // help
+  }
+  var prefixes = [
+      { prefix: cmdPrefix, cmd: 'cmd' },
+      { prefix: scmdPrefix, cmd: 'scmd' }
+    ],
+    splits = cmd.split(' ');
+  for (var i = 0; i < splits.length; ++i) {
+    // find command prefix
+    var cmdCtrl = prefixes.find(function (prefix) {
+      return (splits[i].indexOf(prefix.prefix) === 0);
+    });
+    if (cmdCtrl) { 
+      // find command
+      var exeCmd = canvasstracCmds.find(function (cmd) {
+        return (cmd[cmdCtrl.cmd] === splits[i].substr(cmdCtrl.prefix.length));
+      });
+      if (exeCmd) {
+        // execute command
+        switch (exeCmd.scmd) {
+          case 'h':
+            displayHelp();
+            break;
+          case 'c':
+            i += createCollections(splits.slice(i + 1));
+            break;
+        }
+      } else {
+        print("Ignoring argument '" + splits[i]);
+      }
+    } else {
+      print("Ignoring argument '" + splits[i]);
+    }
+  }
+}

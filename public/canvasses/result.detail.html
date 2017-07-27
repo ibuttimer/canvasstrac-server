@@ -20,21 +20,33 @@
       </canvas>
     </div>
     <div ng-if="chart" class="col-sm-12">
-      <div ng-repeat="detail in details">
-        <div class="col-sm-6">
-          {{detail.label}}
-        </div>
-        <div class="col-sm-3">
-          {{detail.value}}
-        </div>
-        <div class="col-sm-3">
-          {{detail.percent}} %
-        </div>
-      </div>
+      <table class="table table-bordered">
+        <tbody>
+          <tr>
+            <th>Number of responses</th>
+            <td>{{respCnt}}</td>
+            <td></td>
+          </tr>
+          <tr ng-repeat="detail in details">
+            <th>{{detail.label}}</th>
+            <td>{{detail.value}}</td>
+            <td>{{detail.percent}} %</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
     <div ng-if="!chart" class="col-sm-12">
+      <table class="table table-bordered">
+        <tbody>
+          <tr>
+            <th>Number of responses</th>
+            <td>{{respCnt}}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
       <div ng-repeat="detail in details track by $index">
-        <div>
+        <div class="notice-list-box {{indexToStyle($index)}}">
           <p>{{detail}}</p>
         </div>
       </div>

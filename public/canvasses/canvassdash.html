@@ -50,7 +50,7 @@
                 </div>
               </div>
               <div class="col-sm-4">
-                <p class="text-right">{{formatDate(canvass.startDate)}}</p>
+                <p class="text-right">{{formatDate(canvass.startDate)}} ~ {{formatDate(canvass.endDate)}}</p>
               </div>
             </div>
           </div>
@@ -65,7 +65,19 @@
                 </div>
               </div>
               <div class="col-sm-4">
-                <p class="text-right">{{formatDate(canvass.endDate)}}</p>
+                <p class="text-right">{{formatDate(canvass.election.electionDate)}}</p>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-sm-12">
+              <div class="col-sm-4">
+                <p>{{canvass.survey.name}}</p>
+              </div>
+              <div class="col-sm-4">
+                <div ng-if="debug.show">
+                  <p><code>{{canvass.survey._id}}</code></p>
+                </div>
               </div>
             </div>
           </div>

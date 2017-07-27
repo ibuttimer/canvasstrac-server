@@ -1,0 +1,62 @@
+
+<div class="container" ng-controller="UserBatchController">
+  <div class="col-sm-12">
+    <div class="col-sm-4 col-xs-12">
+      <h2>User Batch Mode</h2>
+    </div>
+  </div>
+
+  <div class="col-xs-12">
+    <form class="form-horizontal" name="userBatchForm" role="form" ng-submit="processForm()" novalidate>
+
+      <div class="row">
+        <div class="col-sm-12">
+          <div class="form-group" ng-class="{ 'has-error has-feedback' : userBatchForm.filename.$error.required && !userBatchForm.filename.$pristine }">
+            <label for="filename" class="col-sm-3 control-label">Select file:</label>
+            <div class="col-sm-9">
+              <input type="file" class="form-control" id="filename" name="filename" placeholder="Select file" data-file="param.file" required>
+              <span ng-show="userBatchForm.filename.$error.required && !userBatchForm.filename.$pristine"
+                    class="help-block">File is required.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-sm-offset-2 col-sm-2">
+        <button type="reset" class="btn btn-default">Reset</button>
+      </div>
+      <div class="col-sm-offset-5 col-sm-1">
+        <button type="button" class="btn btn-danger" ng-click="gotoDash()">Cancel</button>
+      </div>
+      <div class="col-sm-offset-1 col-sm-1">
+        <button type="submit" class="btn btn-primary" ng-disabled="userBatchForm.$invalid">Process</button>
+      </div>
+    </form>
+  </div>
+  <div class="col-sm-12">
+    <p>&nbsp;</p>
+  </div>
+
+  <div class="col-sm-12" ng-if="errors.length">
+    <div class="panel panel-default">
+      <div class="panel-heading">Errors</div>
+      <div class="panel-body">
+        <div class="list-group">
+          <a ng-repeat="error in errors" class="list-group-item">
+            <div class="row">
+              <div class="col-sm-3">
+                <p>{{error.user}}</p>
+              </div>
+              <div class="col-sm-3">
+                <p>{{error.name}}</p>
+              </div>
+              <div class="col-sm-6">
+                <p>{{error.message}}</p>
+              </div>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>  <!-- end of container -->

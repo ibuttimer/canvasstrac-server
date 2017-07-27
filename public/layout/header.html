@@ -33,20 +33,26 @@
               <span class="{{configMenu.root.icon}}" aria-hidden="true"></span>&nbsp;{{configMenu.root.name}}&nbsp;<span class="caret"></span>
           </a>
           <ul class="dropdown-menu" uib-dropdown-menu role="menu">
-            <li class="dropdown-header">{{configMenu.votingsys.header}}</li>
-            <li role="menuitem" ng-repeat="entry in configMenu.votingsys.items">
+            <li class="dropdown-header">{{configMenu.votingsysPriv.header}}</li>
+            <li role="menuitem" ng-repeat="entry in configMenu.votingsysPriv.items">
               <a ui-sref="{{entry.sref}}">
                 <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
               </a>
             </li>
-            <li class="dropdown-header">{{configMenu.roles.header}}</li>
-            <li role="menuitem" ng-repeat="entry in configMenu.roles.items">
+            <li class="dropdown-header">{{configMenu.rolesPriv.header}}</li>
+            <li role="menuitem" ng-repeat="entry in configMenu.rolesPriv.items">
               <a ui-sref="{{entry.sref}}">
                 <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
               </a>
             </li>
-            <li class="dropdown-header">{{configMenu.users.header}}</li>
-            <li role="menuitem" ng-repeat="entry in configMenu.users.items">
+            <li class="dropdown-header">{{configMenu.usersPriv.header}}</li>
+            <li role="menuitem" ng-repeat="entry in configMenu.usersPriv.items">
+              <a ui-sref="{{entry.sref}}">
+                <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
+              </a>
+            </li>
+            <li class="dropdown-header">{{configMenu.noticePriv.header}}</li>
+            <li role="menuitem" ng-repeat="entry in configMenu.noticePriv.items">
               <a ui-sref="{{entry.sref}}">
                 <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
               </a>
@@ -61,28 +67,28 @@
             <span class="{{campaignMenu.root.icon}}" aria-hidden="true"></span>&nbsp;{{campaignMenu.root.name}}&nbsp;<span class="caret"></span>
           </a>
           <ul class="dropdown-menu" uib-dropdown-menu role="menu">
-            <li class="dropdown-header">{{campaignMenu.elections.header}}</li>
-            <li role="menuitem" ng-repeat="entry in campaignMenu.elections.items">
+            <li class="dropdown-header">{{campaignMenu.electionsPriv.header}}</li>
+            <li role="menuitem" ng-repeat="entry in campaignMenu.electionsPriv.items">
               <a ui-sref="{{entry.sref}}">
                 <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
               </a>
             </li>
-            <li class="dropdown-header">{{campaignMenu.candidates.header}}</li>
-            <li role="menuitem" ng-repeat="entry in campaignMenu.candidates.items">
+            <li class="dropdown-header">{{campaignMenu.candidatesPriv.header}}</li>
+            <li role="menuitem" ng-repeat="entry in campaignMenu.candidatesPriv.items">
               <a ui-sref="{{entry.sref}}">
                 <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
               </a>
             </li>
-            <li class="dropdown-header">{{campaignMenu.canvasses.header}}</li>
-            <li role="menuitem" ng-repeat="entry in campaignMenu.canvasses.items">
+            <li class="dropdown-header">{{campaignMenu.canvassesPriv.header}}</li>
+            <li role="menuitem" ng-repeat="entry in campaignMenu.canvassesPriv.items">
               <a ui-sref="{{entry.sref}}">
                 <span class="{{entry.icon}}" aria-hidden="true"></span>&nbsp;{{entry.name}}
               </a>
             </li>
           </ul>
         </li>
-
       </ul>
+
       <ul class="nav navbar-nav navbar-right">
         <li ng-if="debug.devmode">
           <a ng-click="toggleDebug()">
@@ -107,29 +113,6 @@
     </div>
   </div>
 </nav>         
-
-<!--
-<header class="jumbotron">
-
-    <div class="container">
-        <div class="row row-header">
-            <div class="col-xs-12 col-sm-8">
-                <h1>Ristorante con Fusion</h1>
-                <p style="padding:40px;"></p>
-                <p>We take inspiration from the World's best cuisines, and create
-                 a unique fusion experience. Our lipsmacking creations will 
-                 tickle your culinary senses!</p>
-            </div>
-            <div class="col-xs-12 col-sm-2">
-            <p style="padding:20px;"></p>
-            <img src="images/logo.png" class="img-responsive">
-            </div>
-            <div class="col-xs-12 col-sm-2">
-            </div>
-        </div>
-    </div>
-</header>
--->
 
 <div class="container">
   <div class="row">

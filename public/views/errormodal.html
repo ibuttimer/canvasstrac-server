@@ -4,7 +4,7 @@
   </div>
   <div class="">&nbsp;</div>
   <div class="">
-    <p>{{ngDialogData.message}}</p>
+    <p ng-repeat="msg in ngDialogData.message">{{msg}}</p>
   </div>
   <div class="ngdialog-buttons">
     <button type="button" class="ngdialog-button ngdialog-button-primary" ng-click="confirm('OK')">OK</button>

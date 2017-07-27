@@ -60,10 +60,15 @@ Following deployment of the application to Heroku, it is necessary to set the en
 
 ### Setup database
 In order to initialise the database the following procedure may be followed on an empty database:
-* Run the <code>dev/dbSetup.js</code> script in the mongo shell.
-* Start local instances of the server & management application in **authentication disabled** mode.
+* Load the <code>dev/dbSetup.js</code> script in the mongo shell, and execute the <code>canvasstrac</code> function.
 * Create an admin user
-* Start local instances of the server & management application in **authentication enabled** mode.
+  * Using a local server
+    * Start local instances of the server & management application in **authentication disabled** mode.
+    * Create an admin user
+    * Start local instances of the server & management application in **authentication enabled** mode.
+  * Alternatively, on a remote server
+    * Register a user
+    * Manually edit the database to upgrade the user to an admin
 * Login as the admin user
 * Select the *Configuration->User->Batch Mode* menu option
 * Select the <code>dev/sampleusers.json</code> file and process it
