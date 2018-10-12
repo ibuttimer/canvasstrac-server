@@ -1,25 +1,28 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var mongoose = require('./mongoose_app').mongoose,
   Schema = mongoose.Schema,
   ModelNodeModule = require('./modelNode'),
-    ModelNode = ModelNodeModule.ModelNode,
+  ModelNode = ModelNodeModule.ModelNode,
   utilsModule = require('../misc/utils'),
-    utilsIsValidModelPath = utilsModule.isValidModelPath,
-    utilsGetTemplate = utilsModule.getTemplate,
-  populateSubDocsUtil = require('./model_utils').populateSubDocs,
+  utilsIsValidModelPath = utilsModule.isValidModelPath,
+  utilsGetTemplate = utilsModule.getTemplate,
+  modelUtilsModule = require('./model_utils'),
+  getSchemaOptions = modelUtilsModule.getSchemaOptions,
+  OPT_TIMESTAMP = modelUtilsModule.OPT_TIMESTAMP,
+  populateSubDocsUtil = modelUtilsModule.populateSubDocs,
   ElectionModule = require('./election'),
-    electionPopulateOptions = ElectionModule.getSubDocPopulateOptions,
+  electionPopulateOptions = ElectionModule.getSubDocPopulateOptions,
   SurveyModule = require('./survey'),
-    surveyPopulateOptions = SurveyModule.getSubDocPopulateOptions,
+  surveyPopulateOptions = SurveyModule.getSubDocPopulateOptions,
   UserModule = require('./user'),
-    userPopulateOptions = UserModule.getSubDocPopulateOptions,
-    userPopulateProjection = UserModule.getPopulateProjection,
+  userPopulateOptions = UserModule.getSubDocPopulateOptions,
+  userPopulateProjection = UserModule.getPopulateProjection,
   AddressModule = require('./addresses'),
-    addressPopulateOptions = AddressModule.getSubDocPopulateOptions,
+  addressPopulateOptions = AddressModule.getSubDocPopulateOptions,
   CanvassResultModule = require('./canvassResult'),
-    canvassResultPopulateOptions = CanvassResultModule.getSubDocPopulateOptions;
+  canvassResultPopulateOptions = CanvassResultModule.getSubDocPopulateOptions;
 
 var schema = new Schema({
   name: {
@@ -59,9 +62,7 @@ var schema = new Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'CanvassResult'
   }]
-}, {
-  timestamps: true
-});
+}, getSchemaOptions(OPT_TIMESTAMP));
 
 // create a model using schema
 var model = mongoose.model('Canvass', schema);

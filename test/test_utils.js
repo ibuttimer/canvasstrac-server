@@ -1,71 +1,37 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
-var app_path = '../app/';   // relative path to app
+var testConsts = require('./test_consts'),
+  app_path = testConsts.app_path,
+  request = require('supertest'),
+  // assert = require('assert'),
+  chai = require('chai'),
+  assert = chai.assert,
+  app = require(app_path + 'app');
 
-var request = require('supertest');
-//var assert = require('assert');
-var chai = require('chai'),
-    assert = chai.assert,
-    expect = chai.expect,
-    should = chai.should();
-var mongoose = require('mongoose');
-var app = require(app_path + 'app');
+var testUsersData = require('./test_users_data'),
+  // some convenience variables
+  userIndicesArray = testUsersData.userIndicesArray,
+  USER_ADMIN = testUsersData.userIndices.USER_ADMIN,
+  USER_MANAGER = testUsersData.userIndices.USER_MANAGER,
+  USER_GROUP_LEAD = testUsersData.userIndices.USER_GROUP_LEAD,
+  USER_STAFF = testUsersData.userIndices.USER_STAFF,
+  USER_CANVASSER = testUsersData.userIndices.USER_CANVASSER;
+  // USER_PUBLIC = testUsersData.userIndices.USER_PUBLIC;
 
-var test_users = require('./test_users');
-// some convenience variables
-var userIndicesArray = test_users.userIndicesArray,
-    USER_ADMIN = test_users.userIndices.USER_ADMIN,
-    USER_MANAGER = test_users.userIndices.USER_MANAGER,
-    USER_GROUP_LEAD = test_users.userIndices.USER_GROUP_LEAD,
-    USER_STAFF = test_users.userIndices.USER_STAFF,
-    USER_CANVASSER = test_users.userIndices.USER_CANVASSER,
-    USER_PUBLIC = test_users.userIndices.USER_PUBLIC;
-
-var utils = require(app_path + 'misc/utils');
-var config = require(app_path + 'config');
-var Consts = require(app_path + 'consts');
+var utils = require(app_path + 'misc/utils'),
+  errorService = require(app_path + 'services/errorService'),
+  // config = require(app_path + 'config'),
+  Consts = require(app_path + 'consts');
 
 
 /*
  * Data
  */
-var test_prefix = 'test-';
-var test_regex = /^test-/;
-var user_replace = 'rxr';
-var user_replace_regex = /rxr/i;
-var object_template = {
-  // voting system fields
-  name: test_prefix + user_replace + "-name",
-  description: "Test voting system added by " + user_replace,
-  abbreviation: "ABBRV-" + user_replace,
-  preferenceLevels: ['Pref_1_' + user_replace, 'Pref_2_' + user_replace],
-  // database fields
-  _id: "",
-  // test control fields
-  test_state: ""
-};
-var object_array = [];
-var forbiddenNoToken = {
-  "message": "No token provided!",
-  "error": {"status": Consts.HTTP_FORBIDDEN}
-};
-var forbiddenNotAuthForOp = {
-  "message": "You are not authorized to perform this operation!",
-  "error": {"status": Consts.HTTP_FORBIDDEN}
-};
-
-var url = '/votingsystems';
-var url_register = url;
-
-function url_id (id) {
-  return url + '/' + id;
-};
-
 var access_rules = [];
 /* rule template is:
   { url: url to use, 
-    access: array of test_users.userIndices allowed access,
+    access: array of testUsersData.userIndices allowed access,
     op: the specific CRUD operation access is allowed for, e.g. 'crud' }
     */
 function addAccessRule (url, userArray, op) {
@@ -143,7 +109,7 @@ function getEntry (url, token, expectedStatus, cb) {
       }
       cb(res);
     });
-};
+}
 
 /*
  * Execute a PUT test
@@ -166,7 +132,7 @@ function putEntry (url, update, token, expectedStatus, cb) {
       }
       cb(res);
     });
-};
+}
 
 /*
  * Execute a DELETE test
@@ -187,7 +153,29 @@ function deleteEntry (url, token, expectedStatus, cb) {
       }
       cb(res);
     });
-};
+}
+
+/**
+ * Get an error object
+ * @param {number} appCode  Application error code to get error object for
+ * @param {string} name     Name of application error code
+ */
+function getAppError(appCode, name) {
+  var opErr = errorService.getError(appCode);
+  assert.isNotNull(opErr, 'Error object not found: ' + name);
+  return opErr;
+}
+
+/**
+ * Assert that a http response matches an application error object
+ * @param {object} serviceErr Application error object
+ * @param {object} res        Http response
+ */
+function assertAppError(serviceErr, res) {
+  assert.equal(res.body.error.status, serviceErr.status, 'Incorrect status');
+  assert.equal(res.body.error.appCode, serviceErr.appCode, 'Incorrect appCode');
+  assert.equal(res.body.message, serviceErr.message, 'Incorrect message');
+}
 
 
 
@@ -208,23 +196,25 @@ var self = {
     var towns = [];
     userIndicesArray.forEach(function (index) {
       towns.push('Test Town ' + index);
-    })
+    });
     return towns;
   },
   testCities: function () {
     var cities = [];
     userIndicesArray.forEach(function (index) {
       cities.push('City ' + index);
-    })
+    });
     return cities;
   },
   testCounties: function () {
     var counties = [];
     userIndicesArray.forEach(function (index) {
       counties.push('County ' + index);
-    })
+    });
     return counties;
-  }
+  },
+  getAppError: getAppError,
+  assertAppError: assertAppError
 };
 
 module.exports = self;

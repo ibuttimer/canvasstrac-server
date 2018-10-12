@@ -1,8 +1,12 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var utils = require('../misc/utils'),
-  Consts = require('../consts');
+
+  V3_6_X = '3.6.x',
+
+  OPT_NONE = 0,
+  OPT_TIMESTAMP = 0x01;
 
 /**
  * Populate the subdocuments in a result set
@@ -22,8 +26,41 @@ function populateSubDocs (model, docs, options, next) {
   }
 }
 
+/**
+ * Get mongoose connection options object
+ * @returns Options object
+ */
+function getMongooseOptions() {
+  var options = {};
+  if (utils.dbVersionTest(V3_6_X, utils.OPS.EQ)) {
+    // MongoDB Server 3.6.x: mongoose 5.x, or ^4.11.0 with useMongoClient and usePushEach
+    options.useMongoClient = true;
+  }
+  return options;
+}
+
+/**
+ * Get a schema options object
+ * @param {Number} flags Options mask
+ * @returns Options object
+ */
+function getSchemaOptions(flags) {
+  var options = {};
+  if ((flags & OPT_TIMESTAMP) === OPT_TIMESTAMP) {
+    options.timestamps = true;
+  }
+  if (utils.dbVersionTest(V3_6_X, utils.OPS.EQ)) {
+    // MongoDB Server 3.6.x: mongoose 5.x, or ^4.11.0 with useMongoClient and usePushEach
+    options.usePushEach = true;
+  }
+  return options;
+}
 
 
 module.exports = {
-  populateSubDocs: populateSubDocs
+  populateSubDocs: populateSubDocs,
+  getMongooseOptions: getMongooseOptions,
+  getSchemaOptions: getSchemaOptions,
+  OPT_NONE: OPT_NONE,
+  OPT_TIMESTAMP: OPT_TIMESTAMP
 };

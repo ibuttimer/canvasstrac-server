@@ -1,27 +1,20 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   bodyParser = require('body-parser'),
   MessageModule = require('../models/message'),
-    model = MessageModule.model,
-    getModelNodeTree = MessageModule.getModelNodeTree,
-    schema = MessageModule.schema,
-    getTemplate = MessageModule.getTemplate,
-    isValidModelPath = MessageModule.isValidModelPath,
+  model = MessageModule.model,
+  getModelNodeTree = MessageModule.getModelNodeTree,
+  isValidModelPath = MessageModule.isValidModelPath,
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    resultReply = router_utils.resultReply,
-    updateDoc = router_utils.updateDoc,
-    removeDoc = router_utils.removeDoc,
-    processCountReq = router_utils.processCountReq,
-    getDocs = router_utils.getDocs,
+  checkError = router_utils.checkError,
+  resultReply = router_utils.resultReply,
+  getDocs = router_utils.getDocs,
   emailService = require('../services/emailService'),
   ESAPI = require('node-esapi'),
-  utils = require('../misc/utils'),
   Verify = require('./verify'),
-  Consts = require('../consts'),
-  config = require('../config.js');
+  debug = require('debug')('messageRouter');
 
 var router = express.Router();
 
@@ -73,9 +66,9 @@ router.route('/feedback')
         if (emailService.available()) {
           // send email with info
           var html = '<html><body><p>Name: ' + doc.name + '</p>' +
-                      '<p>Email: <a href=\"mailto:' + doc.email + '\">' + doc.email + '</a></p>' +
+                      '<p>Email: <a href="mailto:' + doc.email + '">' + doc.email + '</a></p>' +
                       '<p>Comment: ' + doc.comment + '</p>' +
-                      '</body></html>'
+                      '</body></html>';
 
           emailService.sendEmail('CanvassTrac Feedback', html, doc.email, 
             function (data) {
@@ -88,7 +81,7 @@ router.route('/feedback')
             });
         } else {
           res.json(doc);
-          console.log('Warning: Email service not available');
+          debug('Warning: Email service not available');
         }
       }
     });
@@ -124,9 +117,9 @@ router.route('/support')
         if (emailService.available()) {
           // send email with info
           var html = '<html><body><p>Name: ' + doc.name + '</p>' +
-                      '<p>Email: <a href=\"mailto:' + doc.email + '\">' + doc.email + '</a></p>' +
+                      '<p>Email: <a href="mailto:' + doc.email + '">' + doc.email + '</a></p>' +
                       '<p>Request: ' + doc.comment + '</p>' +
-                      '</body></html>'
+                      '</body></html>';
 
           emailService.sendEmail('CanvassTrac Support Request', html, doc.email, 
             function (data) {
@@ -139,7 +132,7 @@ router.route('/support')
             });
         } else {
           res.json(doc);
-          console.log('Warning: Email service not available');
+          debug('Warning: Email service not available');
         }
       }
     });

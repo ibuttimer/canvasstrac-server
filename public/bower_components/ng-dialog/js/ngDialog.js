@@ -62,7 +62,8 @@
             ariaDescribedById: null,
             ariaDescribedBySelector: null,
             bodyClassName: 'ngdialog-open',
-            width: null
+            width: null,
+            height: null
         };
 
         this.setForceHtmlReload = function (_useIt) {
@@ -218,16 +219,20 @@
                                 if (preCloseCallbackResult.closePromise) {
                                     preCloseCallbackResult.closePromise.then(function () {
                                         privateMethods.performCloseDialog($dialog, value);
+                                    }, function () {
+                                        return false;
                                     });
                                 } else {
                                     preCloseCallbackResult.then(function () {
                                         privateMethods.performCloseDialog($dialog, value);
                                     }, function () {
-                                        return;
+                                        return false;
                                     });
                                 }
                             } else if (preCloseCallbackResult !== false) {
                                 privateMethods.performCloseDialog($dialog, value);
+                            } else {
+                                return false;
                             }
                         } else {
                             privateMethods.performCloseDialog($dialog, value);
@@ -441,9 +446,9 @@
 
                     getRouterLocationEventName: function() {
                         if(privateMethods.detectUIRouter()) {
-                            return '$stateChangeSuccess';
+                            return '$stateChangeStart';
                         }
-                        return '$locationChangeSuccess';
+                        return '$locationChangeStart';
                     }
                 };
 
@@ -471,7 +476,7 @@
                         var dialogID = null;
                         opts = opts || {};
                         if (openOnePerName && opts.name) {
-                            dialogID = opts.name+' dialog';
+                            dialogID = opts.name.toLowerCase().replace(/\s/g, '-') + '-dialog';
                             if (this.isOpen(dialogID)) {
                                 return;
                             }
@@ -497,7 +502,7 @@
                         var scope;
                         scopes[dialogID] = scope = angular.isObject(options.scope) ? options.scope.$new() : $rootScope.$new();
 
-                        var $dialog, $dialogParent;
+                        var $dialog, $dialogParent, $dialogContent;
 
                         var resolve = angular.extend({}, options.resolve);
 
@@ -517,7 +522,7 @@
                             }
 
                             var hasOverlayClass = options.overlay ? '' : ' ngdialog-no-overlay';
-                            $dialog = $el('<div id="'+dialogID + '" class="ngdialog' + hasOverlayClass + '"></div>');
+                            $dialog = $el('<div id="' + dialogID + '" class="ngdialog' + hasOverlayClass + '"></div>');
                             $dialog.html((options.overlay ?
                                 '<div class="ngdialog-overlay"></div><div class="ngdialog-content" role="document">' + template + '</div>' :
                                 '<div class="ngdialog-content" role="document">' + template + '</div>'));
@@ -544,11 +549,20 @@
                             }
 
                             if (options.width) {
-                                var $dialogContent = $dialog[0].querySelector('.ngdialog-content');
+                                $dialogContent = $dialog[0].querySelector('.ngdialog-content');
                                 if (angular.isString(options.width)) {
                                     $dialogContent.style.width = options.width;
                                 } else {
                                     $dialogContent.style.width = options.width + 'px';
+                                }
+                            }
+
+                            if (options.height) {
+                                $dialogContent = $dialog[0].querySelector('.ngdialog-content');
+                                if (angular.isString(options.height)) {
+                                    $dialogContent.style.height = options.height;
+                                } else {
+                                    $dialogContent.style.height = options.height + 'px';
                                 }
                             }
 
@@ -609,7 +623,7 @@
                                 );
 
                                 if(options.bindToController) {
-                                    angular.extend(controllerInstance.instance, {ngDialogId: scope.ngDialogId, ngDialogData: scope.ngDialogData, closeThisDialog: scope.closeThisDialog});
+                                    angular.extend(controllerInstance.instance, {ngDialogId: scope.ngDialogId, ngDialogData: scope.ngDialogData, closeThisDialog: scope.closeThisDialog, confirm: scope.confirm});
                                 }
 
                                 if(typeof controllerInstance === 'function'){
@@ -653,8 +667,9 @@
 
                             if (options.closeByNavigation) {
                                 var eventName = privateMethods.getRouterLocationEventName();
-                                $rootScope.$on(eventName, function () {
-                                    privateMethods.closeDialog($dialog);
+                                $rootScope.$on(eventName, function ($event) {
+                                    if (privateMethods.closeDialog($dialog) === false)
+                                        $event.preventDefault();
                                 });
                             }
 
@@ -692,8 +707,13 @@
                         };
 
                         function loadTemplateUrl (tmpl, config) {
+                            var config = config || {};
+                            config.headers = config.headers || {};
+
+                            angular.extend(config.headers, {'Accept': 'text/html'});
+
                             $rootScope.$broadcast('ngDialog.templateLoading', tmpl);
-                            return $http.get(tmpl, (config || {})).then(function(res) {
+                            return $http.get(tmpl, config).then(function(res) {
                                 $rootScope.$broadcast('ngDialog.templateLoaded', tmpl);
                                 return res.data || '';
                             });
@@ -856,6 +876,7 @@
                         controller: attrs.ngDialogController,
                         controllerAs: attrs.ngDialogControllerAs,
                         bindToController: attrs.ngDialogBindToController,
+                        disableAnimation: attrs.ngDialogDisableAnimation,
                         scope: ngDialogScope,
                         data: attrs.ngDialogData,
                         showClose: attrs.ngDialogShowClose === 'false' ? false : (attrs.ngDialogShowClose === 'true' ? true : defaults.showClose),

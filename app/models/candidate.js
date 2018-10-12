@@ -1,18 +1,19 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var mongoose = require('./mongoose_app').mongoose,
   Schema = mongoose.Schema,
   ModelNodeModule = require('./modelNode'),
-    ModelNode = ModelNodeModule.ModelNode,
+  ModelNode = ModelNodeModule.ModelNode,
   utilsModule = require('../misc/utils'),
-    utilsIsValidModelPath = utilsModule.isValidModelPath,
-    utilsGetTemplate = utilsModule.getTemplate,
-  populateSubDocsUtil = require('./model_utils').populateSubDocs,
+  utilsIsValidModelPath = utilsModule.isValidModelPath,
+  utilsGetTemplate = utilsModule.getTemplate,
+  modelUtilsModule = require('./model_utils'),
+  getSchemaOptions = modelUtilsModule.getSchemaOptions,
+  OPT_TIMESTAMP = modelUtilsModule.OPT_TIMESTAMP,
+  populateSubDocsUtil = modelUtilsModule.populateSubDocs,
   PeopleModule = require('./person'),
-    People = PeopleModule.model,
-  PartyModule = require('./party'),
-    Party = PartyModule.model;
+  PartyModule = require('./party');
 
 var schema = new Schema({
   person: {
@@ -23,9 +24,7 @@ var schema = new Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Party'
   }
-}, {
-  timestamps: true
-});
+}, getSchemaOptions(OPT_TIMESTAMP));
 
 // create a model using schema
 var model = mongoose.model('Candidate', schema);

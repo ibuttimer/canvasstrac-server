@@ -1,6 +1,10 @@
-var express = require('express');
-var router = express.Router();
-var config = require('../config');
+/*jslint node: true */ /*eslint-env node*/
+'use strict';
+
+var express = require('express'),
+  router = express.Router(),
+  debug = require('debug')('index'),
+  config = require('../config');
 
 /* GET home page. */
 // router.get('/', function(req, res, next) {
@@ -17,7 +21,7 @@ router.get('/', function(req, res, next) {
     if (err) {
       next(err);
     } else {
-      console.log('Sent:', fileName);
+      debug('Sent: %s', fileName);
     }
   });
 });

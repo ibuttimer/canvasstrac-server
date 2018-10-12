@@ -1,25 +1,21 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   bodyParser = require('body-parser'),
   NoticeModule = require('../models/notice'),
-    model = NoticeModule.model,
-    getModelNodeTree = NoticeModule.getModelNodeTree,
-    schema = NoticeModule.schema,
-    getTemplate = NoticeModule.getTemplate,
-    isValidModelPath = NoticeModule.isValidModelPath,
+  model = NoticeModule.model,
+  getModelNodeTree = NoticeModule.getModelNodeTree,
+  getTemplate = NoticeModule.getTemplate,
+  isValidModelPath = NoticeModule.isValidModelPath,
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    resultReply = router_utils.resultReply,
-    updateDoc = router_utils.updateDoc,
-    removeDoc = router_utils.removeDoc,
-    processCountReq = router_utils.processCountReq,
-    getDocs = router_utils.getDocs,
-  utils = require('../misc/utils'),
+  checkError = router_utils.checkError,
+  errorReply = router_utils.errorReply,
+  resultReply = router_utils.resultReply,
+  removeDoc = router_utils.removeDoc,
+  getDocs = router_utils.getDocs,
   Verify = require('./verify'),
-  Consts = require('../consts'),
-  config = require('../config.js');
+  Consts = require('../consts');
 
 var router = express.Router();
 
@@ -96,11 +92,11 @@ router.route('/current')
   .get(function (req, res, next) {
     
     model.find(getCurrentQuery()).exec(function (err, doc) {
-        if (!checkError(err, res)) {
-          // success
-          res.json(doc);
-        }
-      });
+      if (!checkError(err, res)) {
+        // success
+        res.json(doc);
+      }
+    });
   });
 
 router.route('/:objId')
@@ -121,16 +117,15 @@ router.route('/:objId')
     var fields = getTemplate(req.body);
     
     model.findByIdAndUpdate(req.params.objId, {
-        $set: fields
-      }, {
-        new: true // return the modified document rather than the original
-      }, function (err, doc) {
-        if (!checkError(err, res)) {
-          // success
-          res.json(doc);
-        }
+      $set: fields
+    }, {
+      new: true // return the modified document rather than the original
+    }, function (err, doc) {
+      if (!checkError(err, res)) {
+        // success
+        res.json(doc);
       }
-    );
+    });
   })
 
   .delete(function (req, res, next) {

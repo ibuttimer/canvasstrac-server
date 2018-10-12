@@ -1,15 +1,15 @@
-#!/usr/bin/env node
+/*jslint node: true */ /*eslint-env node*/
 
 /**
  * Module dependencies.
  */
 
-var app = require('../app');
-var config = require('../config.js');
-var debug = require('debug')('rest-server:server');
-var http = require('http');
-var https = require('https');
-var fs = require('fs');
+var app = require('../app'),
+  config = require('../config.js'),
+  debug = require('debug')('rest-server:server'),
+  http = require('http'),
+  https = require('https'),
+  fs = require('fs');
 
 /**
  * Get port from environment and store in Express.
@@ -34,7 +34,7 @@ if (config.socketTimeout) {
   server.setTimeout(config.socketTimeout);
 }
 server.listen(port, function() {
-   console.log('Server (http) listening on port ', app.get('port'));
+  debug('Server (http) listening on port %s', app.get('port'));
 });
 server.on('error', onError);
 server.on('listening', onListening);
@@ -53,7 +53,7 @@ var secureServer = https.createServer(options, app);
  * Listen on provided port, on all network interfaces.
  */
 secureServer.listen(secPort, function() {
-   console.log('Server (https) listening on port ', app.get('secPort'));
+  debug('Server (https) listening on port %s', app.get('secPort'));
 });
 secureServer.on('error', onError);
 secureServer.on('listening', onListening);
@@ -94,11 +94,11 @@ function onError(error) {
   // handle specific listen errors with friendly messages
   switch (error.code) {
     case 'EACCES':
-      console.error(bind + ' requires elevated privileges');
+      debug('%s requires elevated privileges', bind);
       process.exit(1);
       break;
     case 'EADDRINUSE':
-      console.error(bind + ' is already in use');
+      debug('%s is already in use', bind);
       process.exit(1);
       break;
     default:
@@ -115,5 +115,5 @@ function onListening() {
   var bind = typeof addr === 'string'
     ? 'pipe ' + addr
     : 'port ' + addr.port;
-  debug('Listening on ' + bind);
+  debug('Listening on %s', bind);
 }

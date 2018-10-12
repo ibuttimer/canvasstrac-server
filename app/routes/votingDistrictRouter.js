@@ -1,14 +1,14 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   Model = require('../models/votingDistricts').model,
   Verify = require('./verify'),
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    populateSubDocsReply = router_utils.populateSubDocsReply,
-    makeResult = router_utils.makeResult,
-  utils = require('../misc/utils'),
+  checkError = router_utils.checkError,
+  // populateSubDocsReply = router_utils.populateSubDocsReply,
+  // makeResult = router_utils.makeResult,
+  // utils = require('../misc/utils'),
   Consts = require('../consts');
 
 var router = express.Router();
@@ -22,7 +22,7 @@ router.route('/')
           res.json(docs);
         }
       });
-    })
+  })
 
   .post(Verify.verifyHasStaffAccess, function (req, res) {
 

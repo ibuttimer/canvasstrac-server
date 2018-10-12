@@ -1,5 +1,5 @@
 /**
- * nya-bootstrap-select v2.1.6
+ * @lordfriend/nya-bootstrap-select v2.5.1
  * Copyright 2014 Nyasoft
  * Licensed under MIT license
  */
@@ -431,8 +431,8 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
 
   var ACTIONS_BOX = '<div class="bs-actionsbox">' +
     '<div class="btn-group btn-group-sm btn-block">' +
-    '<button class="actions-btn bs-select-all btn btn-default">SELECT ALL</button>' +
-    '<button class="actions-btn bs-deselect-all btn btn-default">DESELECT ALL</button>' +
+    '<button type="button" class="actions-btn bs-select-all btn btn-default">SELECT ALL</button>' +
+    '<button type="button" class="actions-btn bs-deselect-all btn btn-default">DESELECT ALL</button>' +
     '</div>' +
     '</div>';
 
@@ -508,9 +508,9 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
           dropdownToggle.addClass(className);
         }
 
-        if(className === 'form-control') {
-          dropdownToggle.addClass(className);
-        }
+        // if(className === 'form-control') {
+        //   dropdownToggle.addClass(className);
+        // }
       });
 
       dropdownMenu.append(options);
@@ -532,7 +532,7 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
         }
       }
 
-      if(tAttrs.liveSearch === 'true') {
+      if(typeof tAttrs.liveSearch !== 'undefined') {
         searchBox = jqLite(SEARCH_BOX);
 
         if(tAttrs.noSearchTitle) {
@@ -553,7 +553,7 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
         dropdownMenu.append(noSearchResult);
       }
 
-      if (tAttrs.actionsBox === 'true' && isMultiple) {
+      if (typeof tAttrs.actionsBox !== 'undefined' && isMultiple) {
         // set localizedText
         if (localizedText.selectAllTpl) {
           ACTIONS_BOX = ACTIONS_BOX.replace('SELECT ALL', localizedText.selectAllTpl);
@@ -615,24 +615,31 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
             return !value || value.length === 0;
           };
         }
+        function disabledHandling(disabled){
+          if(disabled) {
+            dropdownToggle.addClass('disabled');
+            dropdownToggle.attr('disabled', 'disabled');
+            previousTabIndex = dropdownToggle.attr('tabindex');
+            dropdownToggle.attr('tabindex', '-1');
+            isDisabled = true;
+          } else {
+            dropdownToggle.removeClass('disabled');
+            dropdownToggle.removeAttr('disabled');
+            if(previousTabIndex) {
+              dropdownToggle.attr('tabindex', previousTabIndex);
+            } else {
+              dropdownToggle.removeAttr('tabindex');
+            }
+            isDisabled = false;
+          }
+        }
         if(typeof $attrs.disabled !== 'undefined') {
           $scope.$watch($attrs.disabled, function(disabled){
-            if(disabled) {
-              dropdownToggle.addClass('disabled');
-              dropdownToggle.attr('disabled', 'disabled');
-              previousTabIndex = dropdownToggle.attr('tabindex');
-              dropdownToggle.attr('tabindex', '-1');
-              isDisabled = true;
-            } else {
-              dropdownToggle.removeClass('disabled');
-              dropdownToggle.removeAttr('disabled');
-              if(previousTabIndex) {
-                dropdownToggle.attr('tabindex', previousTabIndex);
-              } else {
-                dropdownToggle.removeAttr('tabindex');
-              }
-              isDisabled = false;
-            }
+            disabledHandling(disabled);
+          });
+        }else if(typeof $attrs.ngDisabled !== 'undefined'){
+          $scope.$watch($attrs.ngDisabled, function(disabled){
+            disabledHandling(disabled);
           });
         }
 
@@ -745,6 +752,28 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
         };
         $document.on('click', outClick);
 
+        function reset_search() {
+          searchBox.children().eq(0)[0].value = "";
+          var options = dropdownMenu.children(),
+              length = options.length,
+              index,
+              option,
+              nyaBsOptionNode;
+            for(index = 0; index < length; index++) {
+              option = options.eq(index);
+              if(option.hasClass('nya-bs-option')) {
+                option.removeClass('not-match');
+              }
+            }
+            noSearchResult.removeClass('show');
+            nyaBsOptionNode = findFocus(true);
+
+            if(nyaBsOptionNode) {
+                options.removeClass('active');
+                jqLite(nyaBsOptionNode).addClass('active');
+            }
+        }
+        
         
 
         dropdownToggle.on('blur', function() {
@@ -759,6 +788,7 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
             calcMenuSize();
           }
           if($attrs.liveSearch === 'true' && $element.hasClass('open')) {
+            reset_search();
             searchBox.children().eq(0)[0].focus();
             nyaBsOptionNode = findFocus(true);
             if(nyaBsOptionNode) {
@@ -781,6 +811,11 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
           actionsBox.find('button').eq(1).on('click', function () {
             setAllOptions(false);
           });
+        } else {
+          // if using inside ng-repeat or other transclude directive
+          if (actionsBox) {
+            actionsBox.addClass('hidden');
+          }
         }
 
 
@@ -832,6 +867,11 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
             }
 
           });
+        } else {
+          // if using inside ng-repeat or other transclude directive
+          if (searchBox) {
+            searchBox.addClass('hidden');
+          }
         }
 
 
@@ -843,7 +883,7 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
             bsOptionElements = dropdownMenu.children(),
             length = bsOptionElements.length,
             value;
-          if(typeof modelValue === 'undefined') {
+          if(typeof modelValue === 'undefined' || modelValue === null) {
             // if modelValue is undefined. uncheck all option
             for(index = 0; index < length; index++) {
               if(bsOptionElements.eq(index).hasClass('nya-bs-option')) {
@@ -920,6 +960,7 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
 
               // if live search enabled. give focus to search box.
               if($attrs.liveSearch === 'true') {
+                reset_search();
                 searchBox.children().eq(0)[0].focus();
                 // find the focusable node but we will use active
                 nyaBsOptionNode = findFocus(true);
@@ -1074,6 +1115,19 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
           }
         }
 
+        function supportsSelector(selector) {
+          var el = document.createElement('div');
+          el.innerHTML = ['&shy;', '<style>', selector, '{}', '</style>'].join('');
+          el = document.body.appendChild(el);
+          var style = el.getElementsByTagName('style')[0];
+            if (style && style.sheet && style.sheet.rules && style.sheet.cssRules) {
+              var ret = !!(style.sheet.rules || style.sheet.cssRules)[0];
+              document.body.removeChild(el);
+              return ret;
+            }
+          return false;
+        }
+
         function findFocus(fromFirst) {
           var firstLiElement;
           if(fromFirst) {
@@ -1083,10 +1137,18 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
           }
 
           // focus on selected element
-          for(var i = 0; i < dropdownMenu.children().length; i++) {
-            var childElement = dropdownMenu.children().eq(i);
-            if (!childElement.hasClass('not-match') && childElement.hasClass('selected')) {
-              return dropdownMenu.children().eq(i)[0];
+          if (supportsSelector(".selected:not(.not-match)")) {
+            var match = dropdownMenu[0].querySelector('.selected:not(.not-match)');
+              if (match)
+                  return match;
+          }
+          else {
+            // Fallback for IE8 users
+            for(var i = 0; i < dropdownMenu.children().length; i++) {
+              var childElement = dropdownMenu.children().eq(i);
+              if (!childElement.hasClass('not-match') && childElement.hasClass('selected')) {
+                return dropdownMenu.children().eq(i)[0];
+              }
             }
           }
 
@@ -1141,7 +1203,7 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
 
             for (var i = 0; i < liElements.length; i++) {
               var nyaBsOption = jqLite(liElements[i]);
-              if (nyaBsOption.hasClass('disabled'))
+              if (nyaBsOption.hasClass('disabled') || nyaBsOption.hasClass('not-match'))
                 continue;
 
               var value, index;
@@ -1268,7 +1330,7 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
 
           var filterOption = jqLite(dropdownToggle[0].querySelector('.filter-option'));
           var specialTitle = jqLite(dropdownToggle[0].querySelector('.special-title'));
-          if(typeof viewValue === 'undefined') {
+          if(typeof viewValue === 'undefined' || viewValue === null) {
             /**
              * Select empty option when model is undefined.
              */
@@ -1290,8 +1352,10 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
                 length = bsOptionElements.length,
                 optionTitle,
                 selection = [],
+                optionScopes = [],
                 match,
-                count;
+                count,
+                clone;
 
               if(isMultiple && $attrs.selectedTextFormat === 'count') {
                 count = 1;
@@ -1328,6 +1392,7 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
                         selection.push(document.createTextNode(optionTitle));
                       } else {
                         selection.push(getOptionText(nyaBsOption));
+                        optionScopes.push(nyaBsOption.data('isolateScope'))
                       }
 
                     }
@@ -1338,6 +1403,7 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
                         selection.push(document.createTextNode(optionTitle));
                       } else {
                         selection.push(getOptionText(nyaBsOption));
+                        optionScopes.push(nyaBsOption.data('isolateScope'))
                       }
                     }
                   }
@@ -1352,12 +1418,23 @@ nyaBsSelect.directive('nyaBsSelect', ['$parse', '$document', '$timeout', '$compi
                 dropdownToggle.removeClass('show-special-title');
                 // either single or multiple selection will show the only selected content.
                 filterOption.empty();
-                filterOption.append(selection[0]);
+                // the isolateScope attribute may not set when we use the static version nya-bs-option class with data-value attribute.
+                if(optionScopes[0]) {
+                  clone = $compile (selection[0])(optionScopes[0]);
+                } else {
+                  clone = selection[0];
+                }
+                filterOption.append(clone);
               } else {
                 dropdownToggle.removeClass('show-special-title');
                 filterOption.empty();
                 for(index = 0; index < selection.length; index++) {
-                  filterOption.append(selection[index]);
+                  if(optionScopes[index]) {
+                    clone = $compile (selection[index])(optionScopes[index]);
+                  } else {
+                    clone = selection[index];
+                  }
+                  filterOption.append(clone);
                   if(index < selection.length -1) {
                     filterOption.append(document.createTextNode(', '));
                   }

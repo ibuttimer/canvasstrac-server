@@ -13,18 +13,12 @@
   Configure the individual test to run by setting 'testOptions' in config.js
   as per cmd_options below.
 */
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var app_path = '../app/';   // relative path to app
 
-var request = require('supertest');
-var assert = require('assert');
-var mongoose = require('mongoose');
-
-var app = require(app_path + 'app');
 var config = require(app_path + 'config');
-var Consts = require(app_path + 'consts');
 
 var test_users = require('./test_users'),
   test_people = require('./test_people'),
@@ -35,18 +29,24 @@ var test_users = require('./test_users'),
   test_elections = require('./test_elections');
 
 /* Command line functions */
-var RUN_HELP = 0x01;
-var RUN_USER = 0x02;
-var RUN_PEOPLE = 0x04;
-var RUN_PARTIES = 0x08;
-var RUN_CANDIDATES = 0x10;
-var RUN_VOTING_SYSTEMS = 0x20;
-var RUN_VOTING_DISTRICTS = 0x40;
-var RUN_ELECTIONS = 0x80;
+var RUN_HELP = 0x01,
+  RUN_USER = 0x02,
+  RUN_PEOPLE = 0x04,
+  RUN_PARTIES = 0x08,
+  RUN_CANDIDATES = 0x10,
+  RUN_VOTING_SYSTEMS = 0x20,
+  RUN_VOTING_DISTRICTS = 0x40,
+  RUN_ELECTIONS = 0x80,
+  RUN_ALL = RUN_USER|RUN_PEOPLE|RUN_PARTIES|RUN_CANDIDATES|RUN_VOTING_SYSTEMS|RUN_VOTING_DISTRICTS|RUN_ELECTIONS;
 var cmd_options = [
   { cmd: '-h', command: '--help',
     desc: 'Display help information',
     value: RUN_HELP
+  },
+  { cmd: '-a', command: '--all',
+    desc: 'Run all tests',
+    value: RUN_ALL,
+    message: 'Running all tests'
   },
   { cmd: '-u', command: '--user',
     desc: 'Run user tests',
@@ -108,20 +108,26 @@ if (run_options === 0) {
 }
 
 if (config.disableAuth) {
-  console.log("\nAuthentication is disabled, please set the 'config.disableAuth' flag to false and run test again.");
+  // eslint-disable-next-line no-console
+  console.log('\nAuthentication is disabled, please set the "config.disableAuth" flag to false and run test again.');
 } else {
   // run 
   if ((run_options & RUN_HELP) !== 0) {
-    console.log("\nSpecify the required options as the 'testOptions' value in config.js:");
+    // eslint-disable-next-line no-console
+    console.log('\nSpecify the required options as the "testOptions" value in config.js:');
     cmd_options.forEach(function (val, index, array) {
+      // eslint-disable-next-line no-console
       console.log('\t' + val.cmd + ', ' + val.command + '\t' + val.desc);
     });
   } else {
     // run tests
     cmd_options.forEach(function (suite, index, array) {
       if ((run_options & suite.value) !== 0) {
-        console.log('\n' + suite.message + '\n');
-        suite.module.runTestSuite();
+        if (suite.module) {
+          // eslint-disable-next-line no-console
+          console.log('\n' + suite.message + '\n');
+          suite.module.runTestSuite();
+        }
       }
     });
   }

@@ -1,11 +1,11 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node,mongo */
 'use strict';
 
 /* Run this script in the mongo shell to create/update the basic data required by the 
   application.
   E.g. if the mongo client is running from c:\app folder & the app is in c:\app\canvasstrac,
       it may be loaded as follows:
-        load("canvasstrac-server/dev/dbSetup.js")
+        load('canvasstrac-server/dev/dbSetup.js')
       To see command, run
         canvasstrac()
       To create all collections, run
@@ -52,7 +52,7 @@ function insertOrUpdate(collection, existingId, doc, ownerId, dbg) {
     printjson(doc);
   }
   if (existingId) {
-    var doc = collection.findOneAndUpdate({_id: existingId}, {$set: doc}, {returnNewDocument: true});
+    doc = collection.findOneAndUpdate({_id: existingId}, {$set: doc}, {returnNewDocument: true});
     if (dbg) {
       print('found');
       printjson(doc);
@@ -110,42 +110,44 @@ var rolesCollect = db.roles,
 */
 var Roles = {
   // level definitions for Roles TAKEN FROM ../consts.js
-  ROLE_ADMIN: 100,      // admin level access
-  ROLE_MANAGER: 90,     // manager level access
-  ROLE_GROUP_LEAD: 80,  // group leader level access
-  ROLE_STAFF: 70,       // staff level access
-  ROLE_CANVASSER: 60,   // canvasser level access
-  ROLE_NONE: 0          // public level access
-},
-// menu access consts copied from consts.js
-ACCESS = {
-  ACCESS_NONE: 0x00,    // no access
-  ACCESS_CREATE: 0x01,  // create access
-  ACCESS_READ: 0x02,    // read access
-  ACCESS_UPDATE: 0x04,  // update access
-  ACCESS_DELETE: 0x08,  // delete access
-  ACCESS_BATCH: 0x10,   // batch mode access
-  ACCESS_BIT_COUNT: 5,  // number of access bits per group
-  ACCESS_MASK: 0x1f,    // map of access bits
-  // ** see below for values quick ref **
+    ROLE_ADMIN: 100,      // admin level access
+    ROLE_MANAGER: 90,     // manager level access
+    ROLE_GROUP_LEAD: 80,  // group leader level access
+    ROLE_STAFF: 70,       // staff level access
+    ROLE_CANVASSER: 60,   // canvasser level access
+    ROLE_NONE: 0          // public level access
+  },
+  // menu access consts copied from consts.js
+  ACCESS = {
+    ACCESS_NONE: 0x00,    // no access
+    ACCESS_CREATE: 0x01,  // create access
+    ACCESS_READ: 0x02,    // read access
+    ACCESS_UPDATE: 0x04,  // update access
+    ACCESS_DELETE: 0x08,  // delete access
+    ACCESS_BATCH: 0x10,   // batch mode access
+    ACCESS_BIT_COUNT: 5,  // number of access bits per group
+    ACCESS_MASK: 0x1f,    // map of access bits
+    // ** see below for values quick ref **
 
-  ACCESS_ALL: 0x01,     // access all objects group
-  ACCESS_ONE: 0x02,     // access single object group
-  ACCESS_OWN: 0x04,     // access own object group
-  ACCESS_GROUPMASK: 0x07,// map of access group bits
-};
+    ACCESS_ALL: 0x01,     // access all objects group
+    ACCESS_ONE: 0x02,     // access single object group
+    ACCESS_OWN: 0x04,     // access own object group
+    ACCESS_GROUPMASK: 0x07,// map of access group bits
+  };
 
 function makePrivilegeMask (all, one, own) {
   var mask = ACCESS.ACCESS_NONE,
     priv,
     shift,
+    grp,
     map = {};
   map[ACCESS.ACCESS_ALL] = all;
   map[ACCESS.ACCESS_ONE] = one;
   map[ACCESS.ACCESS_OWN] = own;
 
-  for (var grp = ACCESS.ACCESS_ALL, shift = 0; 
-            (grp & ACCESS.ACCESS_GROUPMASK) != 0; grp <<= 1, shift += ACCESS.ACCESS_BIT_COUNT) {
+  for (grp = ACCESS.ACCESS_ALL, shift = 0; 
+    (grp & ACCESS.ACCESS_GROUPMASK) != 0; 
+    grp <<= 1, shift += ACCESS.ACCESS_BIT_COUNT) {
     priv = map[grp];
     if (priv) {
       for (var i = 0, ll = priv.length; i < ll; ++i) {
@@ -173,7 +175,7 @@ function makePrivilegeMask (all, one, own) {
 }
 
 var predefRoles = [
-  { name: "Administrator", level: Roles.ROLE_ADMIN,
+  { name: 'Administrator', level: Roles.ROLE_ADMIN,
     //                               all     one     own
     votingsysPriv: makePrivilegeMask('crud', 'crud', ''),
     rolesPriv: makePrivilegeMask('crud', 'crud', ''),
@@ -183,7 +185,7 @@ var predefRoles = [
     canvassesPriv: makePrivilegeMask('crud', 'crud', ''),
     noticePriv: makePrivilegeMask('crud', 'crud', '')
   },
-  { name: "Manager", level: Roles.ROLE_MANAGER,
+  { name: 'Manager', level: Roles.ROLE_MANAGER,
     //                               all     one     own
     votingsysPriv: makePrivilegeMask('crud', 'crud', ''),
     rolesPriv: makePrivilegeMask('ru', 'ru', ''),
@@ -193,7 +195,7 @@ var predefRoles = [
     canvassesPriv: makePrivilegeMask('crud', 'crud', ''),
     noticePriv: makePrivilegeMask('cru', 'crud', '')
   },
-  { name: "Group Leader", level: Roles.ROLE_GROUP_LEAD,
+  { name: 'Group Leader', level: Roles.ROLE_GROUP_LEAD,
     //                               all     one     own
     votingsysPriv: makePrivilegeMask('crud', 'crud', ''),
     rolesPriv: makePrivilegeMask('r', 'r', ''),
@@ -203,7 +205,7 @@ var predefRoles = [
     canvassesPriv: makePrivilegeMask('crud', 'crud', ''),
     noticePriv: makePrivilegeMask('cru', 'crud', '')
   },
-  { name: "Staff", level: Roles.ROLE_STAFF,
+  { name: 'Staff', level: Roles.ROLE_STAFF,
     //                               all     one     own
     votingsysPriv: makePrivilegeMask('crud', 'crud', ''),
     rolesPriv: makePrivilegeMask('r', 'r', ''),
@@ -213,7 +215,7 @@ var predefRoles = [
     canvassesPriv: makePrivilegeMask('crud', 'crud', ''),
     noticePriv: makePrivilegeMask('cru', 'crud', '')
   },
-  { name: "Canvasser", level: Roles.ROLE_CANVASSER,
+  { name: 'Canvasser', level: Roles.ROLE_CANVASSER,
     //                               all     one     own
     votingsysPriv: makePrivilegeMask('r', 'r', ''),
     rolesPriv: makePrivilegeMask('r', 'r', ''),
@@ -223,7 +225,7 @@ var predefRoles = [
     canvassesPriv: makePrivilegeMask('r', 'r', ''),
     noticePriv: makePrivilegeMask('r', 'r', '')
   },
-  { name: "None", level: Roles.ROLE_NONE,
+  { name: 'None', level: Roles.ROLE_NONE,
     //                               all     one     own
     votingsysPriv: makePrivilegeMask('r', 'r', ''),
     rolesPriv: makePrivilegeMask('r', 'r', ''),
@@ -241,12 +243,15 @@ var predefRoles = [
 function createRoles() {
   deleted = created = updated = 0;
   predefRoles.forEach(function (predef, index, array) {
-    var cursor = rolesCollect.find({"level": predef.level});
+    var cursor = rolesCollect.find({'level': predef.level});
     if (cursor.hasNext()) {
       // exists in database
       var dbObj = cursor.next();
-      rolesCollect.findOneAndUpdate({"level": predef.level}, 
-                                {$set: predef});
+      rolesCollect.findOneAndUpdate({
+        'level': predef.level
+      }, {
+        $set: predef
+      });
       ++updated;
     } else {
       // create
@@ -260,7 +265,7 @@ function createRoles() {
   var list = [];
   while (cursor.hasNext()) {
     var dbObj = cursor.next(),
-        i;
+      i;
     for (i = 0; i < predefRoles.length; ++i) {
       if (testEquality(dbObj, predefRoles[i], ['name', 'level'])) {
         break;
@@ -271,10 +276,10 @@ function createRoles() {
     }
   }
   list.forEach(function (item, index, array) {
-    var res = rolesCollect.deleteOne({"_id": item});
+    var res = rolesCollect.deleteOne({'_id': item});
     deleted += res.deletedCount;
   });
-  print("Roles: updated " + updated + ", created " + created + ", deleted " + deleted);
+  print('Roles: updated ' + updated + ', created ' + created + ', deleted ' + deleted);
 }
 
 /* Voting systems initialisation */
@@ -297,13 +302,20 @@ var predefVotingSystems = [
 function createVotingSystems() {
   deleted = created = updated = 0;
   predefVotingSystems.forEach(function (predef, index, array) {
-    var findParam = {"abbreviation": predef.abbreviation};
+    var findParam = {'abbreviation': predef.abbreviation};
     var cursor = votingSysCollect.find(findParam);
     if (cursor.hasNext()) {
       // exists in database
       var dbObj = cursor.next();
-      votingSysCollect.findOneAndUpdate({"abbreviation": predef.abbreviation}, 
-                                {$set: {"name": predef.name, "description": predef.description, "preferenceLevels": predef.napreferenceLevelsme}});
+      votingSysCollect.findOneAndUpdate({
+        'abbreviation': predef.abbreviation
+      }, {
+        $set: {
+          'name': predef.name, 
+          'description': predef.description, 
+          'preferenceLevels': predef.napreferenceLevelsme
+        }
+      });
       ++updated;
     } else {
       // create
@@ -314,92 +326,91 @@ function createVotingSystems() {
 
     array[index]._id = cursor._id;  // save for later
   });
-  print("Voting systems: updated " + updated + ", created " + created + ", deleted " + deleted);
+  print('Voting systems: updated ' + updated + ', created ' + created + ', deleted ' + deleted);
 }
 
 var USA = 'United States of America (USA)';
 
 /* Political parties initialisation */
-var predefParties = [
-  { party: {
-      name: 'Conserative Party',
-      description: 'A political party of those of a conserative nature.',
-      note: 'Very popular with conseratives, according to https://www.forbes.com/pictures/gfii45img/most-conservative-no-1/#591397af792a'
-    },
-    addr: {
-      addrLine1: '1313 East Baseline Road',
-      addrLine2: '',
-      addrLine3: '',
-      town: 'Gilbert',
-      city: '',
-      county: '',
-      state: 'Arizona',
-      postcode: 'AZ 85233',
-      country: USA,
-      gps: '33.3777623,-111.80334390000002'
-    },
-    contact: {
-      phone: '123-456-123456789',
-      mobile: '456-123456789',
-      email: 'party@conserative.org',
-      website: 'http://conserative.org',
-      facebook: "https://www.facebook.com/Conserative.Party",
-      twitter: "@Conserative.Party"
-    }
+var predefParties = [{ 
+  party: {
+    name: 'Conserative Party',
+    description: 'A political party of those of a conserative nature.',
+    note: 'Very popular with conseratives, according to https://www.forbes.com/pictures/gfii45img/most-conservative-no-1/#591397af792a'
   },
-  { party: {
-      name: 'Progressive Party',
-      description: 'A political party of those of a progressive nature.',
-      note: 'Very popular with non-conseratives, according to https://www.forbes.com/pictures/gfii45img/most-liberal-no-1/#4e1f6dcc5c41'
-    },
-    addr: {
-      addrLine1: '1000 Lombard Street',
-      addrLine2: '',
-      addrLine3: '',
-      town: '',
-      city: 'San Francisco',
-      county: '',
-      state: 'California',
-      postcode: 'CA 94109',
-      country: USA,
-      gps: '37.802458,-122.418207'
-    },
-    contact: {
-      phone: '123-987-987654321',
-      mobile: '987-987654321',
-      email: 'party@progressive.org',
-      website: 'http://progressive.org',
-      facebook: "https://www.facebook.com/Progressive.Party",
-      twitter: "@Progressive.Party"
-    }
+  addr: {
+    addrLine1: '1313 East Baseline Road',
+    addrLine2: '',
+    addrLine3: '',
+    town: 'Gilbert',
+    city: '',
+    county: '',
+    state: 'Arizona',
+    postcode: 'AZ 85233',
+    country: USA,
+    gps: '33.3777623,-111.80334390000002'
   },
-  { party: {
-      name: 'Apathy Party',
-      description: 'A political party of those who do not care about politics.',
-      note: 'Very popular with no-one as they do not care about politics, according to https://www.forbes.com/2010/11/02/cities-stress-quality-of-life-lifestyle-real-estate-relaxed_slide_11.html'
-    },
-    addr: {
-      addrLine1: '1000 Summit Avenue',
-      addrLine2: '',
-      addrLine3: '',
-      town: '',
-      city: 'Saint Paul',
-      county: '',
-      state: 'Minnesota',
-      postcode: 'MN 55105',
-      country: USA,
-      gps: '44.9413888,-93.14269200000001'
-    },
-    contact: {
-      phone: '123-001-112233445',
-      mobile: '001-112233445',
-      email: 'party@apathy.org',
-      website: 'http://apathy.org',
-      facebook: "https://www.facebook.com/apathy.party",
-      twitter: "@apathy.party"
-    }
+  contact: {
+    phone: '123-456-123456789',
+    mobile: '456-123456789',
+    email: 'party@conserative.org',
+    website: 'http://conserative.org',
+    facebook: 'https://www.facebook.com/Conserative.Party',
+    twitter: '@Conserative.Party'
   }
-];
+}, { 
+  party: {
+    name: 'Progressive Party',
+    description: 'A political party of those of a progressive nature.',
+    note: 'Very popular with non-conseratives, according to https://www.forbes.com/pictures/gfii45img/most-liberal-no-1/#4e1f6dcc5c41'
+  },
+  addr: {
+    addrLine1: '1000 Lombard Street',
+    addrLine2: '',
+    addrLine3: '',
+    town: '',
+    city: 'San Francisco',
+    county: '',
+    state: 'California',
+    postcode: 'CA 94109',
+    country: USA,
+    gps: '37.802458,-122.418207'
+  },
+  contact: {
+    phone: '123-987-987654321',
+    mobile: '987-987654321',
+    email: 'party@progressive.org',
+    website: 'http://progressive.org',
+    facebook: 'https://www.facebook.com/Progressive.Party',
+    twitter: '@Progressive.Party'
+  }
+}, {
+  party: {
+    name: 'Apathy Party',
+    description: 'A political party of those who do not care about politics.',
+    note: 'Very popular with no-one as they do not care about politics, according to https://www.forbes.com/2010/11/02/cities-stress-quality-of-life-lifestyle-real-estate-relaxed_slide_11.html'
+  },
+  addr: {
+    addrLine1: '1000 Summit Avenue',
+    addrLine2: '',
+    addrLine3: '',
+    town: '',
+    city: 'Saint Paul',
+    county: '',
+    state: 'Minnesota',
+    postcode: 'MN 55105',
+    country: USA,
+    gps: '44.9413888,-93.14269200000001'
+  },
+  contact: {
+    phone: '123-001-112233445',
+    mobile: '001-112233445',
+    email: 'party@apathy.org',
+    website: 'http://apathy.org',
+    facebook: 'https://www.facebook.com/apathy.party',
+    twitter: '@apathy.party'
+  }
+}];
 
 /**
  * Create the basic political parties required by the system
@@ -409,7 +420,7 @@ function createParties() {
 
   deleted = created = updated = 0;
   predefParties.forEach(function (predef, index, array) {
-    var findParam = {"name": predef.party.name};
+    var findParam = {'name': predef.party.name};
     var cursor = partiesCollect.find(findParam);
     if (cursor.hasNext()) {
       // exists in database
@@ -439,7 +450,7 @@ function createParties() {
       partiesCollect.findOneAndUpdate(findParam,{$set: need2update});
     }
   });
-  print("Political parties: updated " + updated + ", created " + created + ", deleted " + deleted);
+  print('Political parties: updated ' + updated + ', created ' + created + ', deleted ' + deleted);
 }
 
 /* Candidates initialisation
@@ -467,8 +478,8 @@ var predefCandidates = [
       mobile: '456-012345678',
       email: 'joe.slowchange@conserative.org',
       website: 'http://joeslowchange.conserative.org',
-      facebook: "https://www.facebook.com/joe.slowchange",
-      twitter: "@joe.slowchange"
+      facebook: 'https://www.facebook.com/joe.slowchange',
+      twitter: '@joe.slowchange'
     }
   },
   { party: 'Progressive Party',   // must match party name in db
@@ -493,8 +504,8 @@ var predefCandidates = [
       mobile: '987-098765432',
       email: 'mary.allchange@progressive.org',
       website: 'http://maryallchange.progressive.org',
-      facebook: "https://www.facebook.com/mary.allchange",
-      twitter: "@mary.allchange"
+      facebook: 'https://www.facebook.com/mary.allchange',
+      twitter: '@mary.allchange'
     }
   },
   { party: 'Apathy Party',   // must match party name in db
@@ -519,8 +530,8 @@ var predefCandidates = [
       mobile: '001-011223344',
       email: 'donal.care@apathy.org',
       website: 'http://donalcare.apathy.org',
-      facebook: "https://www.facebook.com/donal.care",
-      twitter: "@donal.care"
+      facebook: 'https://www.facebook.com/donal.care',
+      twitter: '@donal.care'
     }
   }
 ];
@@ -539,7 +550,7 @@ function createCandidates() {
 
   predefCandidates.forEach(function (predef, index, array) {
     
-    var findParam = {"firstname": predef.person.firstname, "lastname": predef.person.lastname};
+    var findParam = {'firstname': predef.person.firstname, 'lastname': predef.person.lastname};
     var cursor = peopleCollect.find(findParam);
     if (cursor.hasNext()) {
       // exists in database
@@ -567,20 +578,21 @@ function createCandidates() {
       peopleCollect.findOneAndUpdate(findParam,{$set: need2update});
     }
 
-    var party = partiesCollect.findOne({"name": predef.party});
+    var party = partiesCollect.findOne({'name': predef.party});
     if (party) {
       // create candidate entry
-      var result = insertOrUpdate(candidatesCollect, undefined, 
-                    { "person": cursor._id, "party": party._id }, undefined);
+      result = insertOrUpdate(candidatesCollect, undefined, { 
+        'person': cursor._id, 'party': party._id
+      }, undefined);
       if (result.action === 'insert') {
         array[index]._id = result._id; // save id for later
         ++created;
       }
     } else {
-      print("Unable to find party '" + predef.party + "' for candidate " + predef.person.firstname + " " + predef.person.lastname);
+      print('Unable to find party \'' + predef.party + '\' for candidate ' + predef.person.firstname + ' ' + predef.person.lastname);
     }
   });
-  print("Candidates: updated " + updated + ", created " + created + ", deleted " + deleted);
+  print('Candidates: updated ' + updated + ', created ' + created + ', deleted ' + deleted);
 }
 
 /* Election initialisation */
@@ -608,7 +620,7 @@ function createElections() {
 
   predefElections.forEach(function (predef, index, array) {
     
-    var system = votingSysCollect.findOne({"abbreviation": predef.system});
+    var system = votingSysCollect.findOne({'abbreviation': predef.system});
     if (system) {
       // create election entry
       var election = Object.assign({}, predef.election);
@@ -623,10 +635,10 @@ function createElections() {
         ++created;
       }
     } else {
-      print("Unable to find voting system '" + predef.system + "' for election " + predef.election.name);
+      print('Unable to find voting system \'' + predef.system + '\' for election ' + predef.election.name);
     }
   });
-  print("Elections: updated " + updated + ", created " + created + ", deleted " + deleted);
+  print('Elections: updated ' + updated + ', created ' + created + ', deleted ' + deleted);
 }
 
 
@@ -662,7 +674,7 @@ function createAddresses() {
       var addr = Object.assign({}, predef.addr);
       addr.addrLine1 = hseNum + ' ' + addr.addrLine1;
 
-      var findParam = {"addrLine1": addr.addrLine1};
+      var findParam = {'addrLine1': addr.addrLine1};
       var cursor = addressCollect.find(findParam);
       if (cursor.hasNext()) {
         // exists in database
@@ -676,7 +688,7 @@ function createAddresses() {
       }
     });
   });
-  print("Addresses: updated " + updated + ", created " + created + ", deleted " + deleted);
+  print('Addresses: updated ' + updated + ', created ' + created + ', deleted ' + deleted);
 }
 
 
@@ -694,14 +706,14 @@ var collections = [
  */
 function createCollections (args) {
   var exe = [ // exe flags NOTE matches order of collections
-    { flag: false, cmd: createRoles }, // create roles
-    { flag: false, cmd: createVotingSystems },  // create voting systems
-    { flag: false, cmd: createParties },  // create parties
-    { flag: false, cmd: createCandidates },  // create candidates
-    { flag: false, cmd: createElections },  // create elections
-    { flag: false, cmd: createAddresses },  // create addresses
-  ],
-  usedArgCount = 0; // number of arguments used
+      { flag: false, cmd: createRoles }, // create roles
+      { flag: false, cmd: createVotingSystems },  // create voting systems
+      { flag: false, cmd: createParties },  // create parties
+      { flag: false, cmd: createCandidates },  // create candidates
+      { flag: false, cmd: createElections },  // create elections
+      { flag: false, cmd: createAddresses },  // create addresses
+    ],
+    usedArgCount = 0; // number of arguments used
 
   if (!args || !args.length) {
     // default do all
@@ -787,10 +799,10 @@ function canvasstrac(cmd) {
             break;
         }
       } else {
-        print("Ignoring argument '" + splits[i]);
+        print('Ignoring argument: ' + splits[i]);
       }
     } else {
-      print("Ignoring argument '" + splits[i]);
+      print('Ignoring argument: ' + splits[i]);
     }
   }
 }

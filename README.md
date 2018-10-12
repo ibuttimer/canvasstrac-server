@@ -3,11 +3,11 @@ Server application for CanvassTrac suite.
 
 ## Development Environment
 The development environment:
-* Node.js v6.11.1
-* npm v2.15.9
-* bower v1.7.9
+* Node.js v8.12.0
+* npm v6.4.1
+* bower v1.8.4
 * gulp v3.9.1
-* MongoDB v3.2.4
+* MongoDB v3.6.8
 
 ### Environment setup
 In an appropriate folder:

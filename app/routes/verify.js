@@ -1,14 +1,14 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
-var User = require('../models/user').model,
-  Roles = require('../models/roles').model,
+var Roles = require('../models/roles').model,
   jwt = require('jsonwebtoken'), // used to create, sign and verify tokens
   utils = require('../misc/utils'),
-    cloneObject = utils.cloneObject,
+  cloneObject = utils.cloneObject,
   getError = require('../services/errorService').getError,
   config = require('../config.js'),
-  Consts = require('../consts');
+  Consts = require('../consts'),
+  debug = require('debug')('verify');
 
 var express = require('express');
 
@@ -24,7 +24,6 @@ var dev_fake_admin_id = '123456789012345678901234';
  */
 function verifyToken(token, res, next) {
   // decode token
-  var err = null;
   if (token) {
     // verifies secret and checks exp
     jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
@@ -36,7 +35,7 @@ function verifyToken(token, res, next) {
         }
       } else {
         // if everything is good
-//        console.log(decoded);
+        // debug(decoded);
       }
       return next(err, decoded);
     });
@@ -52,7 +51,7 @@ function verifyToken(token, res, next) {
  * @returns token
  */
 function extractToken(req) {
-    // check header or url parameters or post parameters for token
+  // check header or url parameters or post parameters for token
   return req.body.token || req.query.token || req.headers['x-access-token'];
 }
 
@@ -69,15 +68,15 @@ function verifyCredentials(req, res, next) {
     var token = extractToken(req);
     verifyToken(token, res, function (err, decoded) {
       if (err) {
-          next(err);
-        } else {
-          // if everything is good, save to request for use in other routes
-          req.credentials = {
-            decoded: decoded,
-            token: token
-          };
-          next();
-        }
+        next(err);
+      } else {
+        // if everything is good, save to request for use in other routes
+        req.credentials = {
+          decoded: decoded,
+          token: token
+        };
+        next();
+      }
     });
   } else {
     // development mode with authentication disabled
@@ -91,11 +90,11 @@ function verifyCredentials(req, res, next) {
         throw new Error('Unable to find admin role.');
       } else {
         var decoded = {
-           firstname: 'AdminDev',
-           lastname: 'DevMode',
-           role: role,
-           username: 'dev-admin',
-           _id: dev_fake_admin_id          
+          firstname: 'AdminDev',
+          lastname: 'DevMode',
+          role: role,
+          username: 'dev-admin',
+          _id: dev_fake_admin_id          
         };
         req.credentials = {
           decoded: decoded,
@@ -124,7 +123,6 @@ function verifyAccessLevel(minLevel, maxLevel, req, res, next) {
       }
 
       // check if user has correct level
-      var notAuthErr = null;
       if (role === null) {
         return next(getError(Consts.APPERR_UNKNOWN_ROLE));
       } else if ((role.level < minLevel) || (role.level > maxLevel)) {
@@ -132,12 +130,6 @@ function verifyAccessLevel(minLevel, maxLevel, req, res, next) {
       } else {
         next();
       }
-      // if (notAuthErr === null) {
-      //   next();
-      // } else {
-      //   notAuthErr.status = Consts.HTTP_FORBIDDEN;
-      //   return next(notAuthErr);
-      // }
     });
   }
 }
@@ -156,7 +148,7 @@ function verifyAccess(minLevel, maxLevel, req, res, next) {
     if (err) {
       return next(err);
     }
-//    console.log('verifyAccess', minLevel, maxLevel);
+    // debug('verifyAccess %d %d', minLevel, maxLevel);
 
     verifyAccessLevel(minLevel, maxLevel, req, res, next);
   });

@@ -1,19 +1,19 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   ModelModule = require('../models/votingSystems'),
-    Model = ModelModule.model,
-    schema = ModelModule.schema,
-    getModelNodeTree = ModelModule.getModelNodeTree,
-    isValidModelPath = ModelModule.isValidModelPath,
+  Model = ModelModule.model,
+  // schema = ModelModule.schema,
+  getModelNodeTree = ModelModule.getModelNodeTree,
+  isValidModelPath = ModelModule.isValidModelPath,
   Verify = require('./verify'),
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    resultReply = router_utils.resultReply,
-    populateSubDocsReply = router_utils.populateSubDocsReply,
-    getDocs = router_utils.getDocs,
-  utils = require('../misc/utils'),
+  checkError = router_utils.checkError,
+  resultReply = router_utils.resultReply,
+  // populateSubDocsReply = router_utils.populateSubDocsReply,
+  getDocs = router_utils.getDocs,
+  // utils = require('../misc/utils'),
   Consts = require('../consts');
 
 var router = express.Router();

@@ -1,18 +1,18 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   bodyParser = require('body-parser'),
   Module = require('../models/contactDetails'),
-    model = Module.model,
-    getTemplate = Module.getTemplate,
+  model = Module.model,
+  getTemplate = Module.getTemplate,
   router_utils = require('./router_utils'),
-    errorReply = router_utils.errorReply,
-    resultReply = router_utils.resultReply,
-    updateDoc = router_utils.updateDoc,
-    removeDoc = router_utils.removeDoc,
-    getDocById = router_utils.getDocById,
-  utils = require('../misc/utils'),
+  errorReply = router_utils.errorReply,
+  resultReply = router_utils.resultReply,
+  updateDoc = router_utils.updateDoc,
+  removeDoc = router_utils.removeDoc,
+  getDocById = router_utils.getDocById,
+  // utils = require('../misc/utils'),
   Verify = require('./verify'),
   Consts = require('../consts');
 

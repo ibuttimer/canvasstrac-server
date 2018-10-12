@@ -1,18 +1,20 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 // grab the things we need
 var mongoose = require('./mongoose_app').mongoose,
   Schema = mongoose.Schema,
   ModelNodeModule = require('./modelNode'),
-    ModelNode = ModelNodeModule.ModelNode,
+  ModelNode = ModelNodeModule.ModelNode,
   QuestionModule = require('./question'),
-    QuestionModel = QuestionModule.model,
   utilsModule = require('../misc/utils'),
-    utilsIsValidModelPath = utilsModule.isValidModelPath,
-    utilsGetTemplate = utilsModule.getTemplate,
+  utilsIsValidModelPath = utilsModule.isValidModelPath,
+  utilsGetTemplate = utilsModule.getTemplate,
   questionPopulateOptions = require('./question').getSubDocPopulateOptions,
-  populateSubDocsUtil = require('./model_utils').populateSubDocs;
+  modelUtilsModule = require('./model_utils'),
+  getSchemaOptions = modelUtilsModule.getSchemaOptions,
+  OPT_TIMESTAMP = modelUtilsModule.OPT_TIMESTAMP,
+  populateSubDocsUtil = modelUtilsModule.populateSubDocs;
 
 // create the address schema
 var schema = new Schema({
@@ -25,9 +27,7 @@ var schema = new Schema({
     ref: 'Question',
     required: true
   }
-}, {
-  timestamps: true
-});
+}, getSchemaOptions(OPT_TIMESTAMP));
 
 // create a model using schema
 var model = mongoose.model('Answer', schema);

@@ -1,18 +1,19 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var mongoose = require('./mongoose_app').mongoose,
   Schema = mongoose.Schema,
   ModelNodeModule = require('./modelNode'),
-    ModelNode = ModelNodeModule.ModelNode,
+  ModelNode = ModelNodeModule.ModelNode,
   ContactDetailsModule = require('./contactDetails'),
-    ContactDetailsModel = ContactDetailsModule.model, 
   AddressModule = require('./addresses'),
-    AddressModel = AddressModule.model,
   utilsModule = require('../misc/utils'),
-    utilsIsValidModelPath = utilsModule.isValidModelPath,
-    utilsGetTemplate = utilsModule.getTemplate,
-  populateSubDocsUtil = require('./model_utils').populateSubDocs;
+  utilsIsValidModelPath = utilsModule.isValidModelPath,
+  utilsGetTemplate = utilsModule.getTemplate,
+  modelUtilsModule = require('./model_utils'),
+  getSchemaOptions = modelUtilsModule.getSchemaOptions,
+  OPT_TIMESTAMP = modelUtilsModule.OPT_TIMESTAMP,
+  populateSubDocsUtil = modelUtilsModule.populateSubDocs;
 
 var schema = new Schema({
   firstname: {
@@ -40,9 +41,7 @@ var schema = new Schema({
   owner: {
     type: mongoose.Schema.Types.ObjectId
   }
-}, {
-  timestamps: true
-});
+}, getSchemaOptions(OPT_TIMESTAMP));
 
 schema.methods.getName = function () {
   return (this.firstname + ' ' + this.lastname);

@@ -1,20 +1,20 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   bodyParser = require('body-parser'),
   ModelModule = require('../models/roles'),
-    Model = ModelModule.model,
-    schema = ModelModule.schema,
-    isValidModelPath = ModelModule.isValidModelPath,
-    getModelNodeTree = ModelModule.getModelNodeTree,
+  Model = ModelModule.model,
+  // schema = ModelModule.schema,
+  isValidModelPath = ModelModule.isValidModelPath,
+  getModelNodeTree = ModelModule.getModelNodeTree,
   Verify = require('./verify'),
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    resultReply = router_utils.resultReply,
-    populateSubDocsReply = router_utils.populateSubDocsReply,
-    getDocs = router_utils.getDocs,
-  utils = require('../misc/utils'),
+  checkError = router_utils.checkError,
+  resultReply = router_utils.resultReply,
+  // populateSubDocsReply = router_utils.populateSubDocsReply,
+  getDocs = router_utils.getDocs,
+  // utils = require('../misc/utils'),
   Consts = require('../consts');
 
 var router = express.Router();

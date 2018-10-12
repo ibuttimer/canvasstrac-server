@@ -14,6 +14,7 @@
 //     .then(function(text) { alert(text); });
 
 (function(global) {
+  'use strict';
 
   // Web IDL concepts
 
@@ -48,7 +49,7 @@
   }
 
   function byteCaseInsensitiveMatch(a, b) {
-    return byteLowerCase(b) === byteLowerCase(b);
+    return byteLowerCase(a) === byteLowerCase(b);
   }
 
   // 2.1 HTTP

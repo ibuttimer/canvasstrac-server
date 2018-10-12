@@ -1,25 +1,26 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   ElectionModule = require('../models/election'),
-    Election = ElectionModule.model,
-    schema = ElectionModule.schema,
-    getModelNodeTree = ElectionModule.getModelNodeTree,
-    getElectionTemplate = ElectionModule.getTemplate,
-    isValidModelPath = ElectionModule.isValidModelPath,
-    getSubDocPopulateOptions = ElectionModule.getSubDocPopulateOptions,
-    populateSubDocs = ElectionModule.populateSubDocs,
-  VotingSystems = require('../models/votingSystems').model,
-  Candidate = require('../models/candidate').model,
+  Election = ElectionModule.model,
+  // schema = ElectionModule.schema,
+  getModelNodeTree = ElectionModule.getModelNodeTree,
+  getElectionTemplate = ElectionModule.getTemplate,
+  isValidModelPath = ElectionModule.isValidModelPath,
+  // getSubDocPopulateOptions = ElectionModule.getSubDocPopulateOptions,
+  populateSubDocs = ElectionModule.populateSubDocs,
+  // VotingSystems = require('../models/votingSystems').model,
+  // Candidate = require('../models/candidate').model,
   Verify = require('./verify'),
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    resultReply = router_utils.resultReply,
-    populateSubDocsReply = router_utils.populateSubDocsReply,
-    makeResult = router_utils.makeResult,
-    getDocs = router_utils.getDocs,
-  utils = require('../misc/utils'),
+  checkError = router_utils.checkError,
+  errorReply = router_utils.errorReply,
+  resultReply = router_utils.resultReply,
+  populateSubDocsReply = router_utils.populateSubDocsReply,
+  makeResult = router_utils.makeResult,
+  getDocs = router_utils.getDocs,
+  // utils = require('../misc/utils'),
   Consts = require('../consts');
 
 
@@ -44,18 +45,17 @@ function updateElection (id, req, res, next) {
   var electionFields = getElectionTemplate(req.body, []);  // exclude nothing
 
   Election.findByIdAndUpdate(id, {
-      $set: electionFields
-    }, {
-      new: true // return the modified document rather than the original
-    }, function (err, election) {
-      if (!checkError (err, res)) {
-        // success
-        populateSubDocs(election, function (err, doc) {
-          populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
-        });
-      }
+    $set: electionFields
+  }, {
+    new: true // return the modified document rather than the original
+  }, function (err, election) {
+    if (!checkError (err, res)) {
+      // success
+      populateSubDocs(election, function (err, doc) {
+        populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
+      });
     }
-  );
+  });
 }
 
 function deleteElection (id, req, res, next) {

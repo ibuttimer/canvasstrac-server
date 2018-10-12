@@ -19,16 +19,6 @@
     return o === global ? undefined : o;
   }
 
-  function hook(o, p, f) {
-    var op = o[p];
-    console.assert(typeof op === 'function', 'Hooking a non-function');
-    o[p] = function() {
-      var o = strict(this);
-      var r = f.apply(o, arguments);
-      return r !== undefined ? r : op.apply(o, arguments);
-    };
-  }
-
   function isSymbol(s) {
     return (typeof s === 'symbol') || ('Symbol' in global && s instanceof global.Symbol);
   }
@@ -299,7 +289,7 @@
     // 19.4.4 Properties of Symbol Instances
   }());
 
-  console.assert(typeof global.Symbol() === 'symbol' || symbolForKey(String(global.Symbol('x'))));
+  console.assert(typeof global.Symbol() === 'symbol' || symbolForKey(String(global.Symbol('x'))) !== undefined);
 
   // Defined here so that other prototypes can reference it
   // 25.1.2 The %IteratorPrototype% Object
@@ -444,7 +434,6 @@
   }
 
   // 7.2.8 IsRegExp ( argument )
-  // 7.2.5 IsConstructor ( argument )
 
   // 7.2.9 SameValue(x, y)
   function SameValue(x, y) {
@@ -513,7 +502,9 @@
     while (o) {
       if (Object.prototype.hasOwnProperty.call(o, p)) return true;
       if (Type(o) !== 'object') return false;
-      o = Object.getPrototypeOf(o);
+      var op = Object.getPrototypeOf(o);
+      if (op === o) return false; // IE8 has self-referential prototypes
+      o = op;
     }
     return false;
   }
@@ -592,8 +583,6 @@
 
   // 7.4.8 CreateListIterator (list)
   // 7.4.8.1 ListIterator next( )
-  // 7.4.9 CreateCompoundIterator ( iterator1, iterator2 )
-  // 7.4.9.1 CompoundIterator next( )
 
   //----------------------------------------
   // 8 Executable Code and Execution Contexts
@@ -769,13 +758,14 @@
   // 19.1.3.4 Object.prototype.propertyIsEnumerable ( V )
   // 19.1.3.5 Object.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
   // 19.1.3.6 Object.prototype.toString ( )
-  hook(Object.prototype, 'toString',
+  var o_p_ts = Object.prototype.toString;
+  define(Object.prototype, 'toString',
        function() {
          var o = strict(this);
          if (o === Object(o) && $$toStringTag in o) {
            return '[object ' + o[$$toStringTag] + ']';
          }
-         return undefined;
+         return o_p_ts.apply(o, arguments);
        });
 
   // 19.1.3.7 Object.prototype.valueOf ( )

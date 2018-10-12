@@ -1,21 +1,21 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   bodyParser = require('body-parser'),
   AddressModule = require('../models/addresses'),
-    model = AddressModule.model,
-    getModelNodeTree = AddressModule.getModelNodeTree,
-    schema = AddressModule.schema,
-    getTemplate = AddressModule.getTemplate,
-    isValidModelPath = AddressModule.isValidModelPath,
+  model = AddressModule.model,
+  getModelNodeTree = AddressModule.getModelNodeTree,
+  schema = AddressModule.schema,
+  getTemplate = AddressModule.getTemplate,
+  isValidModelPath = AddressModule.isValidModelPath,
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    resultReply = router_utils.resultReply,
-    updateDoc = router_utils.updateDoc,
-    removeDoc = router_utils.removeDoc,
-    processCountReq = router_utils.processCountReq,
-    getDocs = router_utils.getDocs,
+  checkError = router_utils.checkError,
+  resultReply = router_utils.resultReply,
+  updateDoc = router_utils.updateDoc,
+  removeDoc = router_utils.removeDoc,
+  processCountReq = router_utils.processCountReq,
+  getDocs = router_utils.getDocs,
   utils = require('../misc/utils'),
   Verify = require('./verify'),
   Consts = require('../consts');

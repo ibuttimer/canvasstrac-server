@@ -1,12 +1,16 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
-var assert = require('assert');
-var mongoose = require('../models/mongoose_app').mongoose;
-
-var app = require('../app');
-var config = require('../config');
-var Consts = require('../consts');
+var _dbVersion,
+  OPS = {
+    LT: 1,
+    LT_EQ: 2,
+    EQ: 3,
+    GT_EQ: 4,
+    GT: 5
+  },
+  
+  debug = require('debug')('utils');
 
 /**
   * Test the equality of two objects based on a list of properties
@@ -18,8 +22,8 @@ function testEquality (objA, objB, properties) {
   var equal = true;
   if (!properties) {
     // check all properties of objects match
-    var properties = Object.getOwnPropertyNames(objA),
-      propB = Object.getOwnPropertyNames(objB);
+    var propB = Object.getOwnPropertyNames(objB);
+    properties = Object.getOwnPropertyNames(objA),
     equal = (properties.length === propB.length);
   }
   if (equal) {
@@ -41,7 +45,7 @@ function testEquality (objA, objB, properties) {
           }
         }
         if (!equal) {
-          console.log('-> testEquality[' + properties[i] + ']: ' + objA[properties[i]] + ' != ' + objB[properties[i]]);
+          debug('-> testEquality[%s]: %O != %O', properties[i], objA[properties[i]], objB[properties[i]]);
         }
       }
     }
@@ -282,8 +286,7 @@ function isValidModelPath (modelNodes, path, exPaths) {
 
   // TODO refactor isValidModelPath() to accept exclude object as per excludePath()
 
-  var paths,
-    chkArray,
+  var chkArray,
     valid = false;
   if (Array.isArray(modelNodes)) {
     chkArray = modelNodes;
@@ -308,10 +311,10 @@ function getTemplate (source, model, exPaths) {
   // TODO refactor getTemplate() to accept exclude object as per excludePath()
 
   var paths = getModelPathNames(model, {
-      exVersionId: true,
-      exTimestamp: true,
-      exPaths: exPaths
-    });
+    exVersionId: true,
+    exTimestamp: true,
+    exPaths: exPaths
+  });
   var fields;
   if (paths.length === 0) {
     fields = {};
@@ -516,6 +519,84 @@ function intObjectIdToString (id, func) {
   return str;
 }
 
+/**
+ * Set the database version
+ * @param {string} ver Version
+ */
+function setDbVersion(ver) {
+  _dbVersion = ver;
+}
+
+/**
+ * Return the database version as previously set
+ * @returns {string}  Version
+ */
+function getDbVersion() {
+  return _dbVersion;
+}
+
+/**
+ * Test the database version
+ * @param {string} ver Version string in dot format (use 'x' for ignored version ranges), e.g. "3.6.x"
+ * @param {string} test One of OPS.LT etc., default OPS.EQ
+ * @returns {boolean} true if passes test
+ */
+function dbVersionTest(ver, test) {
+  var dbVers = strArrayToNumArray(_dbVersion.split('.'));
+  var vers = strArrayToNumArray(ver.split('.'));
+  var pass = 0;
+
+  if (!test) {
+    // set default
+    test = OPS.EQ;
+  }
+
+  for (var index = 0; index < vers.length; index++) {
+    if (isNaN(vers[index])) {
+      ++pass; // ignored value
+    } else if (index < dbVers.length) {
+      var res;
+      switch (test) {
+        case OPS.LT:
+          res = (dbVers[index] < vers[index]);
+          break;
+        case OPS.LT_EQ:
+          res = (dbVers[index] <= vers[index]);
+          break;
+        case OPS.EQ:
+          res = (dbVers[index] === vers[index]);
+          break;
+        case OPS.GT_EQ:
+          res = (dbVers[index] >= vers[index]);
+          break;
+        case OPS.GT:
+          res = (dbVers[index] > vers[index]);
+          break;
+        default:
+          res = false;
+          break;
+      }
+      if (res) {
+        ++pass;
+      }
+    }    
+  }
+  return (pass === vers.length);
+}
+
+/**
+ * Convert an array of strings to numbers
+ * @param {array} array Array of strings
+ * @returns {array} Converted array
+ */
+function strArrayToNumArray(array) {
+  for (var index = 0; index < array.length; index++) {
+    array[index] = Number(array[index]);
+  }
+  return array;
+}
+
+
 module.exports = {
   testEquality: testEquality,
   isEmpty: isEmpty,
@@ -532,5 +613,9 @@ module.exports = {
   getModelPathTypes: getModelPathTypes,
   isValidModelPath: isValidModelPath,
   getTemplate: getTemplate,
-  objectIdToString: objectIdToString
+  objectIdToString: objectIdToString,
+  setDbVersion: setDbVersion,
+  getDbVersion: getDbVersion,
+  OPS: OPS,
+  dbVersionTest: dbVersionTest
 };

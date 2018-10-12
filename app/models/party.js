@@ -1,16 +1,17 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var mongoose = require('./mongoose_app').mongoose,
   Schema = mongoose.Schema,
   ModelNodeModule = require('./modelNode'),
-    ModelNode = ModelNodeModule.ModelNode,
-  ContactDetailsModule = require('./contactDetails'),
-  AddressModule = require('./addresses'),
+  ModelNode = ModelNodeModule.ModelNode,
   utilsModule = require('../misc/utils'),
-    utilsIsValidModelPath = utilsModule.isValidModelPath,
-    utilsGetTemplate = utilsModule.getTemplate,
-  populateSubDocsUtil = require('./model_utils').populateSubDocs;
+  utilsIsValidModelPath = utilsModule.isValidModelPath,
+  utilsGetTemplate = utilsModule.getTemplate,
+  modelUtilsModule = require('./model_utils'),
+  getSchemaOptions = modelUtilsModule.getSchemaOptions,
+  OPT_TIMESTAMP = modelUtilsModule.OPT_TIMESTAMP,
+  populateSubDocsUtil = modelUtilsModule.populateSubDocs;
 
 var schema = new Schema({
   name: {
@@ -34,9 +35,7 @@ var schema = new Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ContactDetails'
   }
-}, {
-  timestamps: true
-});
+}, getSchemaOptions(OPT_TIMESTAMP));
 
 // create a model using schema
 var model = mongoose.model('Party', schema);

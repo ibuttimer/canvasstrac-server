@@ -1,14 +1,11 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 // grab the things we need
-var mongoose = require('./mongoose_app').mongoose,
-  Schema = mongoose.Schema,
-  utilsModule = require('../misc/utils'),
-    cloneObject = utilsModule.cloneObject,
-    utilsIsValidModelPath = utilsModule.isValidModelPath,
-    utilsGetTemplate = utilsModule.getTemplate,
-    getModelPathTypes = utilsModule.getModelPathTypes;
+var utilsModule = require('../misc/utils'),
+  cloneObject = utilsModule.cloneObject,
+  getModelPathTypes = utilsModule.getModelPathTypes,
+  debug = require('debug')('modelNode');
 
 /**
  * ModeNode object
@@ -51,7 +48,7 @@ ModelNode.prototype.preorder = function (node, callback) {
     // Traverse the right subtree by recursively calling the pre-order function
     ModelNode.prototype.preorder(node.sibling, callback);
   }
-}
+};
 
 /** 
  * Do a breath-first traversal of the tree
@@ -75,7 +72,7 @@ ModelNode.prototype.levelorder = function (root, callback) {
       }
     }
   }
-}
+};
 
 ModelNode.prototype.getRoot = function (node) {
   if (!node) {
@@ -85,7 +82,7 @@ ModelNode.prototype.getRoot = function (node) {
     node = node.parent;
   }
   return node;
-}
+};
 
 ModelNode.prototype.getFirstSibling = function (node) {
   if (!node) {
@@ -99,7 +96,7 @@ ModelNode.prototype.getFirstSibling = function (node) {
     sibling = node; // it's a root'
   }
   return sibling;
-}
+};
 
 ModelNode.prototype.getLastSibling = function (node) {
   if (!node) {
@@ -110,7 +107,7 @@ ModelNode.prototype.getLastSibling = function (node) {
     sibling = sibling.sibling;
   }
   return sibling;
-}
+};
 
 ModelNode.prototype.addAsLastChild = function (node, child) {
   if (node.child) {
@@ -120,7 +117,7 @@ ModelNode.prototype.addAsLastChild = function (node, child) {
     node.child = child;
   }
   return child;
-}
+};
 
 /**
  * Add a child
@@ -144,14 +141,14 @@ ModelNode.prototype.addChild = function (model, path, options) {
     opts = {
       populateSubDocs: options.populateSubDocs,
       projection: options.projection
-    }
+    };
   }
   opts.path = path;
   opts.parent = this;
   // insert new child node at end of children node chain
   var child = new ModelNode(model, opts);
   return this.addAsLastChild(this, child);
-}
+};
 
 ModelNode.prototype.addChildBranch = function (node, path) {
   if (!node) {
@@ -167,17 +164,18 @@ ModelNode.prototype.addChildBranch = function (node, path) {
   child.path = path;
   // need to clone children tree as well so it can use 'child' as it's root
   
-  var queue = [child];
+  var clone,
+    queue = [child];
   while (queue.length) {
     var pnode = queue.shift(); // fifo queue
     if (pnode.sibling) {
-      var clone = cloneObject(pnode.sibling);
+      clone = cloneObject(pnode.sibling);
       clone.parent = pnode.parent;
       pnode.sibling = clone;
       queue.unshift(clone); // add cloned sibling to start of queue
     }
     if (pnode.child) {
-      var clone = cloneObject(pnode.child);
+      clone = cloneObject(pnode.child);
       clone.parent = pnode;
       pnode.child = clone;
       queue.push(clone);  // add cloned child to end of queue
@@ -211,7 +209,7 @@ ModelNode.prototype.addSibling = function (model, path, options) {
     opts = {
       populateSubDocs: options.populateSubDocs,
       projection: options.projection
-    }
+    };
   }
   opts.path = path;
   opts.parent = this.parent;
@@ -299,7 +297,7 @@ ModelNode.prototype.forEachChild = function (node, callback) {
 
 ModelNode.prototype.forEach = function (callback) {
   this.preorder(this.getRoot(), callback); 
-}
+};
 
 ModelNode.prototype.getTree = function () {
   var tree = [];
@@ -307,7 +305,7 @@ ModelNode.prototype.getTree = function () {
     tree.push(node);
   });
   return tree;
-}
+};
 
 /**
   * Get a list of the names & types of paths in a Mongoose schema
@@ -325,7 +323,7 @@ ModelNode.prototype.getModelPathTypes = function (options) {
     }
   });
   return result;
-}
+};
 
 ModelNode.prototype.dumpTree = function () {
   var dump = function (node, title) {
@@ -333,20 +331,20 @@ ModelNode.prototype.dumpTree = function () {
     if (node.path) {
       msg += ' path "' + node.path + '"';
     }
-    console.log(msg);
-  }
+    debug(msg);
+  };
   this.forEach(function (node) {
     dump(node, 'model');
-    // console.log('model', node.model.modelName, 'path', node.path);
+    // debug('model', node.model.modelName, 'path', node.path);
     var indent = '  ',
       parent;
     for (parent = node.parent; parent; parent = parent.parent) {
       dump(parent, indent + 'parent');
-      // console.log(indent + 'parent', parent.model.modelName, 'path', parent.path);
+      // debug(indent + 'parent', parent.model.modelName, 'path', parent.path);
       indent += '  ';
     }
   });
-}
+};
 
 /**
  * Returns a projection for a query in the form { 
@@ -389,7 +387,7 @@ ModelNode.prototype.getProjection = function () {
     }
   });
   return projection;
-}
+};
 
 /**
  * Convert a projection in object notation to string syntax.
@@ -412,7 +410,7 @@ ModelNode.prototype.objectNotationToStringSyntax = function (projection) {
     }, projection);
   }
   return result;
-}
+};
 
 /**
  * Convert a projection in string syntax to object notation.
@@ -437,7 +435,7 @@ ModelNode.prototype.stringSyntaxToObjectNotation = function (projection) {
     }, projection);
   }
   return result;
-}
+};
 
 /**
  * Returns a projection for a populate in object notation { 
@@ -453,7 +451,7 @@ ModelNode.prototype.getPopulateProjection = function () {
     projection = this.stringSyntaxToObjectNotation(this.projection);
   }
   return projection;
-}
+};
 
 
 module.exports = {

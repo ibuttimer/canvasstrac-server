@@ -1,4 +1,4 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 // grab the things we need

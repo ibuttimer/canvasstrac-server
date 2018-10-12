@@ -1,50 +1,48 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
-var express = require('express');
-var path = require('path');
-var favicon = require('serve-favicon');
-var logger = require('morgan');
-var cookieParser = require('cookie-parser');
-var bodyParser = require('body-parser');
-var mongoose = require('./models/mongoose_app').mongoose;
-var passport = require('passport');
+var express = require('express'),
+  path = require('path'),
+  // favicon = require('serve-favicon'),
+  logger = require('morgan'),
+  cookieParser = require('cookie-parser'),
+  bodyParser = require('body-parser'),
+  mongoose = require('./models/mongoose_app').mongoose,
+  passport = require('passport'),
+  assert = require('assert'),
+  utils = require('./misc/utils'),
+  modelUtils = require('./models/model_utils'),
+  config = require('./config'),
+  Consts = require('./consts'),
+  debug = require('debug')('app');
 
-var config = require('./config');
-var Consts = require('./consts');
+utils.setDbVersion(config.dbVersion);
 
-mongoose.connect(config.mongoUrl);
+mongoose.connect(config.mongoUrl, modelUtils.getMongooseOptions(),
+  function(err, db) {
+    assert.strictEqual(null, err);
+    assert.ok(db != null);
+    var admin = new mongoose.mongo.Admin(mongoose.connection.db);
+    admin.buildInfo(function (err, info) {
+      debug('database v%s', info.version);
+      utils.setDbVersion(info.version);
+      
+      if (!utils.dbVersionTest(config.dbVersion)) {
+        debug('database v%s does not match configured version %s', info.version, config.dbVersion);
+      }
+    });
+  });
+
 var db = mongoose.connection;
-db.on('error', console.error.bind(console, 'connection error:'));
+db.on('error', debug.bind(console, 'connection error:'));
 db.once('open', function () {
   // we're connected!
-  console.log("Connected correctly to database");
+  debug('Connected correctly to database');
 });
 
-var routes = require('./routes/index');
-var Verify = require('./routes/verify');
-var userRouter = require('./routes/userRouter').router;
-var roleRouter = require('./routes/roleRouter').router;
-var personRouter = require('./routes/personRouter').router;
-var candidateRouter = require('./routes/candidateRouter').router;
-var votingSystemRouter = require('./routes/votingSystemRouter').router;
-var votingDistrictRouter = require('./routes/votingDistrictRouter').router;
-var electionRouter = require('./routes/electionRouter').router;
-var partyRouter = require('./routes/partyRouter').router;
-var addressRouter = require('./routes/addressRouter').router;
-var contactDetailsRouter = require('./routes/contactDetailRouter').router;
-var questionRouter = require('./routes/questionRouter').router;
-var answerRouter = require('./routes/answerRouter').router;
-var surveyRouter = require('./routes/surveyRouter').router;
-var canvassRouter = require('./routes/canvassRouter').router;
-var canvassAssignmentRouter = require('./routes/canvassAssignmentRouter').router;
-var canvassResultRouter = require('./routes/canvassResultRouter').router;
-var messageRouter = require('./routes/messageRouter').router;
-var noticeRouter = require('./routes/noticeRouter').router;
-
-
 var app = express(),
-  heroku = (config.baseURL.indexOf('heroku') >= 0);
+  heroku = (config.baseURL.indexOf('heroku') >= 0),
+  dev_environment = (app.get('env') === 'development');
 
 // Secure traffic only
 app.all('*', function (req, res, next) {
@@ -63,7 +61,7 @@ app.all('*', function (req, res, next) {
     } else {
       redirect_url += ':' + app.get('secPort') + req.url;
     }
-    console.log('redirecting to ', redirect_url);
+    debug('redirecting to %s', redirect_url);
     res.redirect(redirect_url);
   } else {
     return next();
@@ -76,7 +74,12 @@ app.all('*', function (req, res, next) {
 
 // uncomment after placing your favicon in /public
 //app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
-app.use(logger('dev'));
+
+if (dev_environment) {
+  app.use(logger('dev'));
+} else {
+  app.use(logger('combined'));
+}
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -87,9 +90,9 @@ app.use(passport.initialize());
 // CORS on ExpressJS http://enable-cors.org/server_expressjs.html
 // also http://stackoverflow.com/questions/32500073/request-header-field-access-control-allow-headers-is-not-allowed-by-itself-in-pr
 app.use(function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT,DELETE");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, x-access-token");
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS,POST,PUT,DELETE');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, x-access-token');
   next();
 });
 
@@ -102,7 +105,28 @@ if (config.mgmtPath) {
   mgmtPath = path.join(__dirname, '../', 'public');
 }
 app.use(express.static(mgmtPath));
-console.log('Mounted management app from ' + mgmtPath);
+debug('Mounted management app from %s', mgmtPath);
+
+var routes = require('./routes/index'),
+  Verify = require('./routes/verify'),
+  userRouter = require('./routes/userRouter').router,
+  roleRouter = require('./routes/roleRouter').router,
+  personRouter = require('./routes/personRouter').router,
+  candidateRouter = require('./routes/candidateRouter').router,
+  votingSystemRouter = require('./routes/votingSystemRouter').router,
+  votingDistrictRouter = require('./routes/votingDistrictRouter').router,
+  electionRouter = require('./routes/electionRouter').router,
+  partyRouter = require('./routes/partyRouter').router,
+  addressRouter = require('./routes/addressRouter').router,
+  contactDetailsRouter = require('./routes/contactDetailRouter').router,
+  questionRouter = require('./routes/questionRouter').router,
+  answerRouter = require('./routes/answerRouter').router,
+  surveyRouter = require('./routes/surveyRouter').router,
+  canvassRouter = require('./routes/canvassRouter').router,
+  canvassAssignmentRouter = require('./routes/canvassAssignmentRouter').router,
+  canvassResultRouter = require('./routes/canvassResultRouter').router,
+  messageRouter = require('./routes/messageRouter').router,
+  noticeRouter = require('./routes/noticeRouter').router;
 
 // route for static pages and views
 app.use('/', routes);
@@ -126,12 +150,10 @@ app.use('/db/canvassresult', canvassResultRouter);
 app.use('/db/message', messageRouter);
 app.use('/db/notice', noticeRouter);
 
-
-
-if (app.get('env') === 'development') {
+if (dev_environment) {
   // install access test route only in dev mode
   app.use('/test', Verify.accessTestRouter);
-  console.log('* Mounted test url *\n');
+  debug('* Mounted test url *');
 }
 
 // catch 404 and forward to error handler
@@ -145,7 +167,7 @@ app.use(function (req, res, next) {
 
 // development error handler
 // will print stacktrace
-if (app.get('env') === 'development') {
+if (dev_environment) {
   app.use(function (err, req, res, next) {
     res.status(err.status || Consts.HTTP_INTERNAL_ERROR);
     res.json({
@@ -155,7 +177,7 @@ if (app.get('env') === 'development') {
   });
 
   if (config.disableAuth) {
-    console.log('* Authentication disabled *\n');
+    debug('* Authentication disabled *');
   }
 } else {
   // production mode safety check

@@ -1,7 +1,8 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var fs = require('fs'),
+  debug = require('debug')('config'),
   // the types of properties to be set
   types = {
     // server/management app common settings
@@ -12,6 +13,7 @@ var fs = require('fs'),
     socketTimeout: 'num',   // timeout for sockets
     // server-specific settings
     dbAddr: 'str',
+    dbVersion: 'str',
     mgmtPath: 'str',
     jwtSecretKey: 'str',
     jwtWebTokenLife: 'num',   // validity of logged in token (seconds)
@@ -19,7 +21,7 @@ var fs = require('fs'),
     disableAuth: 'bool',      // flag to disable authentication for dev purposes
     fbClientID: 'str',
     fbClientSecret: 'str',
-    feedbackFromEmail: "str",
+    feedbackFromEmail: 'str',
     feedbackToEmail: 'str',
     dfltPassword: 'str',
     testOptions: 'str',
@@ -37,7 +39,7 @@ var fs = require('fs'),
   prop;
 
 if (fs.existsSync(path)) {
-  console.log('reading config from: ' + path);
+  debug('reading from: %s', path);
   cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
 } else {
   // setup template
@@ -50,7 +52,7 @@ if (fs.existsSync(path)) {
 // check if cfg properties have been set and if not read from environment
 for (prop in cfg) {
   if (cfg[prop].indexOf('@@') == 0) {
-    console.log('reading config[' + prop + '] from environment');
+    debug('reading [%s] from environment', prop);
     cfg[prop] = process.env[prop];
   }
 }
@@ -73,7 +75,7 @@ for (prop in types) {
     }
   }
 
-  console.log('config: ' + prop + ' \'' + cfg[prop] + '\'');
+  debug('[%s] \'%s\'', prop, cfg[prop]);
 }
 
 function facebookCallback() {
@@ -102,10 +104,11 @@ module.exports = {
   'jwtMobileTokenLife': cfg.jwtMobileTokenLife,
   'baseURL': cfg.baseURL,
   'disableAuth': cfg.disableAuth,
+  'dbVersion': cfg.dbVersion,
   'forceHttps': cfg.forceHttps,
   'httpPort': cfg.httpPort,
   'httpsPortOffset': cfg.httpsPortOffset,
-  "socketTimeout": cfg.socketTimeout,
+  'socketTimeout': cfg.socketTimeout,
   'facebook': {
     clientID: cfg.fbClientID,
     clientSecret: cfg.fbClientSecret,

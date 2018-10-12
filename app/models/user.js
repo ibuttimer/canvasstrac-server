@@ -1,34 +1,35 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var mongoose = require('./mongoose_app').mongoose,
   Schema = mongoose.Schema,
   ModelNodeModule = require('./modelNode'),
-    ModelNode = ModelNodeModule.ModelNode,
+  ModelNode = ModelNodeModule.ModelNode,
   utilsModule = require('../misc/utils'),
-    utilsIsValidModelPath = utilsModule.isValidModelPath,
-    utilsGetTemplate = utilsModule.getTemplate,
-  populateSubDocsUtil = require('./model_utils').populateSubDocs,
+  utilsIsValidModelPath = utilsModule.isValidModelPath,
+  utilsGetTemplate = utilsModule.getTemplate,
+  modelUtilsModule = require('./model_utils'),
+  getSchemaOptions = modelUtilsModule.getSchemaOptions,
+  OPT_NONE = modelUtilsModule.OPT_NONE,
+  populateSubDocsUtil = modelUtilsModule.populateSubDocs,
   passportLocalMongoose = require('passport-local-mongoose'),
   RoleModule = require('./roles'),
-    RoleModel = RoleModule.model,
-  PeopleModule = require('./person'),
-    People = PeopleModule.model;
+  PeopleModule = require('./person');
 
 var schema = new Schema({
-    username: String,
-    // password: String,
-    OauthId: String,
-    OauthToken: String,
-    role: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Role'
-    },
-    person: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Person'
-    }
-  });
+  username: String,
+  // password: String,
+  OauthId: String,
+  OauthToken: String,
+  role: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Role'
+  },
+  person: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Person'
+  }
+}, getSchemaOptions(OPT_NONE));
 
 schema.methods.getName = function () {
   return this.person.getName();

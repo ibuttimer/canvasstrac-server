@@ -1,24 +1,25 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   CandidateModule = require('../models/candidate'),
-    Candidate = CandidateModule.model,
-    getCandidateTemplate = CandidateModule.getTemplate,
-    getSubDocPopulateOptions = CandidateModule.getSubDocPopulateOptions,
-    populateSubDocs = CandidateModule.populateSubDocs,
+  Candidate = CandidateModule.model,
+  getCandidateTemplate = CandidateModule.getTemplate,
+  // getSubDocPopulateOptions = CandidateModule.getSubDocPopulateOptions,
+  populateSubDocs = CandidateModule.populateSubDocs,
   personRouterModule = require('./personRouter'),
-    createPerson = personRouterModule.createPerson,
-    deletePerson = personRouterModule.deletePerson,
-    updatePerson = personRouterModule.updatePerson,
+  createPerson = personRouterModule.createPerson,
+  deletePerson = personRouterModule.deletePerson,
+  updatePerson = personRouterModule.updatePerson,
   Verify = require('./verify'),
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    resultReply = router_utils.resultReply,
-    populateSubDocsReply = router_utils.populateSubDocsReply,
-    makeResult = router_utils.makeResult,
-    removeDocAccessOk = router_utils.removeDocAccessOk,
-  utils = require('../misc/utils'),
+  checkError = router_utils.checkError,
+  errorReply = router_utils.errorReply,
+  resultReply = router_utils.resultReply,
+  populateSubDocsReply = router_utils.populateSubDocsReply,
+  makeResult = router_utils.makeResult,
+  removeDocAccessOk = router_utils.removeDocAccessOk,
+  // utils = require('../misc/utils'),
   Consts = require('../consts');
 
 
@@ -46,11 +47,11 @@ function createCandidate (req, res, next) {
               });
             } else {
               // tidy up by removing everything
-              personRouter.deletePerson(req, candidate.person, res, function (result, res) { });
+              deletePerson(req, candidate.person, res, function (result, res) { });
               removeDocAccessOk(Candidate, candidate._id);
-              var err = new Error('Unable to save candidate.');
-              err.status = Consts.HTTP_INTERNAL_ERROR;
-              checkError(err, res);
+              var saveErr = new Error('Unable to save candidate.');
+              saveErr.status = Consts.HTTP_INTERNAL_ERROR;
+              checkError(saveErr, res);
             }
           });
         } else {
@@ -70,23 +71,22 @@ function updateCandidate (id, req, res, next) {
   var candidateFields = getCandidateTemplate(req.body, ['person']);  // only exclude person as party is required
 
   Candidate.findByIdAndUpdate(id, {
-      $set: candidateFields
-    }, {
-      new: true // return the modified document rather than the original
-    }, function (err, candidate) {
-      if (!checkError (err, res)) {
-        // update person (no access check sd done on route)
-        updatePerson(Verify.verifyNoCheck, candidate.person, req, res, function (result, res) {
-          if (result) {
-            // success
-            populateSubDocs(candidate, function (err, doc) {
-              populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
-            });
-          }
-        });
-      }
+    $set: candidateFields
+  }, {
+    new: true // return the modified document rather than the original
+  }, function (err, candidate) {
+    if (!checkError (err, res)) {
+      // update person (no access check sd done on route)
+      updatePerson(Verify.verifyNoCheck, candidate.person, req, res, function (result, res) {
+        if (result) {
+          // success
+          populateSubDocs(candidate, function (err, doc) {
+            populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
+          });
+        }
+      });
     }
-  );
+  });
 }
 
 function deleteCandidate (id, req, res, next) {
@@ -127,9 +127,9 @@ router.route('/')
           });
         }
       });
-    })
+  })
     
-  .post(Verify.verifyAdmin, function (req, res) {
+  .post(Verify.verifyHasStaffAccess, function (req, res) {
 
     createCandidate(req, res, resultReply);
   });
@@ -151,7 +151,7 @@ router.route('/:objId')
             errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown candidate identifier');
           }
         }
-    });
+      });
   })
 
   .put(Verify.verifyHasStaffAccess, function (req, res, next) {

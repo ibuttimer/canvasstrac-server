@@ -1,7 +1,7 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
-var define = require("node-constants")(exports);
+var define = require('node-constants')(exports);
 // define is a function that binds "constants" to an object (commonly exports)
 
 // a single constant

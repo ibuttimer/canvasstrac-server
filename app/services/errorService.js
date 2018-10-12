@@ -1,4 +1,4 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 /* This a a factory for application related errors to be returned to clients.

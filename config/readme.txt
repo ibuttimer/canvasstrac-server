@@ -22,6 +22,7 @@ The json config file should have the following format
 
   // server-specific settings
   "dbAddr": "<<MongoDB URI, e.g. localhost:27017/canvassTrac>>",
+  "dbVersion": "<<MongoDB version, e.g. 3.6.x>>",
 
   "mgmtPath": "<<path (relative to app.js) of management console files to serve>>",
 

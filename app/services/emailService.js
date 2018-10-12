@@ -1,7 +1,8 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var SparkPost = require('sparkpost'),
+  debug = require('debug')('emailService'),
   config = require('../config.js');
 
 var sparky,
@@ -11,7 +12,7 @@ if (config.feedbackToEmail && config.feedbackFromEmail) {
   // setup feedback email
   sparky = new SparkPost(); // uses process.env.SPARKPOST_API_KEY
 } else {
-  console.log('SparkPost not configured');
+  debug('SparkPost not configured');
 }
 
 function available () {
@@ -43,19 +44,18 @@ function send (options, content, to, next, error) {
       options: options,
       content: content,
       recipients: recipients
-    })
-    .then(function (data) {
-      if (next) {
-        next(data);
-      }
-    })
-    .catch(function (err) {
-      if (error) {
-        error(err);
-      }
-      console.log('SparkPost error');
-      console.log(err);
-    });
+    }).then(
+      function (data) {
+        if (next) {
+          next(data);
+        }
+      })
+      .catch(function (err) {
+        if (error) {
+          error(err);
+        }
+        debug('SparkPost error: %O', err);
+      });
   }
 }
 
@@ -64,11 +64,11 @@ function sendEmail (subject, html, reply_to, next, error) {
     var optsFrom = getOptsFrom();
 
     send(optsFrom.options, {
-        from: optsFrom.from,
-        // reply_to: reply_to,  leave out for now, any funky email addresses will cause it to be treated as spam
-        subject: subject,
-        html: html
-      }, config.feedbackToEmail, next, error);
+      from: optsFrom.from,
+      // reply_to: reply_to,  leave out for now, any funky email addresses will cause it to be treated as spam
+      subject: subject,
+      html: html
+    }, config.feedbackToEmail, next, error);
   }
 }
 

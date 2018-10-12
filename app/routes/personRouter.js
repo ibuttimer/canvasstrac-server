@@ -1,37 +1,31 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   PeopleModule = require('../models/person'),
-    People = PeopleModule.model,
-    getModelNodeTree = PeopleModule.getModelNodeTree,
-    getPersonTemplate = PeopleModule.getTemplate,
-    populateSubDocs = PeopleModule.populateSubDocs,
-    isValidModelPath = PeopleModule.isValidModelPath,
+  People = PeopleModule.model,
+  getModelNodeTree = PeopleModule.getModelNodeTree,
+  getPersonTemplate = PeopleModule.getTemplate,
+  populateSubDocs = PeopleModule.populateSubDocs,
+  isValidModelPath = PeopleModule.isValidModelPath,
   AddressModule = require('../models/addresses'),
-    Addresses = AddressModule.model,
-    getAddressTemplate = AddressModule.getTemplate,
-  AddressRouterModule = require('./addressRouter'),
-    addressRouter = AddressRouterModule.router,
-    updateAddress = AddressRouterModule.update,
+  Addresses = AddressModule.model,
+  getAddressTemplate = AddressModule.getTemplate,
   ContactDetailsModule = require('../models/contactDetails'),
-    ContactDetails = ContactDetailsModule.model,
-    getContactDetailsTemplate = ContactDetailsModule.getTemplate,
-  ModelNodeModule = require('../models/modelNode'),
-    ModelNode = ModelNodeModule.ModelNode,
+  ContactDetails = ContactDetailsModule.model,
+  getContactDetailsTemplate = ContactDetailsModule.getTemplate,
   Verify = require('./verify'),
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    newError = router_utils.newError,
-    errorReply = router_utils.errorReply,
-    resultReply = router_utils.resultReply,
-    populateSubDocsReply = router_utils.populateSubDocsReply,
-    makeResult = router_utils.makeResult,
-    updateDocAccessOk = router_utils.updateDocAccessOk,
-    removeDocAccessOk = router_utils.removeDocAccessOk,
-    processCountReq = router_utils.processCountReq,
-    getDocs = router_utils.getDocs,
-  utils = require('../misc/utils'),
+  checkError = router_utils.checkError,
+  newError = router_utils.newError,
+  errorReply = router_utils.errorReply,
+  resultReply = router_utils.resultReply,
+  populateSubDocsReply = router_utils.populateSubDocsReply,
+  makeResult = router_utils.makeResult,
+  updateDocAccessOk = router_utils.updateDocAccessOk,
+  removeDocAccessOk = router_utils.removeDocAccessOk,
+  processCountReq = router_utils.processCountReq,
+  getDocs = router_utils.getDocs,
   Consts = require('../consts');
 
 
@@ -157,58 +151,58 @@ function updatePersonAccessOk (id, rawPerson, res, next) {
     personFields = getPersonTemplate(rawPerson);
 
   People.findByIdAndUpdate(id, {
-      $set: personFields
-    }, {
-      new: true // return the modified document rather than the original
-    }, function (err, person) {
-      if (!checkError (err, res)) {
-        
-        if (person) {
+    $set: personFields
+  }, {
+    new: true // return the modified document rather than the original
+  }, function (err, person) {
+    if (!checkError (err, res)) {
+      
+      if (person) {
 
-          var mustSave = false;          
+        var mustSave = false;          
 
-          updateDocAccessOk(addressFields, Addresses, person.address, res, function (result, res) {
-            if (result) {
-              // success or nothing to do
-              if ((result.status == Consts.HTTP_OK) && (person.address != result.payload._id)) {
-                // created new document
-                person.address = result.payload._id;
-                mustSave = true;
-              }
-              
-              updateDocAccessOk(contactFields, ContactDetails, person.contactDetails, res, function (result, res) {
-                if (result) {
-                  // success or nothing to do
-                  if ((result.status == Consts.HTTP_OK) && (person.contactDetails != result.payload._id)) {
-                    // created new document
-                    person.contactDetails = result.payload._id;
-                    mustSave = true;
-                  }
-
-                  if (mustSave) {
-                    // need to save person document
-                    person.save(function (err, updated) {
-                      if (!checkError (err, res)) {
-                        // success
-                        populateSubDocs(updated, function (err, doc) {
-                          populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
-                        });
-                      }
-                    });
-                  } else {
-                    // populate person and return
-                    populateSubDocs(person, function (err, doc) {
-                      populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
-                    });
-                  }                      
-                }
-              });
+        updateDocAccessOk(addressFields, Addresses, person.address, res, function (result, res) {
+          if (result) {
+            // success or nothing to do
+            if ((result.status == Consts.HTTP_OK) && (person.address != result.payload._id)) {
+              // created new document
+              person.address = result.payload._id;
+              mustSave = true;
             }
-          });
-        } else {
-          errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown person identifier');
-        }
+            
+            updateDocAccessOk(contactFields, ContactDetails, person.contactDetails, res, function (result, res) {
+              if (result) {
+                // success or nothing to do
+                if ((result.status == Consts.HTTP_OK) && (person.contactDetails != result.payload._id)) {
+                  // created new document
+                  person.contactDetails = result.payload._id;
+                  mustSave = true;
+                }
+
+                if (mustSave) {
+                  // need to save person document
+                  person.save(function (err, updated) {
+                    if (!checkError (err, res)) {
+                      // success
+                      populateSubDocs(updated, function (err, doc) {
+                        populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
+                      });
+                    }
+                  });
+                } else {
+                  // populate person and return
+                  populateSubDocs(person, function (err, doc) {
+                    populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
+                  });
+                }                      
+              }
+            });
+          }
+        });
+      } else {
+        errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown person identifier');
       }
+    }
   });
 }
 

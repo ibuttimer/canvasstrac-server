@@ -507,16 +507,6 @@ if (!Date.prototype.toISOString) {
     return o === global ? undefined : o;
   }
 
-  function hook(o, p, f) {
-    var op = o[p];
-    console.assert(typeof op === 'function', 'Hooking a non-function');
-    o[p] = function() {
-      var o = strict(this);
-      var r = f.apply(o, arguments);
-      return r !== undefined ? r : op.apply(o, arguments);
-    };
-  }
-
   function isSymbol(s) {
     return (typeof s === 'symbol') || ('Symbol' in global && s instanceof global.Symbol);
   }
@@ -787,7 +777,7 @@ if (!Date.prototype.toISOString) {
     // 19.4.4 Properties of Symbol Instances
   }());
 
-  console.assert(typeof global.Symbol() === 'symbol' || symbolForKey(String(global.Symbol('x'))));
+  console.assert(typeof global.Symbol() === 'symbol' || symbolForKey(String(global.Symbol('x'))) !== undefined);
 
   // Defined here so that other prototypes can reference it
   // 25.1.2 The %IteratorPrototype% Object
@@ -932,7 +922,6 @@ if (!Date.prototype.toISOString) {
   }
 
   // 7.2.8 IsRegExp ( argument )
-  // 7.2.5 IsConstructor ( argument )
 
   // 7.2.9 SameValue(x, y)
   function SameValue(x, y) {
@@ -1001,7 +990,9 @@ if (!Date.prototype.toISOString) {
     while (o) {
       if (Object.prototype.hasOwnProperty.call(o, p)) return true;
       if (Type(o) !== 'object') return false;
-      o = Object.getPrototypeOf(o);
+      var op = Object.getPrototypeOf(o);
+      if (op === o) return false; // IE8 has self-referential prototypes
+      o = op;
     }
     return false;
   }
@@ -1080,8 +1071,6 @@ if (!Date.prototype.toISOString) {
 
   // 7.4.8 CreateListIterator (list)
   // 7.4.8.1 ListIterator next( )
-  // 7.4.9 CreateCompoundIterator ( iterator1, iterator2 )
-  // 7.4.9.1 CompoundIterator next( )
 
   //----------------------------------------
   // 8 Executable Code and Execution Contexts
@@ -1257,13 +1246,14 @@ if (!Date.prototype.toISOString) {
   // 19.1.3.4 Object.prototype.propertyIsEnumerable ( V )
   // 19.1.3.5 Object.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
   // 19.1.3.6 Object.prototype.toString ( )
-  hook(Object.prototype, 'toString',
+  var o_p_ts = Object.prototype.toString;
+  define(Object.prototype, 'toString',
        function() {
          var o = strict(this);
          if (o === Object(o) && $$toStringTag in o) {
            return '[object ' + o[$$toStringTag] + ']';
          }
-         return undefined;
+         return o_p_ts.apply(o, arguments);
        });
 
   // 19.1.3.7 Object.prototype.valueOf ( )
@@ -4400,7 +4390,217 @@ function __cons(t, a) {
     });
 
 }(this));
+//----------------------------------------------------------------------
+//
+// ECMAScript 2017 Polyfills
+//
+//----------------------------------------------------------------------
+
+(function (global) {
+  'use strict';
+  var undefined = (void 0); // Paranoia
+
+  // Helpers
+
+  function isSymbol(s) {
+    return (typeof s === 'symbol') || ('Symbol' in global && s instanceof global.Symbol);
+  }
+
+  function define(o, p, v, override) {
+    if (p in o && !override)
+      return;
+
+    if (typeof v === 'function') {
+      // Sanity check that functions are appropriately named (where possible)
+      console.assert(isSymbol(p) || !('name' in v) || v.name === p || v.name === p + '_', 'Expected function name "' + p.toString() + '", was "' + v.name + '"');
+      Object.defineProperty(o, p, {
+        value: v,
+        configurable: true,
+        enumerable: false,
+        writable: true
+      });
+    } else {
+      Object.defineProperty(o, p, {
+        value: v,
+        configurable: false,
+        enumerable: false,
+        writable: false
+      });
+    }
+  }
+
+  // Snapshot intrinsic functions
+  var $isNaN = global.isNaN;
+
+  var abs = Math.abs,
+      floor = Math.floor,
+      min = Math.min;
+
+  //----------------------------------------
+  // 7 Abstract Operations
+  //----------------------------------------
+
+  // 7.1.4
+  function ToInteger(n) {
+    n = Number(n);
+    if ($isNaN(n)) return 0;
+    if (n === 0 || n === Infinity || n === -Infinity) return n;
+    return ((n < 0) ? -1 : 1) * floor(abs(n));
+  }
+
+  // 7.1.13 ToObject
+  function ToObject(v) {
+    if (v === null || v === undefined) throw TypeError();
+    return Object(v);
+  }
+
+  // 7.1.15 ToLength ( argument )
+  function ToLength(v) {
+    var len = ToInteger(v);
+    if (len <= 0) {
+      return 0;
+    }
+    return min(len, 0x20000000000000 - 1); // 2^53-1
+  }
+
+  //----------------------------------------
+  // 7.3 Operations on Objects
+  //----------------------------------------
+
+  // 7.3.4
+  function CreateDataProperty(O, P, V) {
+    Object.defineProperty(O, P, {
+      value: V,
+      writable: true,
+      enumerable: true,
+      configurable: true
+    });
+  }
+
+  // 7.3.21
+  function EnumerableOwnProperties(o, kind) {
+    var ownKeys = Object.keys(o);
+    var properties = [];
+    ownKeys.forEach(function(key) {
+      var desc = Object.getOwnPropertyDescriptor(o, key);
+      if (desc && desc.enumerable) {
+        if (kind === 'key') properties.push(key);
+        else {
+          var value = o[key];
+          if (kind === 'value') properties.push(value);
+          else properties.push([key, value]);
+        }
+      }
+    });
+    return properties;
+  }
+
+
+  //----------------------------------------------------------------------
+  // 19 Fundamental Objects
+  //----------------------------------------------------------------------
+
+  // 19.1 Object Objects
+  // 19.1.2 Properties of the Object Constructor
+
+  // 19.1.2.5 Object.entries
+  define(
+    Object, 'entries',
+    function entries(o) {
+      var obj = ToObject(o);
+      return EnumerableOwnProperties(obj, 'key+value');
+    });
+
+  // 19.1.2.8 Object.getOwnPropertyDescriptors ( O )
+  define(
+    Object, 'getOwnPropertyDescriptors',
+    function getOwnPropertyDescriptors(o) {
+      var obj = ToObject(o);
+      // ReturnIfAbrupt(obj)
+      var keys = Object.getOwnPropertyNames(obj);
+      // ReturnIfAbrupt(keys)
+      var descriptors = {};
+      for (var i = 0; i < keys.length; ++i) {
+        var nextKey = keys[i];
+        var descriptor = Object.getOwnPropertyDescriptor(obj, nextKey);
+        // ReturnIfAbrupt(desc)
+        // ReturnIfAbrupt(descriptor)
+        CreateDataProperty(descriptors, nextKey, descriptor);
+      }
+      return descriptors;
+    });
+
+  // 19.1.2.21 Object.values
+  define(
+    Object, 'values',
+    function values(o) {
+      var obj = ToObject(o);
+      return EnumerableOwnProperties(obj, 'value');
+    });
+
+
+
+  //----------------------------------------------------------------------
+  // 21 Text Processing
+  //----------------------------------------------------------------------
+
+  // 21.1 String Objects
+  // 21.1.3 Properties of the String Prototype Object
+
+  // 21.1.3.13 String.prototype.padEnd( maxLength [ , fillString ] )
+  define(
+    String.prototype, 'padEnd',
+    function padEnd(maxLength) {
+      var fillString = arguments[1];
+
+      var o = this;
+      // ReturnIfAbrupt(o)
+      var s = String(this);
+      // ReturnIfAbrupt(s)
+      var stringLength = s.length;
+      if (fillString === undefined) var fillStr = '';
+      else fillStr = String(fillString);
+      // ReturnIfAbrupt(fillStr)
+      if (fillStr === '') fillStr = ' ';
+      var intMaxLength = ToLength(maxLength);
+      // ReturnIfAbrupt(intMaxLength)
+      if (intMaxLength <= stringLength) return s;
+      var fillLen = intMaxLength - stringLength;
+      var stringFiller = '';
+      while (stringFiller.length < fillLen)
+        stringFiller = stringFiller + fillStr;
+      return s + stringFiller.substring(0, fillLen);
+    });
+
+  // 21.1.3.14 String.prototype.padStart( maxLength [ , fillString ] )
+  define(
+    String.prototype, 'padStart',
+    function padStart(maxLength) {
+      var fillString = arguments[1];
+
+      var o = this;
+      // ReturnIfAbrupt(o)
+      var s = String(this);
+      // ReturnIfAbrupt(s)
+      var stringLength = s.length;
+      if (fillString === undefined) var fillStr = '';
+      else fillStr = String(fillString);
+      // ReturnIfAbrupt(fillStr)
+      if (fillStr === '') fillStr = ' ';
+      var intMaxLength = ToLength(maxLength);
+      // ReturnIfAbrupt(intMaxLength)
+      if (intMaxLength <= stringLength) return s;
+      var fillLen = intMaxLength - stringLength;
+      var stringFiller = '';
+      while (stringFiller.length < fillLen)
+        stringFiller = stringFiller + fillStr;
+      return stringFiller.substring(0, fillLen) + s;
+    });
+
+}(this));
 (function(global) {
+  'use strict';
+
   if (!('window' in global && 'document' in global))
     return;
 
@@ -4413,7 +4613,8 @@ function __cons(t, a) {
 
   // document.head attribute
   // Needed for: IE8-
-  document.head = document.head || document.getElementsByTagName('head')[0];
+  if (!('head' in document))
+    document.head = document.getElementsByTagName('head')[0];
 
   // Ensure correct parsing of newish elements ("shiv")
   // Needed for: IE8-
@@ -4586,6 +4787,7 @@ function __cons(t, a) {
 
 }(self));
 (function(global) {
+  'use strict';
   if (!('window' in global && 'document' in global))
     return;
 
@@ -4640,37 +4842,41 @@ function __cons(t, a) {
   // Node interface constants
   // Needed for: IE8-
   global.Node = global.Node || function() { throw TypeError("Illegal constructor"); };
-  Node.ELEMENT_NODE = 1;
-  Node.ATTRIBUTE_NODE = 2;
-  Node.TEXT_NODE = 3;
-  Node.CDATA_SECTION_NODE = 4;
-  Node.ENTITY_REFERENCE_NODE = 5;
-  Node.ENTITY_NODE = 6;
-  Node.PROCESSING_INSTRUCTION_NODE = 7;
-  Node.COMMENT_NODE = 8;
-  Node.DOCUMENT_NODE = 9;
-  Node.DOCUMENT_TYPE_NODE = 10;
-  Node.DOCUMENT_FRAGMENT_NODE = 11;
-  Node.NOTATION_NODE = 12;
+  [
+    ['ELEMENT_NODE', 1],
+    ['ATTRIBUTE_NODE', 2],
+    ['TEXT_NODE', 3],
+    ['CDATA_SECTION_NODE', 4],
+    ['ENTITY_REFERENCE_NODE', 5],
+    ['ENTITY_NODE', 6],
+    ['PROCESSING_INSTRUCTION_NODE', 7],
+    ['COMMENT_NODE', 8],
+    ['DOCUMENT_NODE', 9],
+    ['DOCUMENT_TYPE_NODE', 10],
+    ['DOCUMENT_FRAGMENT_NODE', 11],
+    ['NOTATION_NODE', 12]
+  ].forEach(function(p) { if (!(p[0] in global.Node)) global.Node[p[0]] = p[1]; });
 
   // DOMException constants
   // Needed for: IE8-
   global.DOMException = global.DOMException || function() { throw TypeError("Illegal constructor"); };
-  DOMException.INDEX_SIZE_ERR = 1;
-  DOMException.DOMSTRING_SIZE_ERR = 2;
-  DOMException.HIERARCHY_REQUEST_ERR = 3;
-  DOMException.WRONG_DOCUMENT_ERR = 4;
-  DOMException.INVALID_CHARACTER_ERR = 5;
-  DOMException.NO_DATA_ALLOWED_ERR = 6;
-  DOMException.NO_MODIFICATION_ALLOWED_ERR = 7;
-  DOMException.NOT_FOUND_ERR = 8;
-  DOMException.NOT_SUPPORTED_ERR = 9;
-  DOMException.INUSE_ATTRIBUTE_ERR = 10;
-  DOMException.INVALID_STATE_ERR = 11;
-  DOMException.SYNTAX_ERR = 12;
-  DOMException.INVALID_MODIFICATION_ERR = 13;
-  DOMException.NAMESPACE_ERR = 14;
-  DOMException.INVALID_ACCESS_ERR = 15;
+  [
+    ['INDEX_SIZE_ERR', 1],
+    ['DOMSTRING_SIZE_ERR', 2],
+    ['HIERARCHY_REQUEST_ERR', 3],
+    ['WRONG_DOCUMENT_ERR', 4],
+    ['INVALID_CHARACTER_ERR', 5],
+    ['NO_DATA_ALLOWED_ERR', 6],
+    ['NO_MODIFICATION_ALLOWED_ERR', 7],
+    ['NOT_FOUND_ERR', 8],
+    ['NOT_SUPPORTED_ERR', 9],
+    ['INUSE_ATTRIBUTE_ERR', 10],
+    ['INVALID_STATE_ERR', 11],
+    ['SYNTAX_ERR', 12],
+    ['INVALID_MODIFICATION_ERR', 13],
+    ['NAMESPACE_ERR', 14],
+    ['INVALID_ACCESS_ERR', 15]
+  ].forEach(function(p) { if (!(p[0] in global.DOMException)) global.DOMException[p[0]] = p[1]; });
 
   // Event and EventTargets interfaces
   // Needed for: IE8
@@ -5088,6 +5294,21 @@ function __cons(t, a) {
     }
   }
 
+  // Element.closest
+  // https://developer.mozilla.org/en-US/docs/Web/API/Element/closest
+  if (window.Element && !Element.prototype.closest) {
+    Element.prototype.closest = function(s) {
+      var matches = (this.document || this.ownerDocument).querySelectorAll(s),
+          i,
+          el = this;
+      do {
+        i = matches.length;
+        while (--i >= 0 && matches.item(i) !== el) {};
+      } while ((i < 0) && (el = el.parentElement)); 
+      return el;
+    };
+  }
+
   function mixin(o, ps) {
     if (!o) return;
     Object.keys(ps).forEach(function(p) {
@@ -5190,6 +5411,8 @@ function __cons(t, a) {
 
 }(self));
 (function(global) {
+  'use strict';
+
   if (!('window' in global && 'document' in global))
     return;
 
@@ -5211,11 +5434,13 @@ function __cons(t, a) {
 
   // XMLHttpRequest interface constants
   // Needed for IE8-
-  XMLHttpRequest.UNSENT = 0;
-  XMLHttpRequest.OPENED = 1;
-  XMLHttpRequest.HEADERS_RECEIVED = 2;
-  XMLHttpRequest.LOADING = 3;
-  XMLHttpRequest.DONE = 4;
+  [
+    ['UNSENT', 0],
+    ['OPENED', 1],
+    ['HEADERS_RECEIVED', 2],
+    ['LOADING', 3],
+    ['DONE', 4],
+  ].forEach(function(p) { if (!(p[0] in global.XMLHttpRequest)) global.XMLHttpRequest[p[0]] = p[1]; });
 
   // FormData interface
   // Needed for: IE9-
@@ -5261,6 +5486,8 @@ function __cons(t, a) {
 
 }(self));
 (function(global) {
+  'use strict';
+
   if (!('window' in global && 'document' in global))
     return;
 
@@ -5272,13 +5499,13 @@ function __cons(t, a) {
   //----------------------------------------------------------------------
 
   // Fix for IE8-'s Element.getBoundingClientRect()
-  if ('TextRectangle' in this && !('width' in TextRectangle.prototype)) {
-    Object.defineProperties(TextRectangle.prototype, {
-      'width': { get: function() { return this.right - this.left; } },
-      'height': { get: function() { return this.bottom - this.top; } }
+  if ('TextRectangle' in global && !('width' in global.TextRectangle.prototype)) {
+    Object.defineProperties(global.TextRectangle.prototype, {
+      width: { get: function() { return this.right - this.left; } },
+      height: { get: function() { return this.bottom - this.top; } }
     });
   }
-}(this));
+}(self));
 // URL Polyfill
 // Draft specification: https://url.spec.whatwg.org
 
@@ -5557,29 +5784,39 @@ function __cons(t, a) {
       if (base) {
         url = (function () {
           if (nativeURL) return new origURL(url, base).href;
+          var iframe;
+          try {
+            var doc;
+            // Use another document/base tag/anchor for relative URL resolution, if possible
+            if (Object.prototype.toString.call(window.operamini) === "[object OperaMini]") {
+              iframe = document.createElement('iframe');
+              iframe.style.display = 'none';
+              document.documentElement.appendChild(iframe);
+              doc = iframe.contentWindow.document;
+            } else if (document.implementation && document.implementation.createHTMLDocument) {
+              doc = document.implementation.createHTMLDocument('');
+            } else if (document.implementation && document.implementation.createDocument) {
+              doc = document.implementation.createDocument('http://www.w3.org/1999/xhtml', 'html', null);
+              doc.documentElement.appendChild(doc.createElement('head'));
+              doc.documentElement.appendChild(doc.createElement('body'));
+            } else if (window.ActiveXObject) {
+              doc = new window.ActiveXObject('htmlfile');
+              doc.write('<head><\/head><body><\/body>');
+              doc.close();
+            }
 
-          var doc;
-          // Use another document/base tag/anchor for relative URL resolution, if possible
-          if (document.implementation && document.implementation.createHTMLDocument) {
-            doc = document.implementation.createHTMLDocument('');
-          } else if (document.implementation && document.implementation.createDocument) {
-            doc = document.implementation.createDocument('http://www.w3.org/1999/xhtml', 'html', null);
-            doc.documentElement.appendChild(doc.createElement('head'));
-            doc.documentElement.appendChild(doc.createElement('body'));
-          } else if (window.ActiveXObject) {
-            doc = new window.ActiveXObject('htmlfile');
-            doc.write('<head><\/head><body><\/body>');
-            doc.close();
+            if (!doc) throw Error('base not supported');
+
+            var baseTag = doc.createElement('base');
+            baseTag.href = base;
+            doc.getElementsByTagName('head')[0].appendChild(baseTag);
+            var anchor = doc.createElement('a');
+            anchor.href = url;
+            return anchor.href;
+          } finally {
+            if (iframe)
+              iframe.parentNode.removeChild(iframe);
           }
-
-          if (!doc) throw Error('base not supported');
-
-          var baseTag = doc.createElement('base');
-          baseTag.href = base;
-          doc.getElementsByTagName('head')[0].appendChild(baseTag);
-          var anchor = doc.createElement('a');
-          anchor.href = url;
-          return anchor.href;
         }());
       }
 
@@ -5767,6 +6004,7 @@ function __cons(t, a) {
 //     .then(function(text) { alert(text); });
 
 (function(global) {
+  'use strict';
 
   // Web IDL concepts
 
@@ -5801,7 +6039,7 @@ function __cons(t, a) {
   }
 
   function byteCaseInsensitiveMatch(a, b) {
-    return byteLowerCase(b) === byteLowerCase(b);
+    return byteLowerCase(a) === byteLowerCase(b);
   }
 
   // 2.1 HTTP

@@ -1,51 +1,46 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
+  router = express.Router(),
   passport = require('passport'),
+  LOCAL_STRATEGY = 'local',
+  FACEBOOK_STRATEGY = 'facebook',
   http = require('http'),
   mongoose = require('../models/mongoose_app').mongoose,
   UserModule = require('../models/user'),
-    User = UserModule.model,
-    getUserModelNodeTree = UserModule.getModelNodeTree,
-    getUserTemplate = UserModule.getTemplate,
-    getUserModelPathTypes = UserModule.getModelPathTypes,
-    getSubDocPopulateOptions = UserModule.getSubDocPopulateOptions,
-    populateSubDocs = UserModule.populateSubDocs,
-    isValidModelPath = UserModule.isValidModelPath,
-    getProjection = UserModule.getProjection,
+  User = UserModule.model,
+  getUserModelNodeTree = UserModule.getModelNodeTree,
+  getUserTemplate = UserModule.getTemplate,
+  getUserModelPathTypes = UserModule.getModelPathTypes,
+  populateSubDocs = UserModule.populateSubDocs,
+  isValidModelPath = UserModule.isValidModelPath,
+  getProjection = UserModule.getProjection,
   RolesModule = require('../models/roles'),
-    RolesModel = RolesModule.model,
-    getPrivilegePaths = RolesModule.getPrivilegePaths,
+  RolesModel = RolesModule.model,
+  getPrivilegePaths = RolesModule.getPrivilegePaths,
   personRouterModule = require('./personRouter'),
-    createPersonAccessOk = personRouterModule.createPersonAccessOk,
-    deletePersonAccessOk = personRouterModule.deletePersonAccessOk,
-    updatePersonAccessOk = personRouterModule.updatePersonAccessOk,
-  ModelNodeModule = require('../models/modelNode'),
-    ModelNode = ModelNodeModule.ModelNode,
+  createPersonAccessOk = personRouterModule.createPersonAccessOk,
+  deletePersonAccessOk = personRouterModule.deletePersonAccessOk,
+  updatePersonAccessOk = personRouterModule.updatePersonAccessOk,
   Verify = require('./verify'),
-  authenticate = require('../authenticate'),
+  authenticate = require('../authenticate'),  // eslint-disable-line no-unused-vars
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    newError = router_utils.newError,
-    errorReply = router_utils.errorReply,
-    resultReply = router_utils.resultReply,
-    populateSubDocsReply = router_utils.populateSubDocsReply,
-    makeResult = router_utils.makeResult,
-    removeDocAccessOk = router_utils.removeDocAccessOk,
-    processCountReq = router_utils.processCountReq,
-    getDocs = router_utils.getDocs,
+  checkError = router_utils.checkError,
+  newError = router_utils.newError,
+  errorReply = router_utils.errorReply,
+  resultReply = router_utils.resultReply,
+  populateSubDocsReply = router_utils.populateSubDocsReply,
+  makeResult = router_utils.makeResult,
+  removeDocAccessOk = router_utils.removeDocAccessOk,
+  processCountReq = router_utils.processCountReq,
+  getDocs = router_utils.getDocs,
   errorServiceModule = require('../services/errorService'),
-    getError = errorServiceModule.getError,
-    isAppError = errorServiceModule.isAppError,
-  utils = require('../misc/utils'),
-    find = utils.find,
-    cloneObject = utils.cloneObject,
-    arrayIntersection = utils.arrayIntersection,
+  getError = errorServiceModule.getError,
+  assert = require('assert'),
+  debug = require('debug')('userRouter'),
   Consts = require('../consts'),
   config = require('../config.js');
-
-var router = express.Router();
 
 /**
  * Create a user
@@ -82,17 +77,18 @@ function createUserAccessOk (req, res, errCheck, next) {
           user.save(function (err, newuser) {
             if (!errCheck(err, res, userId)) {
               // success
-              passport.authenticate('local')(req, res, function () {
-                // If this function gets called, authentication was successful.
+              passport.authenticate(LOCAL_STRATEGY)(req, res, function (err) {
+                // If this function gets called, authentication was successful,
+                // (according to doc but can also arrive here if strategy is unknown)
                 // `req.user` contains the authenticated user.
-
+                assert.strictEqual(undefined, err);                
                 // success
                 next(makeResult(Consts.HTTP_CREATED, newuser), res);
               });
 
             } else {
               // tidy up by removing everything
-              personRouter.deletePersonAccessOk(user.person, res, function (result, res) { });
+              deletePersonAccessOk(user.person, res, function (result, res) { });
               removeDocAccessOk(User, user._id);
               errCheck(
                 newError(Consts.HTTP_INTERNAL_ERROR, 'Unable to save user.'), 
@@ -119,7 +115,7 @@ function makeUserId (req) {
   var strs = [];
   [req.body.username, req.body.firstname, req.body.lastname].forEach(function (str) {
     strs.push(str.slice());
-  })
+  });
   return strs.join('/');
 }
 
@@ -144,23 +140,22 @@ function updateUser (id, req, res, next) {
   var userFields = getUserTemplate(req.body, ['person']); // only exclude person, as role is required
 
   User.findByIdAndUpdate(id, {
-      $set: userFields
-    }, {
-      new: true // return the modified document rather than the original
-    }, function (err, user) {
-      if (!checkError (err, res)) {
-        // update person (no access check sd done on route)
-        updatePersonAccessOk(user.person, req.body, res, function (result, res) {
-          if (result) {
-            // success
-            populateSubDocs(user, function (err, doc) {
-              populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
-            });
-          }
-        });
-      }
+    $set: userFields
+  }, {
+    new: true // return the modified document rather than the original
+  }, function (err, user) {
+    if (!checkError (err, res)) {
+      // update person (no access check sd done on route)
+      updatePersonAccessOk(user.person, req.body, res, function (result, res) {
+        if (result) {
+          // success
+          populateSubDocs(user, function (err, doc) {
+            populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
+          });
+        }
+      });
     }
-  );
+  });
 }
 
 function deleteUser (id, req, res, next) {
@@ -206,7 +201,7 @@ router.route('/')
 
     // admin access point
     createUser({'_id': req.body.role}, req, res, checkError, resultReply);
-   });
+  });
 
 
 router.post('/register', function (req, res) {
@@ -216,7 +211,7 @@ router.post('/register', function (req, res) {
 });
 
 router.post('/login', function (req, res, next) {
-  passport.authenticate('local', function (err, user, info) {
+  passport.authenticate(LOCAL_STRATEGY, function (err, user, info) {
     if (err) {
       return next(err);
     }
@@ -234,10 +229,10 @@ router.post('/login', function (req, res, next) {
 
       // generate token from important bits of user info
       var token = Verify.getToken({
-        "username": user.username,
-        "_id": user._id,
-        "role": user.role,
-        "src": req.body.src
+        'username': user.username,
+        '_id': user._id,
+        'role': user.role,
+        'src': req.body.src
       }, getTokenLife(req));
 
       // retrieve functionality access masks
@@ -278,9 +273,9 @@ router.route('/token/:objId')
     var token = Verify.refreshToken(Verify.extractToken(req), getTokenLife(req));
 
     res.status(Consts.HTTP_OK).json(addTokenToPayload({
-        message: 'Token refresh successful!',
-        success: true,
-      }, token));
+      message: 'Token refresh successful!',
+      success: true,
+    }, token));
   });
 
 router.get('/logout', function (req, res) {
@@ -290,10 +285,10 @@ router.get('/logout', function (req, res) {
   });
 });
 
-router.get('/facebook', passport.authenticate('facebook'), function (req, res) {});
+router.get('/facebook', passport.authenticate(FACEBOOK_STRATEGY), function (req, res) {});
 
 router.get('/facebook/callback', function (req, res, next) {
-  passport.authenticate('facebook', function (err, user, info) {
+  passport.authenticate(FACEBOOK_STRATEGY, function (err, user, info) {
     if (err) {
       return next(err);
     }
@@ -303,10 +298,9 @@ router.get('/facebook/callback', function (req, res, next) {
       });
     }
     
-    console.log('User: ', user);
-    console.log('Info: ', info);
+    debug('User: %O', user);
+    debug('Info: %O', info);
 
-    
     req.logIn(user, function (err) {
       if (err) {
         return res.status(Consts.HTTP_INTERNAL_ERROR).json({
@@ -356,7 +350,7 @@ router.route('/batch')
 
     // if user batch object & create array
     if (userBatch && Array.isArray(userBatch.create)) {
-        var delProps = getUserModelPathTypes({
+      var delProps = getUserModelPathTypes({
           exVersionId: true,
           exTimestamp: true,
           exTypes: [mongoose.Schema.Types.ObjectId.schemaName]
@@ -371,45 +365,45 @@ router.route('/batch')
           }
         };
 
-        userBatch.create.forEach(function (user, index, array) {
-          var userReq = new http.IncomingMessage(), // new http request to handle creation
-            query;
+      userBatch.create.forEach(function (user, index, array) {
+        var userReq = new http.IncomingMessage(), // new http request to handle creation
+          query;
 
-          // add the missing bits
-          userReq.body = {};
-          userReq._passport = req._passport;
-          Object.assign(userReq.body, user);  // merge user info
+        // add the missing bits
+        userReq.body = {};
+        userReq._passport = req._passport;
+        Object.assign(userReq.body, user);  // merge user info
 
-          if (user.role) {
-            query = {'name': user.role};
-          } else {
-            query = {'level': Consts.ROLE_NONE};
-          }
+        if (user.role) {
+          query = {'name': user.role};
+        } else {
+          query = {'level': Consts.ROLE_NONE};
+        }
 
-          createUser(query, userReq, res, 
-            // error check function
-            function (err, res, userId) {
-              var isErr = false;
-              if (err) {
-                isErr = true;
-                ++result.failed;
-                result.errors.push({
-                  name: err.name,
-                  message: err.message,
-                  user: userId
-                });
-                sendResult(array.length, result, res);
-              }
-              return isErr;
-            }, 
-            // next function
-            function (opResult, res) {
-              if (opResult) {
-                // success
-                ++result.created;
-                sendResult(array.length, result, res);
-              }
+        createUser(query, userReq, res, 
+          // error check function
+          function (err, res, userId) {
+            var isErr = false;
+            if (err) {
+              isErr = true;
+              ++result.failed;
+              result.errors.push({
+                name: err.name,
+                message: err.message,
+                user: userId
+              });
+              sendResult(array.length, result, res);
             }
+            return isErr;
+          }, 
+          // next function
+          function (opResult, res) {
+            if (opResult) {
+              // success
+              ++result.created;
+              sendResult(array.length, result, res);
+            }
+          }
         );
       });
     } else {

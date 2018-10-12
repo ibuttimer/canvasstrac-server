@@ -1,13 +1,13 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
-var express = require('express'),
-  Verify = require('./verify'),
+var Verify = require('./verify'),
   utils = require('../misc/utils'),
-    cloneObject = utils.cloneObject,
-    createObject = utils.createObject,
-    arrayIntersection = utils.arrayIntersection,
+  cloneObject = utils.cloneObject,
+  createObject = utils.createObject,
+  arrayIntersection = utils.arrayIntersection,
   Consts = require('../consts'),
+  debug = require('debug')('router_utils'),
 
   FIELD_SEL = 'fields', // field selection path
 
@@ -37,7 +37,7 @@ function checkError (err, res) {
   if (err) {
     isErr = true;
     
-    console.log(err);
+    debug('%O', err);
 
     var status = Consts.HTTP_INTERNAL_ERROR;
     if (err.name === 'ValidationError') {
@@ -81,7 +81,7 @@ function errorReply(res, status, message) {
     });
   } else {
     // no response object available so just log
-    console.log("Error: status " + status + ", " + message);
+    debug('Error: status %d, %s', status, message);
   }
 }
 
@@ -162,16 +162,16 @@ function updateDoc (accessCheck, fields, model, id, req, res, next) {
 
     if (!utils.isEmpty(fields)) {
       model.findByIdAndUpdate(id, {
-          $set: fields
-        }, {
-          new: true,    // return the modified document rather than the original
-          upsert: true  // creates the object if it doesn't exist
-        }, function (err, updatedDoc) {
-          if (!checkError (err, res)) {
-            // success
-            next(makeResult(Consts.HTTP_OK, updatedDoc), res);
-          }
-        });
+        $set: fields
+      }, {
+        new: true,    // return the modified document rather than the original
+        upsert: true  // creates the object if it doesn't exist
+      }, function (err, updatedDoc) {
+        if (!checkError (err, res)) {
+          // success
+          next(makeResult(Consts.HTTP_OK, updatedDoc), res);
+        }
+      });
     } else {
       // nothing to do
       next(makeResult(Consts.HTTP_NO_CONTENT), res);
@@ -412,8 +412,8 @@ function decodeQuery (query, isValidModelPath, checkSub) {
       fieldNames = Object.getOwnPropertyNames(splits.queryModelNodes);
       // check all the same ModelNode
       if (fieldNames.find(function (element, index, array) {
-              return (splits.queryModelNodes[array[0]] !== splits.queryModelNodes[element]);
-            }) !== undefined) {
+        return (splits.queryModelNodes[array[0]] !== splits.queryModelNodes[element]);
+      }) !== undefined) {
         // found different ModelNode
         altErrors.push((orPath ? 'OR' : 'AND') + ' queries restricted to within a single model');
       } else {
@@ -453,7 +453,7 @@ function decodeQuery (query, isValidModelPath, checkSub) {
           altErrors.push('Invalid value in ' + path + ' query element: ' + value);
         }
       }); 
-        // { <$or|$and|$nor>: [{....}, {....} ....]}
+      // { <$or|$and|$nor>: [{....}, {....} ....]}
       queryParam[path] = params;
       // queryModelNodes[path] = splits.queryModelNodes[fieldNames[0]];  // all the same ModelNode
 
@@ -461,7 +461,7 @@ function decodeQuery (query, isValidModelPath, checkSub) {
     } else if (path === FIELD_SEL) {
       /* 'fields=a+b+c' is how field selection is specified where a, b & c are field names
         * NOTE: currently only works on top level document */
-      var splits = splitFieldString(query[path], ' ', isValidModelPath, checkSub, fieldErrors);
+      splits = splitFieldString(query[path], ' ', isValidModelPath, checkSub, fieldErrors);
       select = splits.select;
     } else {
       var modelNode = isValidModelPath(path, [], checkSub);
@@ -530,10 +530,10 @@ function processCountReq (req, res, isValidModelPath, model) {
     // execute the query
 
 
-// TODO processCountReq need to handle multiple models!!!
+    // TODO processCountReq need to handle multiple models!!!
 
-  //  result.queryParam = queryParam;
-  //   result.queryModelNodes = queryModelNodes;
+    //  result.queryParam = queryParam;
+    //   result.queryModelNodes = queryModelNodes;
 
 
     var query = model.count(decode.queryParam);
@@ -672,18 +672,19 @@ function getDocs (req, res, isValidModelPath, root, next, options) {
     var model = root.model,
       fieldNames = Object.getOwnPropertyNames(decode.queryModelNodes),
       fldProced = 0,  // fields processed count
-      fldToProc = fieldNames.length;  // total number of fields to process
+      fldToProc = fieldNames.length,  // total number of fields to process
+      query;
 
     if (req.params.objId) {
       // retrieve doc using id
-      var query = model.findById(req.params.objId, projection);
+      query = model.findById(req.params.objId, projection);
       getDocsQuery(query, decode.select, root, res, next, {
         objId: req.params.objId,
         objName: objName
       });
     } else if (fldToProc == 0) {
       // no ModelNodes therefore must be a get all request
-      var query = model.find(decode.queryParam, projection);
+      query = model.find(decode.queryParam, projection);
       getDocsQuery(query, decode.select, root, res, next);
     } else {
       /* fields may be spread across several models so build a list, 
@@ -700,8 +701,9 @@ function getDocs (req, res, isValidModelPath, root, next, options) {
           propQuery = cloneObject(decode.queryParam, [prop]); // query using provided value
 
         getDocsUsingObj(res, propModel, propQuery, { 
-            projection: projection,
-            select: decode.select }, function (res, docs) {
+          projection: projection,
+          select: decode.select
+        }, function (res, docs) {
           docToProc += docs.length; // inc total number of docs to process
           fldProced++;  // inc number of fields processed
 

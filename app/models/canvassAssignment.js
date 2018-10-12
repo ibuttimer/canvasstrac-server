@@ -1,22 +1,25 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var mongoose = require('./mongoose_app').mongoose,
   Schema = mongoose.Schema,
   ModelNodeModule = require('./modelNode'),
-    ModelNode = ModelNodeModule.ModelNode,
+  ModelNode = ModelNodeModule.ModelNode,
   utilsModule = require('../misc/utils'),
-    utilsIsValidModelPath = utilsModule.isValidModelPath,
-    utilsGetTemplate = utilsModule.getTemplate,
-    objectIdToString = utilsModule.objectIdToString,
-  populateSubDocsUtil = require('./model_utils').populateSubDocs,
+  utilsIsValidModelPath = utilsModule.isValidModelPath,
+  utilsGetTemplate = utilsModule.getTemplate,
+  objectIdToString = utilsModule.objectIdToString,
+  modelUtilsModule = require('./model_utils'),
+  getSchemaOptions = modelUtilsModule.getSchemaOptions,
+  OPT_TIMESTAMP = modelUtilsModule.OPT_TIMESTAMP,
+  populateSubDocsUtil = modelUtilsModule.populateSubDocs,
   CanvassModule = require('./canvass'),
-    canvassPopulateOptions = CanvassModule.getSubDocPopulateOptions,
+  canvassPopulateOptions = CanvassModule.getSubDocPopulateOptions,
   UserModule = require('./user'),
-    userPopulateOptions = UserModule.getSubDocPopulateOptions,
-    userPopulateProjection = UserModule.getPopulateProjection,
+  userPopulateOptions = UserModule.getSubDocPopulateOptions,
+  userPopulateProjection = UserModule.getPopulateProjection,
   AddressModule = require('./addresses'),
-    addressPopulateOptions = AddressModule.getSubDocPopulateOptions;
+  addressPopulateOptions = AddressModule.getSubDocPopulateOptions;
 
 var schema = new Schema({
   canvass: {
@@ -31,9 +34,7 @@ var schema = new Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Address'
   }]
-}, {
-  timestamps: true
-});
+}, getSchemaOptions(OPT_TIMESTAMP));
 
 // create a model using schema
 var model = mongoose.model('CanvassAssignment', schema);

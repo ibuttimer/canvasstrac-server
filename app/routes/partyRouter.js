@@ -1,30 +1,30 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   PartyModule = require('../models/party'),
-    Party = PartyModule.model,
-    getPartyTemplate = PartyModule.getTemplate,
-    populateSubDocs = PartyModule.populateSubDocs,
+  Party = PartyModule.model,
+  getPartyTemplate = PartyModule.getTemplate,
+  populateSubDocs = PartyModule.populateSubDocs,
   AddressModule = require('../models/addresses'),
-    Addresses = AddressModule.model,
-    getAddressTemplate = AddressModule.getTemplate,
-  AddressRouterModule = require('./addressRouter'),
-    addressRouter = AddressRouterModule.router,
-    updateAddress = AddressRouterModule.update,
+  Addresses = AddressModule.model,
+  getAddressTemplate = AddressModule.getTemplate,
+  // AddressRouterModule = require('./addressRouter'),
+  // addressRouter = AddressRouterModule.router,
+  // updateAddress = AddressRouterModule.update,
   ContactDetailsModule = require('../models/contactDetails'),
-    ContactDetails = ContactDetailsModule.model,
-    getContactDetailsTemplate = ContactDetailsModule.getTemplate,
+  ContactDetails = ContactDetailsModule.model,
+  getContactDetailsTemplate = ContactDetailsModule.getTemplate,
   Verify = require('./verify'),
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    errorReply = router_utils.errorReply,
-    resultReply = router_utils.resultReply,
-    populateSubDocsReply = router_utils.populateSubDocsReply,
-    makeResult = router_utils.makeResult,
-    updateDocAccessOk = router_utils.updateDocAccessOk,
-    removeDocAccessOk = router_utils.removeDocAccessOk,
-  utils = require('../misc/utils'),
+  checkError = router_utils.checkError,
+  errorReply = router_utils.errorReply,
+  resultReply = router_utils.resultReply,
+  populateSubDocsReply = router_utils.populateSubDocsReply,
+  makeResult = router_utils.makeResult,
+  updateDocAccessOk = router_utils.updateDocAccessOk,
+  removeDocAccessOk = router_utils.removeDocAccessOk,
+  // utils = require('../misc/utils'),
   Consts = require('../consts');
 
 
@@ -43,7 +43,7 @@ router.route('/')
           });
         }
       });
-    });
+  });
 
 /*
  * Remove party, address and contact details docuements
@@ -95,25 +95,25 @@ function createParty (accessCheck, req, res, next) {
                   } else {
                     // tidy up by removing everything
                     removePartyAddressContact (party._id, address._id, contact._id);
-                    var err = new Error('Unable to save party.');
-                    err.status = Consts.HTTP_INTERNAL_ERROR;
-                    checkError(err, res);
+                    var addrErr = new Error('Unable to save party.');
+                    addrErr.status = Consts.HTTP_INTERNAL_ERROR;
+                    checkError(addrErr, res);
                   }
                 });
               } else {
                 // tidy up by removing party & address
                 removePartyAddressContact (party._id, address._id);
-                var err = new Error('Unable to create contact details.');
-                err.status = Consts.HTTP_INTERNAL_ERROR;
-                checkError(err, res);
+                var cdErr = new Error('Unable to create contact details.');
+                cdErr.status = Consts.HTTP_INTERNAL_ERROR;
+                checkError(cdErr, res);
               }
             });
           } else {
             // tidy up by removing party
             removePartyAddressContact (party._id);
-            var err = new Error('Unable to create address.');
-            err.status = Consts.HTTP_INTERNAL_ERROR;
-            checkError(err, res);
+            var addrErr = new Error('Unable to create address.');
+            addrErr.status = Consts.HTTP_INTERNAL_ERROR;
+            checkError(addrErr, res);
           }
         });
       }
@@ -135,58 +135,58 @@ function updateParty (accessCheck, id, req, res, next) {
       partyFields = getPartyTemplate(req.body);
 
     Party.findByIdAndUpdate(id, {
-        $set: partyFields
-      }, {
-        new: true // return the modified document rather than the original
-      }, function (err, party) {
-        if (!checkError (err, res)) {
-          
-          if (party) {
+      $set: partyFields
+    }, {
+      new: true // return the modified document rather than the original
+    }, function (err, party) {
+      if (!checkError (err, res)) {
+        
+        if (party) {
 
-            var mustSave = false;          
+          var mustSave = false;          
 
-            updateDocAccessOk(addressFields, Addresses, party.address, res, function (result, res) {
-              if (result) {
-                // success or nothing to do
-                if ((result.status == Consts.HTTP_OK) && (party.address != result.payload._id)) {
-                  // created new document
-                  party.address = result.payload._id;
-                  mustSave = true;
-                }
-                
-                updateDocAccessOk(contactFields, ContactDetails, party.contactDetails, res, function (result, res) {
-                  if (result) {
-                    // success or nothing to do
-                    if ((result.status == Consts.HTTP_OK) && (party.contactDetails != result.payload._id)) {
-                      // created new document
-                      party.contactDetails = result.payload._id;
-                      mustSave = true;
-                    }
-
-                    if (mustSave) {
-                      // need to save party document
-                      party.save(function (err, updated) {
-                        if (!checkError (err, res)) {
-                          // success
-                          populateSubDocs(updated, function (err, doc) {
-                            populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
-                          });
-                        }
-                      });
-                    } else {
-                      // populate party and return
-                      populateSubDocs(party, function (err, doc) {
-                        populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
-                      });
-                    }                      
-                  }
-                });
+          updateDocAccessOk(addressFields, Addresses, party.address, res, function (result, res) {
+            if (result) {
+              // success or nothing to do
+              if ((result.status == Consts.HTTP_OK) && (party.address != result.payload._id)) {
+                // created new document
+                party.address = result.payload._id;
+                mustSave = true;
               }
-            });
-          } else {
-            errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown party identifier');
-          }
+              
+              updateDocAccessOk(contactFields, ContactDetails, party.contactDetails, res, function (result, res) {
+                if (result) {
+                  // success or nothing to do
+                  if ((result.status == Consts.HTTP_OK) && (party.contactDetails != result.payload._id)) {
+                    // created new document
+                    party.contactDetails = result.payload._id;
+                    mustSave = true;
+                  }
+
+                  if (mustSave) {
+                    // need to save party document
+                    party.save(function (err, updated) {
+                      if (!checkError (err, res)) {
+                        // success
+                        populateSubDocs(updated, function (err, doc) {
+                          populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
+                        });
+                      }
+                    });
+                  } else {
+                    // populate party and return
+                    populateSubDocs(party, function (err, doc) {
+                      populateSubDocsReply(err, res, next, doc, Consts.HTTP_OK);
+                    });
+                  }                      
+                }
+              });
+            }
+          });
+        } else {
+          errorReply(res, Consts.HTTP_NOT_FOUND, 'Unknown party identifier');
         }
+      }
     });
   });
 }

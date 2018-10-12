@@ -1,19 +1,19 @@
-/*jslint node: true */
+/*jslint node: true */ /*eslint-env node*/
 'use strict';
 
 var express = require('express'),
   bodyParser = require('body-parser'),
   Module = require('../models/canvassResult'),
-    model = Module.model,
-    getTemplate = Module.getTemplate,
-    populateSubDocs = Module.populateSubDocs,
+  model = Module.model,
+  getTemplate = Module.getTemplate,
+  populateSubDocs = Module.populateSubDocs,
   router_utils = require('./router_utils'),
-    checkError = router_utils.checkError,
-    resultReply = router_utils.resultReply,
-    populateSubDocsReply = router_utils.populateSubDocsReply,
-    doChecks = router_utils.doChecks,
-    updateDoc = router_utils.updateDoc,
-    removeDoc = router_utils.removeDoc,
+  checkError = router_utils.checkError,
+  resultReply = router_utils.resultReply,
+  populateSubDocsReply = router_utils.populateSubDocsReply,
+  doChecks = router_utils.doChecks,
+  updateDoc = router_utils.updateDoc,
+  removeDoc = router_utils.removeDoc,
   addCanvassResult = require('./canvassRouter').addCanvassResult,
   createAnswer = require('./answerRouter').createAnswer,
   utils = require('../misc/utils'),
@@ -129,21 +129,20 @@ router.route('/:objId')
     var fields = getTemplate(req.body);
 
     model.findByIdAndUpdate(req.params.objId, {
-        $set: fields
-      }, {
-        new: true // return the modified document rather than the original
-      }, function (err, user) {
-        if (!checkError (err, res)) {
-          // success
-          populateSubDocs(user, function (err, doc) {
-            if (!checkError(err, res)) {
-              // success
-              res.json(doc);
-            }
-          });
-        }
+      $set: fields
+    }, {
+      new: true // return the modified document rather than the original
+    }, function (err, user) {
+      if (!checkError (err, res)) {
+        // success
+        populateSubDocs(user, function (err, doc) {
+          if (!checkError(err, res)) {
+            // success
+            res.json(doc);
+          }
+        });
       }
-    );
+    });
   })
 
   .delete(function (req, res, next) {
