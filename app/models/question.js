@@ -10,6 +10,7 @@ var mongoose = require('./mongoose_app').mongoose,
   utilsModule = require('../misc/utils'),
   utilsIsValidModelPath = utilsModule.isValidModelPath,
   utilsGetTemplate = utilsModule.getTemplate,
+  utilsHasProperty = utilsModule.hasProperty,
   modelUtilsModule = require('./model_utils'),
   getSchemaOptions = modelUtilsModule.getSchemaOptions,
   OPT_TIMESTAMP = modelUtilsModule.OPT_TIMESTAMP,
@@ -58,7 +59,7 @@ function getTemplate (source, exPaths) {
   var template = utilsGetTemplate(source, model, exPaths);
   var quesType;
   for (var qtype in questionTypes) {
-    if (questionTypes.hasOwnProperty(qtype)) {
+    if (utilsHasProperty(questionTypes, qtype)) {
       if (questionTypes[qtype].type == template.type) {
         quesType = questionTypes[qtype];
         break;

@@ -3,11 +3,11 @@ Server application for CanvassTrac suite.
 
 ## Development Environment
 The development environment:
-* Node.js v8.12.0
-* npm v6.4.1
-* bower v1.8.4
-* gulp v3.9.1
-* MongoDB v3.6.8
+* Node.js v12.18.4
+* npm v6.14.6
+* gulp CLI version: 2.3.0
+*      Local version: 4.0.2
+* MongoDB v4.2.9
 
 ### Environment setup
 In an appropriate folder:
@@ -24,7 +24,7 @@ For example, to start a local server using a configuation file called localdev.j
 * <code>gulp replace --env localdev</code>
 * <code>gulp develop</code>
 
-Alternatively, [Visual Studio Code](https://code.visualstudio.com/) provides is an excellent editor to a build in debugger.
+Alternatively, [Visual Studio Code](https://code.visualstudio.com/) provides is an excellent editor with a build in debugger.
 
 ### Deploy to [Heroku](https://www.heroku.com)
 There are a number of methods of [deploying an application to Heroku](https://devcenter.heroku.com/categories/deployment), however the following methods were used for this application:
@@ -51,7 +51,7 @@ Assuming the Heroku application name is <code>canvasstrac</code>, proceed as fol
 ### Run application on [Heroku](https://www.heroku.com)
 Following deployment of the application to Heroku, it is necessary to set the environment configuration in the Heroku application console. See *Config Variables* in the Heroku application settings.
 
-#### Additional inofrmation
+#### Additional information
 * Run <code>heroku run bash -a canvasstrac</code> to open a shell to see what is actually deplayed in the dyno.
 * To fetch [server logs](https://devcenter.heroku.com/articles/logging), use the heroku logs command; e.g. <code> heroku logs -a canvasstrac</code>
 * To see environment variables use:

@@ -20,7 +20,7 @@ utils.setDbVersion(config.dbVersion);
 
 mongoose.connect(config.mongoUrl, modelUtils.getMongooseOptions(),
   function(err, db) {
-    assert.strictEqual(null, err);
+    assert.strictEqual(err, null);
     assert.ok(db != null);
     var admin = new mongoose.mongo.Admin(mongoose.connection.db);
     admin.buildInfo(function (err, info) {

@@ -30,9 +30,18 @@ function populateSubDocs (model, docs, options, next) {
  * Get mongoose connection options object
  * @returns Options object
  */
+function dbVersionTest() {
+  // MongoDB Server 3.6.x: mongoose 5.x, or ^4.11.0 with useMongoClient and usePushEach
+  return utils.dbVersionTest(V3_6_X, utils.OPS.GT_EQ);
+}
+
+/**
+ * Get mongoose connection options object
+ * @returns Options object
+ */
 function getMongooseOptions() {
   var options = {};
-  if (utils.dbVersionTest(V3_6_X, utils.OPS.EQ)) {
+  if (dbVersionTest()) {
     // MongoDB Server 3.6.x: mongoose 5.x, or ^4.11.0 with useMongoClient and usePushEach
     options.useMongoClient = true;
   }
@@ -49,7 +58,7 @@ function getSchemaOptions(flags) {
   if ((flags & OPT_TIMESTAMP) === OPT_TIMESTAMP) {
     options.timestamps = true;
   }
-  if (utils.dbVersionTest(V3_6_X, utils.OPS.EQ)) {
+  if (dbVersionTest()) {
     // MongoDB Server 3.6.x: mongoose 5.x, or ^4.11.0 with useMongoClient and usePushEach
     options.usePushEach = true;
   }

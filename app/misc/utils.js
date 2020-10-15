@@ -28,7 +28,7 @@ function testEquality (objA, objB, properties) {
   }
   if (equal) {
     for (var i = 0; equal && (i < properties.length); ++i) {
-      if (objA.hasOwnProperty(properties[i]) && objB.hasOwnProperty(properties[i])) {
+      if (hasProperty(objA, properties[i]) && hasProperty(objB, properties[i])) {
         var arrayChk = Array.isArray(objA[properties[i]]);
         equal = (arrayChk === Array.isArray(objB[properties[i]]));
         if (equal) {
@@ -120,7 +120,7 @@ function cloneObject (object, properties, include) {
   if (include) {
     // include mode
     for (var i = 0; i < properties.length; ++i) {
-      if (object.hasOwnProperty(properties[i])) {
+      if (hasProperty(object, properties[i])) {
         newObject[properties[i]] = object[properties[i]];
       }
     }
@@ -544,44 +544,40 @@ function getDbVersion() {
 function dbVersionTest(ver, test) {
   var dbVers = strArrayToNumArray(_dbVersion.split('.'));
   var vers = strArrayToNumArray(ver.split('.'));
-  var pass = 0;
+  var pass = false;
 
   if (!test) {
     // set default
     test = OPS.EQ;
   }
 
-  for (var index = 0; index < vers.length; index++) {
+  for (var index = 0; (index < vers.length) && !pass; index++) {
     if (isNaN(vers[index])) {
-      ++pass; // ignored value
+      // ignored value
     } else if (index < dbVers.length) {
-      var res;
       switch (test) {
         case OPS.LT:
-          res = (dbVers[index] < vers[index]);
+          pass = (dbVers[index] < vers[index]);
           break;
         case OPS.LT_EQ:
-          res = (dbVers[index] <= vers[index]);
+          pass = (dbVers[index] <= vers[index]);
           break;
         case OPS.EQ:
-          res = (dbVers[index] === vers[index]);
+          pass = (dbVers[index] === vers[index]);
           break;
         case OPS.GT_EQ:
-          res = (dbVers[index] >= vers[index]);
+          pass = (dbVers[index] >= vers[index]);
           break;
         case OPS.GT:
-          res = (dbVers[index] > vers[index]);
+          pass = (dbVers[index] > vers[index]);
           break;
         default:
-          res = false;
+          pass = false;
           break;
-      }
-      if (res) {
-        ++pass;
       }
     }    
   }
-  return (pass === vers.length);
+  return pass;
 }
 
 /**
@@ -594,6 +590,17 @@ function strArrayToNumArray(array) {
     array[index] = Number(array[index]);
   }
   return array;
+}
+
+
+/**
+ * Check if an object has the specified property
+ * @param {object} object Object to check
+ * @param {string} property Name of property to check for
+ * @returns {boolean} true if has property
+ */
+function hasProperty(object, property) {
+  return Object.prototype.hasOwnProperty.call(object, property);
 }
 
 
@@ -617,5 +624,6 @@ module.exports = {
   setDbVersion: setDbVersion,
   getDbVersion: getDbVersion,
   OPS: OPS,
-  dbVersionTest: dbVersionTest
+  dbVersionTest: dbVersionTest,
+  hasProperty: hasProperty
 };

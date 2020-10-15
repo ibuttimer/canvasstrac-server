@@ -1,4 +1,4 @@
-/*jslint node: true */ /*eslint-env node*/
+/*jslint node: true */ /*eslint-env node, es6 */
 var gulp = require('gulp'),
   nodemon = require('gulp-nodemon'),
   jshint = require('gulp-jshint'),
@@ -17,7 +17,6 @@ var gulp = require('gulp'),
     .argv,
   replace = require('gulp-replace-task'),
   notify = require('gulp-notify'),
-  path = require('path'),
   fs = require('fs'),
   browserSync = require('browser-sync');
 
@@ -32,11 +31,10 @@ gulp.task('lint', function () {
     .pipe(jshint());
 });
 
-gulp.task('replace', function () {
+gulp.task('replace', async () => {
   /* based on http://geekindulgence.com/environment-variables-in-angularjs-and-ionic/
     see config/readme.txt for details
    */
-
   // Get the environment from the command line
   var env = argv.env || 'localdev',
     envfilename = 'env.json',
@@ -45,9 +43,9 @@ gulp.task('replace', function () {
     settings = JSON.parse(fs.readFileSync(basePaths.config + filename, 'utf8')),
     // basic patterns
     patterns = [],
-    keyVal, dfltVal, setDflt, err;
+    keyVal, dfltVal, setDflt;
 
-  [ // server/management app common settings
+  [
     { prop: 'baseURL', type: 'str' },
     { prop: 'forceHttps', type: 'bool', dflt: true },
     { prop: 'httpPort', type: 'num' },
@@ -111,14 +109,14 @@ gulp.task('develop', function () {
     script: './app/bin/www',
     ext: 'html js',
     ignore: ['ignored.js'],
-    tasks: ['lint'] 
+    tasks: ['lint']
   }).on('restart', function () {
     console.log('restarted!');
   }).on('start', function () {
     // Watch any files in destination, reload on change
     gulp.watch(['./public/**']).on('change', browserSync.reload);
   });
-  
+
   browserSync.init({
     files: './public/**'
   },
