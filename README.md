@@ -6,7 +6,7 @@ The development environment:
 * Node.js v12.18.4
 * npm v6.14.6
 * gulp CLI version: 2.3.0
-*      Local version: 4.0.2
+* gulp Local version: 4.0.2
 * MongoDB v4.2.9
 
 ### Environment setup
@@ -44,8 +44,7 @@ This option requires the installation of the following:
 
 Assuming the Heroku application name is <code>canvasstrac</code>, proceed as follows:
 * Open a Cygwin terminal and cd to the project folder **NOTE: If the  path contains any folders with spaces in the name, use the non-8dot3 short name**
-* If it exists, delete the env.json file from the app folder; <code>rm app/env.json
-</code>
+* If it exists, delete the env.json file from the app folder; <code>rm app/env.json</code>
 * <code>heroku builds:create -a canvasstrac</code>
 
 ### Run application on [Heroku](https://www.heroku.com)

@@ -26,13 +26,14 @@ var fs = require('fs'),
     dfltPassword: 'str',
     testOptions: 'str',
     // sparkpost email settings
-    SPARKPOST_API_KEY: 'str',
-    SPARKPOST_API_URL: 'str',
-    SPARKPOST_SANDBOX_DOMAIN: 'str',
-    SPARKPOST_SMTP_HOST: 'str',
-    SPARKPOST_SMTP_PASSWORD: 'str',
-    SPARKPOST_SMTP_PORT: 'num',
-    SPARKPOST_SMTP_USERNAME: 'str'
+    // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+    // SPARKPOST_API_KEY: 'str',
+    // SPARKPOST_API_URL: 'str',
+    // SPARKPOST_SANDBOX_DOMAIN: 'str',
+    // SPARKPOST_SMTP_HOST: 'str',
+    // SPARKPOST_SMTP_PASSWORD: 'str',
+    // SPARKPOST_SMTP_PORT: 'num',
+    // SPARKPOST_SMTP_USERNAME: 'str'
   },
   path = 'app/env.json',
   cfg,

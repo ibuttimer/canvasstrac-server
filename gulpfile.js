@@ -66,13 +66,14 @@ gulp.task('replace', async () => {
     { prop: 'dfltPassword', type: 'str' },
     { prop: 'testOptions', type: 'str' },
     // sparkpost-specific settings
-    { prop: 'SPARKPOST_API_KEY', type: 'str' },
-    { prop: 'SPARKPOST_API_URL', type: 'str' },
-    { prop: 'SPARKPOST_SANDBOX_DOMAIN', type: 'str' },
-    { prop: 'SPARKPOST_SMTP_HOST', type: 'str' },
-    { prop: 'SPARKPOST_SMTP_PASSWORD', type: 'str' },
-    { prop: 'SPARKPOST_SMTP_PORT', type: 'str' },
-    { prop: 'SPARKPOST_SMTP_USERNAME', type: 'str' }
+    // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+    // { prop: 'SPARKPOST_API_KEY', type: 'str' },
+    // { prop: 'SPARKPOST_API_URL', type: 'str' },
+    // { prop: 'SPARKPOST_SANDBOX_DOMAIN', type: 'str' },
+    // { prop: 'SPARKPOST_SMTP_HOST', type: 'str' },
+    // { prop: 'SPARKPOST_SMTP_PASSWORD', type: 'str' },
+    // { prop: 'SPARKPOST_SMTP_PORT', type: 'str' },
+    // { prop: 'SPARKPOST_SMTP_USERNAME', type: 'str' }
   ].forEach(function (key) {
     keyVal = settings[key.prop];
     setDflt = (keyVal === undefined);
