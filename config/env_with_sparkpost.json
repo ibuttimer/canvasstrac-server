@@ -1,0 +1,37 @@
+{
+  "baseURL": "@@baseURL",
+  "forceHttps": "@@forceHttps",
+  "httpPort": "@@httpPort",
+  "httpsPortOffset": "@@httpsPortOffset",
+  "socketTimeout": "@@socketTimeout",
+
+  "dbAddr": "@@dbAddr",
+  "dbVersion": "@@dbVersion",
+
+  "mgmtPath": "@@mgmtPath",
+
+  "jwtSecretKey": "@@jwtSecretKey",
+  "jwtWebTokenLife": "@@jwtWebTokenLife",
+  "jwtMobileTokenLife": "@@jwtMobileTokenLife",
+
+  "disableAuth": "@@disableAuth",
+
+  "fbClientID": "@@fbClientID",
+  "fbClientSecret": "@@fbClientSecret",
+
+  "feedbackFromEmail": "@@feedbackFromEmail",
+  "feedbackToEmail": "@@feedbackToEmail",
+
+  "dfltPassword": "@@dfltPassword",
+
+  "testOptions": "@@testOptions",
+
+  "SPARKPOST_API_KEY": "@@SPARKPOST_API_KEY",
+  "SPARKPOST_API_URL": "@@SPARKPOST_API_URL",
+  "SPARKPOST_SANDBOX_DOMAIN": "@@SPARKPOST_SANDBOX_DOMAIN",
+  "SPARKPOST_SMTP_HOST": "@@SPARKPOST_SMTP_HOST",
+  "SPARKPOST_SMTP_PASSWORD": "@@SPARKPOST_SMTP_PASSWORD",
+  "SPARKPOST_SMTP_PORT": "@@SPARKPOST_SMTP_PORT",
+  "SPARKPOST_SMTP_USERNAME": "@@SPARKPOST_SMTP_USERNAME"
+
+}

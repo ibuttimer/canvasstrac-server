@@ -40,4 +40,11 @@ jspm_packages
 .env
 config/*.json
 !config/env.json
+!config/env_with_sparkpost.json
 app/*.json
+
+# certs
+*.csr
+*.cer
+*.pem
+*.key
