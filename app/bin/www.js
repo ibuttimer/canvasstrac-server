@@ -21,11 +21,27 @@ app.set('port', port);
 app.set('secPort', secPort);
 
 
+function Listener(svr) {
+  this.svr = svr;
+
+  /**
+   * Event listener for HTTP/HTTPS server "listening" event.
+   */
+  this.onListeningFxn = function () {
+    var addr = this.address();
+    var bind = typeof addr === 'string'
+      ? 'pipe ' + addr
+      : 'port ' + addr.port;
+    debug('Listening on %s', bind);
+  };
+}
+
 /**
  * Create HTTP server.
  */
 
-var server = http.createServer(app);
+var server = http.createServer(app),
+  serverListener = new Listener(server);
 
 /**
  * Listen on provided port, on all network interfaces.
@@ -37,7 +53,7 @@ server.listen(port, function() {
   debug('Server (http) listening on port %s', app.get('port'));
 });
 server.on('error', onError);
-server.on('listening', onListening);
+server.on('listening', serverListener.onListeningFxn);
 
 /**
  * Create HTTPS server.
@@ -47,16 +63,17 @@ var options = {
   cert: fs.readFileSync(__dirname+'/certificate.pem')
 };
 
-var secureServer = https.createServer(options, app);
+var secureServer = https.createServer(options, app),
+  secureServerListener = new Listener(secureServer);
 
 /**
  * Listen on provided port, on all network interfaces.
  */
 secureServer.listen(secPort, function() {
-  debug('Server (https) listening on port %s', app.get('secPort'));
+  debug('Server (https) listening on port %s\n  forceHttps redirect: %s', app.get('secPort'), config.forceHttps);
 });
 secureServer.on('error', onError);
-secureServer.on('listening', onListening);
+secureServer.on('listening', secureServerListener.onListeningFxn);
 
 /**
  * Normalize a port into a number, string, or false.
@@ -106,14 +123,3 @@ function onError(error) {
   }
 }
 
-/**
- * Event listener for HTTP server "listening" event.
- */
-
-function onListening() {
-  var addr = server.address();
-  var bind = typeof addr === 'string'
-    ? 'pipe ' + addr
-    : 'port ' + addr.port;
-  debug('Listening on %s', bind);
-}

@@ -69,12 +69,13 @@ for (prop in types) {
     cfg[prop] = (cfg[prop] === 'true');
   }
 
-  if (prop.indexOf('SPARKPOST') === 0) {
-    // sparkpost specific, the plugin uses environment variables
-    if (!process.env[prop]) {
-      process.env[prop] = cfg[prop];
-    }
-  }
+  // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+  // if (prop.indexOf('SPARKPOST') === 0) {
+  //   // sparkpost specific, the plugin uses environment variables
+  //   if (!process.env[prop]) {
+  //     process.env[prop] = cfg[prop];
+  //   }
+  // }
 
   debug('[%s] \'%s\'', prop, cfg[prop]);
 }
