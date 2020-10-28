@@ -21,7 +21,8 @@ The json config file should have the following format
   "disableAuth": <<true to disable authentication, false otherwise>>,
 
   // server-specific settings
-  "dbAddr": "<<MongoDB URI, e.g. localhost:27017/canvassTrac>>",
+  // Note: make sure to use the uri which corresponds to the MongoDB Driver version used
+  "dbAddr": "<<MongoDB URI of the form username:password@host:port/database, e.g. localhost:27017/canvassTrac>>",
   "dbVersion": "<<MongoDB version, e.g. 3.6.x>>",
 
   "mgmtPath": "<<path (relative to app.js) of management console files to serve>>",
@@ -41,13 +42,14 @@ The json config file should have the following format
   "testOptions": "<<test options, see config.js for details>>"
 
   // sparkpost options
-  "SPARKPOST_API_KEY": "<<The API key for the SparkPost API>>",
-  "SPARKPOST_API_URL": "<<The base URI for the SparkPost API>>",
-  "SPARKPOST_SANDBOX_DOMAIN": "<<Sandbox domain>>",
-  "SPARKPOST_SMTP_HOST": "<<SMTP Host>>",
-  "SPARKPOST_SMTP_PASSWORD": "<<SMTP Password>>",
-  "SPARKPOST_SMTP_PORT": "<<SMTP Port>>",
-  "SPARKPOST_SMTP_USERNAME": "<<SMTP Username>>"
+  // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+  // "SPARKPOST_API_KEY": "<<The API key for the SparkPost API>>",
+  // "SPARKPOST_API_URL": "<<The base URI for the SparkPost API>>",
+  // "SPARKPOST_SANDBOX_DOMAIN": "<<Sandbox domain>>",
+  // "SPARKPOST_SMTP_HOST": "<<SMTP Host>>",
+  // "SPARKPOST_SMTP_PASSWORD": "<<SMTP Password>>",
+  // "SPARKPOST_SMTP_PORT": "<<SMTP Port>>",
+  // "SPARKPOST_SMTP_USERNAME": "<<SMTP Username>>"
 
   // management app settings
   "mapsApiKey": "<<Google Maps API key>>",

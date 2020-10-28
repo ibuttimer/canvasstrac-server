@@ -20,7 +20,7 @@ utils.setDbVersion(config.dbVersion);
 
 mongoose.connect(config.mongoUrl, modelUtils.getMongooseOptions(),
   function(err, db) {
-    assert.strictEqual(null, err);
+    assert.strictEqual(err, null);
     assert.ok(db != null);
     var admin = new mongoose.mongo.Admin(mongoose.connection.db);
     admin.buildInfo(function (err, info) {
@@ -125,7 +125,8 @@ var routes = require('./routes/index'),
   canvassRouter = require('./routes/canvassRouter').router,
   canvassAssignmentRouter = require('./routes/canvassAssignmentRouter').router,
   canvassResultRouter = require('./routes/canvassResultRouter').router,
-  messageRouter = require('./routes/messageRouter').router,
+  // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+  // messageRouter = require('./routes/messageRouter').router,
   noticeRouter = require('./routes/noticeRouter').router;
 
 // route for static pages and views
@@ -147,7 +148,8 @@ app.use('/db/surveys', surveyRouter);
 app.use('/db/canvasses', canvassRouter);
 app.use('/db/canvassassignment', canvassAssignmentRouter);
 app.use('/db/canvassresult', canvassResultRouter);
-app.use('/db/message', messageRouter);
+// Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+// app.use('/db/message', messageRouter);
 app.use('/db/notice', noticeRouter);
 
 if (dev_environment) {

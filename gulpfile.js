@@ -1,5 +1,9 @@
-/*jslint node: true */ /*eslint-env node*/
-var gulp = require('gulp'),
+/*jslint node: true */ /*eslint-env node, es6 */
+const basePaths = {
+    src: 'app/',
+    config: 'config/',
+  },
+  gulp = require('gulp'),
   nodemon = require('gulp-nodemon'),
   jshint = require('gulp-jshint'),
   argv = require('yargs')
@@ -12,6 +16,12 @@ var gulp = require('gulp'),
       describe: 'Specify name of configuration file to use',
       type: 'string'
     })
+    .option('c', {
+      alias: 'cfgdir',
+      default: basePaths.config,
+      describe: 'Specify the directory containing the configuration file to use',
+      type: 'string'
+    })
     .help('h')
     .alias('h', 'help')
     .argv,
@@ -21,33 +31,27 @@ var gulp = require('gulp'),
   fs = require('fs'),
   browserSync = require('browser-sync');
 
-var basePaths = {
-  src: 'app/',
-  config: 'config/',
-};
-
 
 gulp.task('lint', function () {
   gulp.src('./**/*.js')
     .pipe(jshint());
 });
 
-gulp.task('replace', function () {
+gulp.task('replace', async () => {
   /* based on http://geekindulgence.com/environment-variables-in-angularjs-and-ionic/
     see config/readme.txt for details
    */
-
   // Get the environment from the command line
-  var env = argv.env || 'localdev',
+  var env = argv.env,
     envfilename = 'env.json',
     // Read the settings from the right file
     filename = env + '.json',
-    settings = JSON.parse(fs.readFileSync(basePaths.config + filename, 'utf8')),
+    settings = JSON.parse(fs.readFileSync(path.join(argv.cfgdir, filename), 'utf8')),
     // basic patterns
     patterns = [],
-    keyVal, dfltVal, setDflt, err;
+    keyVal, dfltVal, setDflt;
 
-  [ // server/management app common settings
+  [
     { prop: 'baseURL', type: 'str' },
     { prop: 'forceHttps', type: 'bool', dflt: true },
     { prop: 'httpPort', type: 'num' },
@@ -68,13 +72,14 @@ gulp.task('replace', function () {
     { prop: 'dfltPassword', type: 'str' },
     { prop: 'testOptions', type: 'str' },
     // sparkpost-specific settings
-    { prop: 'SPARKPOST_API_KEY', type: 'str' },
-    { prop: 'SPARKPOST_API_URL', type: 'str' },
-    { prop: 'SPARKPOST_SANDBOX_DOMAIN', type: 'str' },
-    { prop: 'SPARKPOST_SMTP_HOST', type: 'str' },
-    { prop: 'SPARKPOST_SMTP_PASSWORD', type: 'str' },
-    { prop: 'SPARKPOST_SMTP_PORT', type: 'str' },
-    { prop: 'SPARKPOST_SMTP_USERNAME', type: 'str' }
+    // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+    // { prop: 'SPARKPOST_API_KEY', type: 'str' },
+    // { prop: 'SPARKPOST_API_URL', type: 'str' },
+    // { prop: 'SPARKPOST_SANDBOX_DOMAIN', type: 'str' },
+    // { prop: 'SPARKPOST_SMTP_HOST', type: 'str' },
+    // { prop: 'SPARKPOST_SMTP_PASSWORD', type: 'str' },
+    // { prop: 'SPARKPOST_SMTP_PORT', type: 'str' },
+    // { prop: 'SPARKPOST_SMTP_USERNAME', type: 'str' }
   ].forEach(function (key) {
     keyVal = settings[key.prop];
     setDflt = (keyVal === undefined);
@@ -99,7 +104,7 @@ gulp.task('replace', function () {
   });
 
   // Replace each placeholder with the correct value for the variable.
-  gulp.src(basePaths.config + envfilename)
+  gulp.src(path.posix.join(basePaths.config, envfilename))
     .pipe(notify({ message: 'Creating ' + envfilename + ' from ' + filename }))
     .pipe(replace({ patterns: patterns }))
     .pipe(gulp.dest(basePaths.src));
@@ -111,14 +116,14 @@ gulp.task('develop', function () {
     script: './app/bin/www',
     ext: 'html js',
     ignore: ['ignored.js'],
-    tasks: ['lint'] 
+    tasks: ['lint']
   }).on('restart', function () {
     console.log('restarted!');
   }).on('start', function () {
     // Watch any files in destination, reload on change
     gulp.watch(['./public/**']).on('change', browserSync.reload);
   });
-  
+
   browserSync.init({
     files: './public/**'
   },

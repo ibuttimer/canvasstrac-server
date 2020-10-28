@@ -26,13 +26,14 @@ var fs = require('fs'),
     dfltPassword: 'str',
     testOptions: 'str',
     // sparkpost email settings
-    SPARKPOST_API_KEY: 'str',
-    SPARKPOST_API_URL: 'str',
-    SPARKPOST_SANDBOX_DOMAIN: 'str',
-    SPARKPOST_SMTP_HOST: 'str',
-    SPARKPOST_SMTP_PASSWORD: 'str',
-    SPARKPOST_SMTP_PORT: 'num',
-    SPARKPOST_SMTP_USERNAME: 'str'
+    // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+    // SPARKPOST_API_KEY: 'str',
+    // SPARKPOST_API_URL: 'str',
+    // SPARKPOST_SANDBOX_DOMAIN: 'str',
+    // SPARKPOST_SMTP_HOST: 'str',
+    // SPARKPOST_SMTP_PASSWORD: 'str',
+    // SPARKPOST_SMTP_PORT: 'num',
+    // SPARKPOST_SMTP_USERNAME: 'str'
   },
   path = 'app/env.json',
   cfg,
@@ -68,12 +69,13 @@ for (prop in types) {
     cfg[prop] = (cfg[prop] === 'true');
   }
 
-  if (prop.indexOf('SPARKPOST') === 0) {
-    // sparkpost specific, the plugin uses environment variables
-    if (!process.env[prop]) {
-      process.env[prop] = cfg[prop];
-    }
-  }
+  // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+  // if (prop.indexOf('SPARKPOST') === 0) {
+  //   // sparkpost specific, the plugin uses environment variables
+  //   if (!process.env[prop]) {
+  //     process.env[prop] = cfg[prop];
+  //   }
+  // }
 
   debug('[%s] \'%s\'', prop, cfg[prop]);
 }
@@ -98,7 +100,7 @@ function facebookCallback() {
 module.exports = {
   'jwtSecretKey': cfg.jwtSecretKey,
   'mongoAddr': cfg.dbAddr,
-  'mongoUrl': 'mongodb://' + cfg.dbAddr,
+  'mongoUrl': cfg.dbAddr.startsWith('mongodb') ? cfg.dbAddr : 'mongodb://' + cfg.dbAddr,
   'mgmtPath': cfg.mgmtPath,
   'jwtWebTokenLife': cfg.jwtWebTokenLife,
   'jwtMobileTokenLife': cfg.jwtMobileTokenLife,

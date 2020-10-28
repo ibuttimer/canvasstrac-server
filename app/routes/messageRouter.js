@@ -146,34 +146,6 @@ router.route('/support')
     });
   });
 
-// router.route('/count')
-
-//   .get(Verify.verifyAdmin, function (req, res, next) {
-
-//     processCountReq (req, res, isValidModelPath, model);
-//   });
-
-// router.route('/:objId')
-
-//   .get(Verify.verifyHasCanvasserAccess, function (req, res, next) {
-
-//     getDocs(req, res, isValidModelPath, getModelNodeTree(), resultReply, {
-//       objName: 'feedback'
-//     }); 
-//   })
-
-//   .put(function (req, res, next) {
-    
-//     var fields = getTemplate(req.body);
-    
-//     updateDoc(Verify.verifyHasCanvasserAccess, fields, model, req.params.objId, req, res, resultReply);
-//   })
-
-//   .delete(function (req, res, next) {
-    
-//     removeDoc(Verify.verifyHasCanvasserAccess, model, req.params.objId, req, res, resultReply);
-//   });
-
 module.exports = {
   router: router
 };

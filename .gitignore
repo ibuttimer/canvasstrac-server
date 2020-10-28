@@ -40,4 +40,12 @@ jspm_packages
 .env
 config/*.json
 !config/env.json
+!config/env_with_sparkpost.json
 app/*.json
+
+# certs
+# Note: disable when doing Heroku release to upload certs to server
+*.csr
+*.cer
+*.pem
+*.key

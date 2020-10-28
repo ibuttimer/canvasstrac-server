@@ -3,6 +3,7 @@
 
 /* Run this script in the mongo shell to create/update the basic data required by the 
   application.
+  Make sure to set the database first; e.g. 'use canvassTrac'
   E.g. if the mongo client is running from c:\app folder & the app is in c:\app\canvasstrac,
       it may be loaded as follows:
         load('canvasstrac-server/dev/dbSetup.js')
@@ -15,7 +16,7 @@
 function testEquality(objA, objB, properties) {
   var equal = true;
   for (var i = 0; (i < properties.length) && equal; ++i) {
-    if (objA.hasOwnProperty(properties[i]) && objB.hasOwnProperty(properties[i])) {
+    if (Object.prototype.hasOwnProperty.call(objA, properties[i]) && Object.prototype.hasOwnProperty.call(objB, properties[i])) {
       equal = (objA[properties[i]] == objB[properties[i]]);
     }
   }
@@ -242,6 +243,7 @@ var predefRoles = [
  */  
 function createRoles() {
   deleted = created = updated = 0;
+  // eslint-disable-next-line no-unused-vars
   predefRoles.forEach(function (predef, index, array) {
     var cursor = rolesCollect.find({'level': predef.level});
     if (cursor.hasNext()) {
@@ -275,6 +277,7 @@ function createRoles() {
       list.push(dbObj._id);
     }
   }
+  // eslint-disable-next-line no-unused-vars
   list.forEach(function (item, index, array) {
     var res = rolesCollect.deleteOne({'_id': item});
     deleted += res.deletedCount;
@@ -618,12 +621,14 @@ function createElections() {
 
   electionsCollect.drop();
 
+  // eslint-disable-next-line no-unused-vars
   predefElections.forEach(function (predef, index, array) {
     
     var system = votingSysCollect.findOne({'abbreviation': predef.system});
     if (system) {
       // create election entry
       var election = Object.assign({}, predef.election);
+      election.system = system._id;
       election.candidates = [];
       var cursor = candidatesCollect.find();
       while (cursor.hasNext()) {
@@ -668,6 +673,7 @@ var predefAddresses = [
  */
 function createAddresses() {
   deleted = created = updated = 0;
+  // eslint-disable-next-line no-unused-vars
   predefAddresses.forEach(function (predef, index, array) {
     predef.houses.forEach(function (hseNum) {
 
