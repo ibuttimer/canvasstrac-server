@@ -100,7 +100,7 @@ function facebookCallback() {
 module.exports = {
   'jwtSecretKey': cfg.jwtSecretKey,
   'mongoAddr': cfg.dbAddr,
-  'mongoUrl': 'mongodb://' + cfg.dbAddr,
+  'mongoUrl': cfg.dbAddr.startsWith('mongodb') ? cfg.dbAddr : 'mongodb://' + cfg.dbAddr,
   'mgmtPath': cfg.mgmtPath,
   'jwtWebTokenLife': cfg.jwtWebTokenLife,
   'jwtMobileTokenLife': cfg.jwtMobileTokenLife,

@@ -44,6 +44,7 @@ config/*.json
 app/*.json
 
 # certs
+# Note: disable when doing Heroku release to upload certs to server
 *.csr
 *.cer
 *.pem

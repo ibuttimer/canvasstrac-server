@@ -1,5 +1,9 @@
 /*jslint node: true */ /*eslint-env node, es6 */
-var gulp = require('gulp'),
+const basePaths = {
+    src: 'app/',
+    config: 'config/',
+  },
+  gulp = require('gulp'),
   nodemon = require('gulp-nodemon'),
   jshint = require('gulp-jshint'),
   argv = require('yargs')
@@ -12,18 +16,20 @@ var gulp = require('gulp'),
       describe: 'Specify name of configuration file to use',
       type: 'string'
     })
+    .option('c', {
+      alias: 'cfgdir',
+      default: basePaths.config,
+      describe: 'Specify the directory containing the configuration file to use',
+      type: 'string'
+    })
     .help('h')
     .alias('h', 'help')
     .argv,
   replace = require('gulp-replace-task'),
   notify = require('gulp-notify'),
+  path = require('path'),
   fs = require('fs'),
   browserSync = require('browser-sync');
-
-var basePaths = {
-  src: 'app/',
-  config: 'config/',
-};
 
 
 gulp.task('lint', function () {
@@ -36,11 +42,11 @@ gulp.task('replace', async () => {
     see config/readme.txt for details
    */
   // Get the environment from the command line
-  var env = argv.env || 'localdev',
+  var env = argv.env,
     envfilename = 'env.json',
     // Read the settings from the right file
     filename = env + '.json',
-    settings = JSON.parse(fs.readFileSync(basePaths.config + filename, 'utf8')),
+    settings = JSON.parse(fs.readFileSync(path.join(argv.cfgdir, filename), 'utf8')),
     // basic patterns
     patterns = [],
     keyVal, dfltVal, setDflt;
@@ -98,7 +104,7 @@ gulp.task('replace', async () => {
   });
 
   // Replace each placeholder with the correct value for the variable.
-  gulp.src(basePaths.config + envfilename)
+  gulp.src(path.posix.join(basePaths.config, envfilename))
     .pipe(notify({ message: 'Creating ' + envfilename + ' from ' + filename }))
     .pipe(replace({ patterns: patterns }))
     .pipe(gulp.dest(basePaths.src));

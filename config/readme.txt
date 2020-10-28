@@ -21,7 +21,8 @@ The json config file should have the following format
   "disableAuth": <<true to disable authentication, false otherwise>>,
 
   // server-specific settings
-  "dbAddr": "<<MongoDB URI, e.g. localhost:27017/canvassTrac>>",
+  // Note: make sure to use the uri which corresponds to the MongoDB Driver version used
+  "dbAddr": "<<MongoDB URI of the form username:password@host:port/database, e.g. localhost:27017/canvassTrac>>",
   "dbVersion": "<<MongoDB version, e.g. 3.6.x>>",
 
   "mgmtPath": "<<path (relative to app.js) of management console files to serve>>",
