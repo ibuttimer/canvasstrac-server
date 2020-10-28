@@ -21,10 +21,11 @@
            aria-hidden="true"></span>&nbsp;{{aboutMenu.name}}</a>
         </li>
 
-        <li ui-sref-active="active"><a ui-sref="{{contactMenu.sref}}">
+        <!-- Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment -->
+        <!-- <li ui-sref-active="active"><a ui-sref="{{contactMenu.sref}}">
           <span class="fa fa-envelope-o"
            aria-hidden="true"></span>&nbsp;{{contactMenu.name}}</a>
-        </li>
+        </li> -->
 
         <!-- config menu -->
         <li ng-if="configMenu" role="presentation" class="dropdown" ng-class="{active: inSubstate('{{configMenu.root.sref}}')}" uib-dropdown is-open="status.cfgIsOpen">
@@ -94,10 +95,11 @@
           <a ng-click="toggleDebug()">
           <i class="fa fa-bug" aria-hidden="true"></i> {{dbgText}}</a>
         </li>
-        <li>
+        <!-- Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment -->
+        <!-- <li>
           <a ng-click="openSupport()">
           <i class="fa fa-life-ring" aria-hidden="true"></i> Support</a>
-        </li>
+        </li> -->
         <li ng-if="!loggedIn">
           <a ng-click="openLogin()">
           <span class="glyphicon glyphicon-log-in"></span> Login</a>

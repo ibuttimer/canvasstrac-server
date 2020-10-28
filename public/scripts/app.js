@@ -105,16 +105,6 @@ if(window){
   });
 }
 
-/**
- * Check if an object has the specified property
- * @param {object} object Object to check
- * @param {string} property Name of property to check for
- * @returns {boolean} true if has property
- */
-function hasProperty(object, property) {
-  return Object.prototype.hasOwnProperty.call(object, property);
-}
-
 angular.module('ct.config', [])
 
   .constant('baseURL', (function () {
@@ -166,8 +156,9 @@ angular.module('ct.config', [])
         CAMPAIGN: campaignState,
 
         LOGIN: 'app.login',
-        CONTACTUS: 'app.contactus',
-        SUPPORT: 'app.support'
+        // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+        // CONTACTUS: 'app.contactus',
+        // SUPPORT: 'app.support'
       },
       disabledStates = [
         // add entries to disbale a state and any substates
@@ -493,12 +484,12 @@ function NgDialogFactory (authFactory, ngDialog, $state, STATES, RSPCODE, miscUt
     if (authErr) {
       ngDialog.openConfirm(options)
         .then( function (value) {
-          gotoHome();
-          return value;
-        }, function (reason) {
-          gotoHome();
-          return reason;
-        });
+	          gotoHome();
+            return value;
+	         }, function (reason) {
+	          gotoHome();
+	          return reason;
+	        });
     } else {
       ngDialog.openConfirm(options);
     }
@@ -574,7 +565,7 @@ function NgDialogFactory (authFactory, ngDialog, $state, STATES, RSPCODE, miscUt
 /*global angular */
 'use strict';
 
-angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCordova', 'ngCookies'])
+angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCookies'])
 
   .constant('geocodeURL', 'https://maps.googleapis.com/maps/api/geocode/json')
   .constant('PLATFORM', (function () {
@@ -1210,8 +1201,8 @@ function storeFactory(consoleService) {
       idx;
     if (typeof flags === 'number') {
       for (done = idx = 0, mask = 0x01; 
-        (flags !== done) && (idx < 32); 
-        mask <<= 1, ++idx) {
+            (flags !== done) && (idx < 32); 
+              mask <<= 1, ++idx) {
         if ((flags & mask) == mask) {
           if (nameList[idx]) {
             str += nameList[idx] + ' ';
@@ -1335,6 +1326,7 @@ function miscUtilFactory () {
     copyProperties: copyProperties,
     copyAndAddProperties: copyAndAddProperties,
     removeProperties: removeProperties,
+    hasProperty: hasProperty,
     isEmpty: isEmpty,
     isObject: isObject,
     isNullOrUndefined: isNullOrUndefined,
@@ -1421,6 +1413,16 @@ function miscUtilFactory () {
       });
     }
     return from;
+  }
+
+  /**
+   * Check if an object has the specified property
+   * @param {object} object Object to check
+   * @param {string} property Name of property to check for
+   * @returns {boolean} true if has property
+   */
+  function hasProperty(object, property) {
+    return Object.prototype.hasOwnProperty.call(object, property);
   }
 
   /**
@@ -1997,7 +1999,7 @@ angular.module('ct.clientCommon')
 
     var modelPropProperties = ['id', 'modelName', 'modelPath', 'factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'],
       // TODO big overlap between schema fields & ModelProp object, fix
-      //      modelPropSchemaProperties = ['factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'],
+//      modelPropSchemaProperties = ['factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'],
       schemaFieldArgs = [
         // same arder as Schema.prototype.addField() arguments!
         SCHEMA_CONST.DIALOG_PROP,
@@ -2030,7 +2032,7 @@ angular.module('ct.clientCommon')
     function getModelPropObject(args) {
       var vals = {};
       modelPropProperties.forEach(function (prop) {
-        if (hasProperty(args, prop)) {
+        if (Object.prototype.hasOwnProperty.call(args, prop)) {
           vals[prop] = args[prop];
         } else {
           vals[prop] = undefined;
@@ -2095,9 +2097,9 @@ angular.module('ct.clientCommon')
      */
     function getNumberModelPropArgs (modelName, dfltValue, xtra) {
       return addXtraArgs(
-        getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.NUMBER),
-        xtra
-      );
+              getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.NUMBER),
+              xtra
+            );
     }
 
     /**
@@ -2109,9 +2111,9 @@ angular.module('ct.clientCommon')
      */
     function getDateModelPropArgs (modelName, dfltValue, xtra) {
       return addXtraArgs(
-        getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.DATE),
-        xtra
-      );
+              getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.DATE),
+              xtra
+            );
     }
     
     /**
@@ -2123,9 +2125,9 @@ angular.module('ct.clientCommon')
      */
     function getBooleanModelPropArgs (modelName, dfltValue, xtra) {
       return addXtraArgs(
-        getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.BOOLEAN),
-        xtra
-      );
+              getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.BOOLEAN),
+              xtra
+            );
     }
     
 
@@ -2156,9 +2158,9 @@ angular.module('ct.clientCommon')
      */
     function getArrayModelPropArgs (modelName, type, factory, resource, xtra) {
       return addXtraArgs(
-        getBaseModelPropArgs(modelName, [], factory, resource, type),
-        xtra
-      );
+              getBaseModelPropArgs(modelName, [], factory, resource, type),
+              xtra
+            );
     }
 
     /**
@@ -2399,7 +2401,7 @@ angular.module('ct.clientCommon')
       for (var prop in args) {
         tested = true;
         ++target;
-        if (hasProperty(obj, prop)) {
+        if (Object.prototype.hasOwnProperty.call(obj, prop)) {
           if (typeof args[prop] === 'function') {
             if (args[prop](obj[prop])) {
               ++hits;
@@ -2539,8 +2541,8 @@ angular.module('ct.clientCommon')
       // TODO big overlap between schema fields & ModelProp object, fix
       
       for (var i = 0, 
-        len = (schemaFieldArgs.length < arguments.length ?
-          schemaFieldArgs.length : arguments.length); i < len; ++i) {
+            len = (schemaFieldArgs.length < arguments.length ?
+                   schemaFieldArgs.length : arguments.length); i < len; ++i) {
         field[schemaFieldArgs[i]] = arguments[i];
       }
 
@@ -3038,7 +3040,7 @@ angular.module('ct.clientCommon')
 
             // if it has the property read & possibly convert it, otherwise set to undefined
             read = undefined;
-            if (hasProperty(from, property)) {
+            if (Object.prototype.hasOwnProperty.call(from, property)) {
               read = from[property];
 
               /* need to pass run stage injector to Schema object as since it is created during the config
@@ -3061,7 +3063,7 @@ angular.module('ct.clientCommon')
                     if (Array.isArray(read)) {
                       for (var ridx = 0; ridx < read.length; ++ridx) {
                         readArgs.obj = read[ridx];   // inplace update
-                        //                        console.log('factory.readRspObject', ridx, readArgs.objId[0]);
+//                        console.log('factory.readRspObject', ridx, readArgs.objId[0]);
                         factory.readRspObject(read[ridx], readArgs);
                       }
                     } else {
@@ -3087,7 +3089,7 @@ angular.module('ct.clientCommon')
         }, this);
       }
 
-      //      console.log('readProperty', args, obj);
+//      console.log('readProperty', args, obj);
 
       return obj;
     };
@@ -3106,9 +3108,9 @@ angular.module('ct.clientCommon')
 
     SearchStdArg.prototype.findInStandardArgs = function () {
       var testFxn = function (arg) {
-          return (arg.schemaId === this.modelProp.id);
-        },
-        boundFxn = testFxn.bind(this);
+        return (arg.schemaId === this.modelProp.id);
+      },
+      boundFxn = testFxn.bind(this);
       return this.args.findInStandardArgs(this.args, boundFxn);
     };
     
@@ -3442,7 +3444,7 @@ function compareFactory ($injector, consoleService, miscUtilFactory, SCHEMA_CONS
    */
   function compareFields (schema, index, a, b) {
     return compareTypeFields(schema, index, 
-      schema.getField(index, SCHEMA_CONST.TYPE_PROP), a, b);
+                schema.getField(index, SCHEMA_CONST.TYPE_PROP), a, b);
   }
 
 
@@ -3578,99 +3580,99 @@ angular.module('ct.clientCommon')
 
     function filterSchemaFilter (input, schema, filterBy, type) {
 
-      var out = [];
+    var out = [];
 
-      if (!miscUtilFactory.isEmpty(filterBy)) {
-        var testCnt = 0,  // num of fields to test as speced by filter
-          testedCnt,      // num of fields tested
-          matchCnt,       // num of fields matching filter
-          continueNext;   // continue to process schema fields flag
+    if (!miscUtilFactory.isEmpty(filterBy)) {
+      var testCnt = 0,  // num of fields to test as speced by filter
+        testedCnt,      // num of fields tested
+        matchCnt,       // num of fields matching filter
+        continueNext;   // continue to process schema fields flag
+      schema.forEachField(function(schemaField) {
+        if (filterBy[schemaField[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
+          ++testCnt;
+        }
+      });
+      angular.forEach(input, function (element) {
+        matchCnt = 0;
+        testedCnt = 0;
+        continueNext = true;
         schema.forEachField(function(schemaField) {
-          if (filterBy[schemaField[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
-            ++testCnt;
-          }
-        });
-        angular.forEach(input, function (element) {
-          matchCnt = 0;
-          testedCnt = 0;
-          continueNext = true;
-          schema.forEachField(function(schemaField) {
-            var filterVal = filterBy[schemaField[SCHEMA_CONST.DIALOG_PROP]],  // filter uses dialog properties
-              filterTransform = schemaField[SCHEMA_CONST.TRANSFORM_PROP],
-              filterTest = schemaField[SCHEMA_CONST.TEST_PROP],
-              refSchema = schemaField[SCHEMA_CONST.REF_SCHEMA_PROP],
-              refField = schemaField[SCHEMA_CONST.REF_FIELD_PROP],
-              addToOut = false;
+          var filterVal = filterBy[schemaField[SCHEMA_CONST.DIALOG_PROP]],  // filter uses dialog properties
+            filterTransform = schemaField[SCHEMA_CONST.TRANSFORM_PROP],
+            filterTest = schemaField[SCHEMA_CONST.TEST_PROP],
+            refSchema = schemaField[SCHEMA_CONST.REF_SCHEMA_PROP],
+            refField = schemaField[SCHEMA_CONST.REF_FIELD_PROP],
+            addToOut = false;
 
-            if (filterVal) {
-              var elementObj = miscUtilFactory.readSafe(element, schemaField[SCHEMA_CONST.PATH_PROP]);
-              if (elementObj) {
-                if (filterTransform) {
+          if (filterVal) {
+            var elementObj = miscUtilFactory.readSafe(element, schemaField[SCHEMA_CONST.PATH_PROP]);
+            if (elementObj) {
+              if (filterTransform) {
                 // transform filter value
-                  filterVal = filterTransform(filterVal);
-                }
+                filterVal = filterTransform(filterVal);
+              }
 
-                // apply OR logic to multiple model fields
-                var match = false,
-                  model = schemaField[SCHEMA_CONST.MODEL_PROP];
-                for (var j = 0; !match && (j < model.length); ++j) {
-                  var elementVal = elementObj[model[j]];
+              // apply OR logic to multiple model fields
+              var match = false,
+                model = schemaField[SCHEMA_CONST.MODEL_PROP];
+              for (var j = 0; !match && (j < model.length); ++j) {
+                var elementVal = elementObj[model[j]];
 
-                  if (refSchema && (refField >= 0)) {
+                if (refSchema && (refField >= 0)) {
                   // read actual value to compare from embedded doc
-                    var modelName = refSchema.SCHEMA.getModelName(refField);
-                    if (modelName) {
-                      elementVal = elementVal[modelName];
-                    }
+                  var modelName = refSchema.SCHEMA.getModelName(refField);
+                  if (modelName) {
+                    elementVal = elementVal[modelName];
                   }
+                }
 
-                  if (elementVal) {
-                    if (filterTransform) {
+                if (elementVal) {
+                  if (filterTransform) {
                     // transform filter value
-                      elementVal = filterTransform(elementVal);
-                    }
-                    if (filterTest) {
-                      match = filterTest(elementVal, filterVal);
-                    } else {
-                      match = (elementVal === filterVal);
-                    }
+                    elementVal = filterTransform(elementVal);
                   }
-                }
-
-                ++testedCnt;
-              
-                if (match) {
-                  ++matchCnt;
-                  if (type === RESOURCE_CONST.QUERY_AND) {
-                  // logical AND, need to match all filter criteria
-                    addToOut = (matchCnt === testCnt);
-                  } else if (type === RESOURCE_CONST.QUERY_OR) {
-                  // logical OR, need to match at least 1 filter criteria
-                    addToOut = (matchCnt > 0);
+                  if (filterTest) {
+                    match = filterTest(elementVal, filterVal);
+                  } else {
+                    match = (elementVal === filterVal);
                   }
-                } else {
-                  if (type === RESOURCE_CONST.QUERY_AND) {
-                  // logical AND, need to match all filter criteria
-                    continueNext = false; // doesn't match at least one field, found result so finish
-                  } else if (type === RESOURCE_CONST.QUERY_NOR) {
-                  // logical NOR, must match none of the filter criteria
-                    addToOut = (testedCnt === testCnt);
-                  }
-                }
-
-                if (addToOut) {
-                  out.push(element);
-                  continueNext = false; // found result so finish
                 }
               }
+
+              ++testedCnt;
+              
+              if (match) {
+                ++matchCnt;
+                if (type === RESOURCE_CONST.QUERY_AND) {
+                  // logical AND, need to match all filter criteria
+                  addToOut = (matchCnt === testCnt);
+                } else if (type === RESOURCE_CONST.QUERY_OR) {
+                  // logical OR, need to match at least 1 filter criteria
+                  addToOut = (matchCnt > 0);
+                }
+              } else {
+                if (type === RESOURCE_CONST.QUERY_AND) {
+                  // logical AND, need to match all filter criteria
+                  continueNext = false; // doesn't match at least one field, found result so finish
+                } else if (type === RESOURCE_CONST.QUERY_NOR) {
+                  // logical NOR, must match none of the filter criteria
+                  addToOut = (testedCnt === testCnt);
+                }
+              }
+
+              if (addToOut) {
+                out.push(element);
+                continueNext = false; // found result so finish
+              }
             }
-            return continueNext;
-          });
+          }
+          return continueNext;
         });
-      } else {
-        out = input;
-      }
-      return out;
+      });
+    } else {
+      out = input;
+    }
+    return out;
     }
 
     return filterSchemaFilter;
@@ -3695,7 +3697,7 @@ function filterFactory ($filter, $injector, miscUtilFactory, consoleService, SCH
     filterArray: filterArray
   };
   
-  //  return factory;
+//  return factory;
 
   /* function implementation
     -------------------------- */
@@ -4053,14 +4055,14 @@ function queryFactory (miscUtilFactory, SCHEMA_CONST, RESOURCE_CONST) {
     if (args.filter) {
       // using the dialog fields to build an object based on the model fields
       processBuildQuery(function (fieldProp) {
-        var filterVal = args.filter(fieldProp[SCHEMA_CONST.DIALOG_PROP]);
+          var filterVal = args.filter(fieldProp[SCHEMA_CONST.DIALOG_PROP]);
 
-        if (!miscUtilFactory.isNullOrUndefined(filterVal)) {
-          var models = fieldProp[SCHEMA_CONST.MODEL_PROP],
-            field = models.join(args.multiJoin);
-          query[field] = filterVal;
-        }
-      }, forEachSchemaField, args.thisArg);
+          if (!miscUtilFactory.isNullOrUndefined(filterVal)) {
+            var models = fieldProp[SCHEMA_CONST.MODEL_PROP],
+              field = models.join(args.multiJoin);
+            query[field] = filterVal;
+          }
+        }, forEachSchemaField, args.thisArg);
     }
     return query;
   }
@@ -4077,13 +4079,13 @@ function queryFactory (miscUtilFactory, SCHEMA_CONST, RESOURCE_CONST) {
     if (args.filter) {
       // using the ModelProps to build an object based on the model fields
       processBuildQuery(function (modelProp) {
-        var modelName = modelProp.modelName,
-          filterVal = args.filter(modelName);
+          var modelName = modelProp.modelName,
+            filterVal = args.filter(modelName);
 
-        if (!miscUtilFactory.isNullOrUndefined(filterVal)) {
-          valSetFunc(modelName, filterVal);
-        }
-      }, forEachModelPropField, thisArg);
+          if (!miscUtilFactory.isNullOrUndefined(filterVal)) {
+            valSetFunc(modelName, filterVal);
+          }
+        }, forEachModelPropField, thisArg);
     }
   }
 
@@ -4097,10 +4099,10 @@ function queryFactory (miscUtilFactory, SCHEMA_CONST, RESOURCE_CONST) {
    */
   function buildModelPropQuery (forEachModelPropField, filter, thisArg) {
     var query = {};
-    // using the ModelProps to build an object based on the model fields
+      // using the ModelProps to build an object based on the model fields
     processBuildModelPropQuery(function (modelName, filterVal) {
-      query[modelName] = filterVal;
-    }, forEachModelPropField, filter, thisArg);
+        query[modelName] = filterVal;
+      }, forEachModelPropField, filter, thisArg);
     return query;
   }
 
@@ -4114,7 +4116,7 @@ function queryFactory (miscUtilFactory, SCHEMA_CONST, RESOURCE_CONST) {
    */
   function buildMultiValModelPropQuery (key, forEachModelPropField, filter, thisArg) {
     var query = {};
-    // using the ModelProps to build an object based on the model fields
+      // using the ModelProps to build an object based on the model fields
     processBuildModelPropQuery(function (modelName, filterVal) {
       if (query[key]) {
         query[key] += RESOURCE_CONST.QUERY_COMMA_JOIN;
@@ -4122,7 +4124,7 @@ function queryFactory (miscUtilFactory, SCHEMA_CONST, RESOURCE_CONST) {
         query[key] = '';
       }
       query[key] += modelName + RESOURCE_CONST.QUERY_EQ + filterVal;
-    }, forEachModelPropField, filter, thisArg);
+      }, forEachModelPropField, filter, thisArg);
     return query;
   }
 
@@ -4304,7 +4306,7 @@ function resourceListFactory ($filter, $injector, storeFactory, miscUtilFactory,
       }
       if (args.list) {
         destination.setList(source.list, 
-          (storeFactory.COPY_SET | storeFactory.APPLY_FILTER));
+                      (storeFactory.COPY_SET | storeFactory.APPLY_FILTER));
         destination.selCount = source.selCount;
       }
     }
@@ -4997,13 +4999,13 @@ function standardFactoryFactory($resource, $injector, $q, baseURL, storeFactory,
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-      NAME: 'standardFactoryFactory',
-      getResourceConfig: getResourceConfig,
-      getResourceConfigWithId: getResourceConfigWithId,
+    NAME: 'standardFactoryFactory',
+    getResourceConfig: getResourceConfig,
+    getResourceConfigWithId: getResourceConfigWithId,
     
-      registerStandardFactory: registerStandardFactory
-    },
-    standardFactories = {};
+    registerStandardFactory: registerStandardFactory
+  },
+  standardFactories = {};
 
   // need to return factory as end so that object prototype functions are added
 
@@ -5450,11 +5452,11 @@ function standardFactoryFactory($resource, $injector, $q, baseURL, storeFactory,
   StandardFactory.prototype.setList = function (id, list, flags, title) {
     var newListFxn = this.newList.bind(this, id);
     return resourceListFactory.setResourceList(storeId(this, id), list, flags,
-      function (flags) {
-        return newListFxn({
-          id: id, title: title, list: list, flags: flags }
-        );
-      });
+            function (flags) {
+              return newListFxn({
+                id: id, title: title, list: list, flags: flags }
+              );
+            });
   };
   
   /**
@@ -5466,11 +5468,11 @@ function standardFactoryFactory($resource, $injector, $q, baseURL, storeFactory,
   StandardFactory.prototype.getList = function (id, flags) {
     var newListFxn = this.newList.bind(this, id);
     return resourceListFactory.getResourceList(storeId(this, id), flags,
-      function (flags) {
-        return newListFxn({
-          id: id, flags: flags
-        });
-      });
+            function (flags) {
+              return newListFxn({
+                id: id, flags: flags
+              });
+            });
   };
   
   /**
@@ -5790,39 +5792,39 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-      NAME: 'resourceFactory',
-      createResources: createResources,
-      getStoreResource: getStoreResource,
-      storeServerRsp: storeServerRsp,
-      storeSubDoc: storeSubDoc,
-      standardiseArgs: standardiseArgs,
-      getStandardArgsObject: getStandardArgsObject,
-      checkArgs: checkArgs,
-      arrayiseArguments: arrayiseArguments,
-      findInStandardArgs: findInStandardArgs,
-      findAllInStandardArgs: findAllInStandardArgs,
-      addResourcesToArgs: addResourcesToArgs,
-      standardiseModelArgs: standardiseModelArgs,
-      getObjectInfo: getObjectInfo,
-      removeSchemaPathTypeArgs: removeSchemaPathTypeArgs,
-      copyBasicStorageArgs: copyBasicStorageArgs,
-      removeBasicStorageArgs: removeBasicStorageArgs,
-      getServerRsp: getServerRsp,
+    NAME: 'resourceFactory',
+    createResources: createResources,
+    getStoreResource: getStoreResource,
+    storeServerRsp: storeServerRsp,
+    storeSubDoc: storeSubDoc,
+    standardiseArgs: standardiseArgs,
+    getStandardArgsObject: getStandardArgsObject,
+    checkArgs: checkArgs,
+    arrayiseArguments: arrayiseArguments,
+    findInStandardArgs: findInStandardArgs,
+    findAllInStandardArgs: findAllInStandardArgs,
+    addResourcesToArgs: addResourcesToArgs,
+    standardiseModelArgs: standardiseModelArgs,
+    getObjectInfo: getObjectInfo,
+    removeSchemaPathTypeArgs: removeSchemaPathTypeArgs,
+    copyBasicStorageArgs: copyBasicStorageArgs,
+    removeBasicStorageArgs: removeBasicStorageArgs,
+    getServerRsp: getServerRsp,
     
-      extendFactory: extendFactory
-    },
-    modelArgsMap = {},
-    StandardArgsInfo = [
+    extendFactory: extendFactory
+  },
+  modelArgsMap = {},
+  StandardArgsInfo = [
     // arg info for getStandardArgsObject()
-      { name: 'factory', test: angular.isString, dflt: undefined },
-      { name: 'resource', test: angular.isString, dflt: undefined },
-      { name: 'subObj', test: angular.isArray, dflt: undefined },
-      { name: 'schema', test: angular.isObject, dflt: {} },
-      { name: 'flags', test: angular.isNumber, dflt: storeFactory.NOFLAG },
-      { name: 'next', test: angular.isFunction, dflt: undefined },
-      { name: 'customArgs', test: angular.isObject, dflt: {} }
-    ],
-    con;  // console logger
+    { name: 'factory', test: angular.isString, dflt: undefined },
+    { name: 'resource', test: angular.isString, dflt: undefined },
+    { name: 'subObj', test: angular.isArray, dflt: undefined },
+    { name: 'schema', test: angular.isObject, dflt: {} },
+    { name: 'flags', test: angular.isNumber, dflt: storeFactory.NOFLAG },
+    { name: 'next', test: angular.isFunction, dflt: undefined },
+    { name: 'customArgs', test: angular.isObject, dflt: {} }
+  ],
+  con;  // console logger
 
   if (consoleService.isEnabled(factory.NAME)) {
     con = consoleService.getLogger(factory.NAME);
@@ -5891,7 +5893,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     });
     // copy add list entries
     addlist.forEach(function (prop) {
-      if (hasProperty(src, prop)) {
+      if (miscUtilFactory.hasProperty(src, prop)) {
         dst[prop] = src[prop];
       }
     });
@@ -6081,8 +6083,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
       }
     });
     return { object: object,    // object to save
-      parent: parent,   // parent object
-      property: property }; // parent object property
+              parent: parent,   // parent object
+              property: property }; // parent object property
   }
 
   /**
@@ -6353,13 +6355,13 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
 
 
-      //-      if (!stdArgs.path) {
-      //-        // path not explicitly provided, retrieve from schema & schemaId
-      //-        stdArgs.path = stdArgs.schema.getModelName(stdArgs.schemaId);
-      //-      }
-      //-      if (!stdArgs.type) {
-      //-        // path not explicitly provided, retrieve from schema & schemaId
-      //-        stdArgs.type = stdArgs.schema.getType(stdArgs.schemaId);
+//-      if (!stdArgs.path) {
+//-        // path not explicitly provided, retrieve from schema & schemaId
+//-        stdArgs.path = stdArgs.schema.getModelName(stdArgs.schemaId);
+//-      }
+//-      if (!stdArgs.type) {
+//-        // path not explicitly provided, retrieve from schema & schemaId
+//-        stdArgs.type = stdArgs.schema.getType(stdArgs.schemaId);
 
 
     }
@@ -6816,7 +6818,7 @@ ConsoleLogger.prototype.error = function () {
 ConsoleLogger.prototype.objToString = function (obj) {
   var str = '';
   for (var prop in obj) {
-    if (hasProperty(obj, prop)) {
+    if (Object.prototype.hasOwnProperty.call(obj, prop)) {
       if (str) {
         str += ', ';
       }
@@ -6827,6 +6829,7 @@ ConsoleLogger.prototype.objToString = function (obj) {
 };
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -6843,25 +6846,25 @@ function TimerFactory($timeout, USER) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-      addTimeout: addTimeout,
-      getTimerDuration: getTimerDuration,
-      decodeTimerConfigSetting: decodeTimerConfigSetting,
+    addTimeout: addTimeout,
+    getTimerDuration: getTimerDuration,
+    decodeTimerConfigSetting: decodeTimerConfigSetting,
 
-      DURATION: {
-        LENGTH: 'len',
-        TOKEN_PERCENT: 'token%',  // duration is percentage of token life (e.g. 0.5=50%)
-        TOKEN_MINUS: 'token-',    // duration is token life minus amount
-        TOKEN_PLUS: 'token+',     // duration is token life plus amount
-        TOKEN_DIVIDE: 'token/',   // duration is token life divided by amount
-        TOKEN_MULTIPLY: 'token*'  // duration is token life multiplied by amount
-      }
-    },
-    UNITS = [ 
-      { designator: 'ms', factor: 1 },      // msec
-      { designator: 's', factor: 1000 },    // sec
-      { designator: 'm', factor: 60000 },   // min
-      { designator: 'h', factor: 3600000 }  // hour
-    ];
+    DURATION: {
+      LENGTH: 'len',
+      TOKEN_PERCENT: 'token%',  // duration is percentage of token life (e.g. 0.5=50%)
+      TOKEN_MINUS: 'token-',    // duration is token life minus amount
+      TOKEN_PLUS: 'token+',     // duration is token life plus amount
+      TOKEN_DIVIDE: 'token/',   // duration is token life divided by amount
+      TOKEN_MULTIPLY: 'token*'  // duration is token life multiplied by amount
+    }
+  },
+  UNITS = [ 
+    { designator: 'ms', factor: 1 },      // msec
+    { designator: 's', factor: 1000 },    // sec
+    { designator: 'm', factor: 60000 },   // min
+    { designator: 'h', factor: 3600000 }  // hour
+  ];
 
   return factory;
 
@@ -6913,10 +6916,10 @@ function TimerFactory($timeout, USER) {
           value = data.value;
         } else if (typeof data.value === 'string') {
           unit = UNITS.find(function (chk) {
-            var position = this.length - chk.designator.length,
-              lastIndex = this.lastIndexOf(chk.designator, position);
-            return lastIndex !== -1 && lastIndex === position;
-          }, data.value);
+                  var position = this.length - chk.designator.length,
+                    lastIndex = this.lastIndexOf(chk.designator, position);
+                  return lastIndex !== -1 && lastIndex === position;
+                }, data.value);
           value = parseFloat(data.value);
           if (unit) {
             value *= unit.factor;  // convert to msec
@@ -7272,53 +7275,53 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-      login: login,
-      logout: logout,
-      register: register,
-      loginByFacebook: loginByFacebook,
-      tokenRefresh: tokenRefresh,
-      checkForAuthError: checkForAuthError,
-      getUserinfo: getUserinfo,
-      isAuthenticated: isAuthenticated,
-      getUsername: getUsername,
-      getUserId: getUserId,
-      storeUserinfo: storeUserinfo,
-      removeUserinfo: removeUserinfo,
-      hasAccess: hasAccess,
-      isAccess: isAccess,
-      SRC: {
-        WEB: 'web',
-        MOBILE: 'mobile'
-      }
-    },
-    menuAccessProperties = [
-      ACCESS.VOTINGSYS,
-      ACCESS.ROLES,
-      ACCESS.USERS,
-      ACCESS.ELECTIONS,
-      ACCESS.CANDIDATES,
-      ACCESS.CANVASSES,
-      ACCESS.NOTICES
-    ],
-    responseProperties = menuAccessProperties.concat([
-      'token',
-      'expires',
-      'id'
-    ]),
-    credentialProperties = responseProperties.concat('username'),
-    stateProperties = credentialProperties.concat('sessionLength'),
-    crud = [
-      { chr: 'c', bit: ACCESS.ACCESS_CREATE },
-      { chr: 'r', bit: ACCESS.ACCESS_READ },
-      { chr: 'u', bit: ACCESS.ACCESS_UPDATE },
-      { chr: 'd', bit: ACCESS.ACCESS_DELETE },
-      { chr: 'b', bit: ACCESS.ACCESS_BATCH }
-    ],
-    a1o = [
-      { chr: 'a', bit: ACCESS.ACCESS_ALL },
-      { chr: '1', bit: ACCESS.ACCESS_ONE },
-      { chr: 'o', bit: ACCESS.ACCESS_OWN }
-    ];
+    login: login,
+    logout: logout,
+    register: register,
+    loginByFacebook: loginByFacebook,
+    tokenRefresh: tokenRefresh,
+    checkForAuthError: checkForAuthError,
+    getUserinfo: getUserinfo,
+    isAuthenticated: isAuthenticated,
+    getUsername: getUsername,
+    getUserId: getUserId,
+    storeUserinfo: storeUserinfo,
+    removeUserinfo: removeUserinfo,
+    hasAccess: hasAccess,
+    isAccess: isAccess,
+    SRC: {
+      WEB: 'web',
+      MOBILE: 'mobile'
+    }
+  },
+  menuAccessProperties = [
+    ACCESS.VOTINGSYS,
+    ACCESS.ROLES,
+    ACCESS.USERS,
+    ACCESS.ELECTIONS,
+    ACCESS.CANDIDATES,
+    ACCESS.CANVASSES,
+    ACCESS.NOTICES
+  ],
+  responseProperties = menuAccessProperties.concat([
+    'token',
+    'expires',
+    'id'
+  ]),
+  credentialProperties = responseProperties.concat('username'),
+  stateProperties = credentialProperties.concat('sessionLength'),
+  crud = [
+    { chr: 'c', bit: ACCESS.ACCESS_CREATE },
+    { chr: 'r', bit: ACCESS.ACCESS_READ },
+    { chr: 'u', bit: ACCESS.ACCESS_UPDATE },
+    { chr: 'd', bit: ACCESS.ACCESS_DELETE },
+    { chr: 'b', bit: ACCESS.ACCESS_BATCH }
+  ],
+  a1o = [
+    { chr: 'a', bit: ACCESS.ACCESS_ALL },
+    { chr: '1', bit: ACCESS.ACCESS_ONE },
+    { chr: 'o', bit: ACCESS.ACCESS_OWN }
+  ];
 
   loadUserCredentials();
 
@@ -7556,22 +7559,22 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
   function register (registerData, success, failure) {
     $resource(userUrl('register'))
       .save(registerData, function (response) {
-        // success response
-        var loginData = { username: registerData.username, password: registerData.password };
-        factory.login(loginData);
-        if (registerData.rememberMe) {
-          factory.storeUserinfo(loginData);
-        }
+          // success response
+          var loginData = { username: registerData.username, password: registerData.password };
+          factory.login(loginData);
+          if (registerData.rememberMe) {
+            factory.storeUserinfo(loginData);
+          }
 
-        if (success) {
-          success(response);
-        }
-      },
-      function (response) {
-        // error response
-        if (failure) {
-          failure(response);
-        }
+          if (success) {
+            success(response);
+          }
+        },
+        function (response) {
+          // error response
+          if (failure) {
+            failure(response);
+          }
       });
   }
 
@@ -7581,9 +7584,9 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
         function (response) {
           // success response
       
-          console.log('success' , response);
+      console.log('success' , response);
       
-          // TODO username from facebook login
+        // TODO username from facebook login
       
           loginSuccess(loginData.username, response);
       
@@ -7737,20 +7740,20 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getStringModelPropArgs('addrLine1', { field: 'ADDR1' }),
-        schemaProvider.getStringModelPropArgs('addrLine2', { field: 'ADDR2' }),
-        schemaProvider.getStringModelPropArgs('addrLine3', { field: 'ADDR3' }),
-        schemaProvider.getStringModelPropArgs('town', { field: 'TOWN' }),
-        schemaProvider.getStringModelPropArgs('city', { field: 'CITY' }),
-        schemaProvider.getStringModelPropArgs('county', { field: 'COUNTY' }),
-        schemaProvider.getStringModelPropArgs('state', { field: 'STATE' }),
-        schemaProvider.getStringModelPropArgs('country', { field: 'COUNTRY' }),
-        schemaProvider.getStringModelPropArgs('postcode', { field: 'PCODE' }),
-        schemaProvider.getStringModelPropArgs('gps', { field: 'GPS' }),
-        schemaProvider.getObjectIdModelPropArgs('votingDistrict', undefined, undefined, undefined, undefined, { field: 'VOTEDIST' }),
-        schemaProvider.getObjectIdModelPropArgs('owner', undefined, undefined, undefined, undefined, { field: 'OWNER' })
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('addrLine1', { field: 'ADDR1' }),
+      schemaProvider.getStringModelPropArgs('addrLine2', { field: 'ADDR2' }),
+      schemaProvider.getStringModelPropArgs('addrLine3', { field: 'ADDR3' }),
+      schemaProvider.getStringModelPropArgs('town', { field: 'TOWN' }),
+      schemaProvider.getStringModelPropArgs('city', { field: 'CITY' }),
+      schemaProvider.getStringModelPropArgs('county', { field: 'COUNTY' }),
+      schemaProvider.getStringModelPropArgs('state', { field: 'STATE' }),
+      schemaProvider.getStringModelPropArgs('country', { field: 'COUNTRY' }),
+      schemaProvider.getStringModelPropArgs('postcode', { field: 'PCODE' }),
+      schemaProvider.getStringModelPropArgs('gps', { field: 'GPS' }),
+      schemaProvider.getObjectIdModelPropArgs('votingDistrict', undefined, undefined, undefined, undefined, { field: 'VOTEDIST' }),
+      schemaProvider.getObjectIdModelPropArgs('owner', undefined, undefined, undefined, undefined, { field: 'OWNER' })
+    ],
       ids = {},
       modelProps = [];
 
@@ -7781,26 +7784,26 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [ADDRESS_ADDR_IDX, ADDRESS_TOWN_IDX, ADDRESS_CITY_IDX, ADDRESS_COUNTY_IDX, ADDRESS_STATE_IDX, ADDRESS_POSTCODE_IDX], 
-        ID_TAG);
+                      [ADDRESS_ADDR_IDX, ADDRESS_TOWN_IDX, ADDRESS_CITY_IDX, ADDRESS_COUNTY_IDX, ADDRESS_STATE_IDX, ADDRESS_POSTCODE_IDX], 
+                      ID_TAG);
 
-    $provide.constant('ADDRSCHEMA', {
-      IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      MODELPROPS: modelProps,
+      $provide.constant('ADDRSCHEMA', {
+        IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
+        MODELPROPS: modelProps,
 
-      SCHEMA: schema,
-      // row indices
-      ADDRESS_ADDR_IDX: ADDRESS_ADDR_IDX,
-      ADDRESS_TOWN_IDX: ADDRESS_TOWN_IDX,
-      ADDRESS_CITY_IDX: ADDRESS_CITY_IDX,
-      ADDRESS_COUNTY_IDX: ADDRESS_COUNTY_IDX,
-      ADDRESS_STATE_IDX: ADDRESS_STATE_IDX,
-      ADDRESS_POSTCODE_IDX: ADDRESS_POSTCODE_IDX,
-      ADDRESS_GPS_IDX: ADDRESS_GPS_IDX,
+        SCHEMA: schema,
+        // row indices
+        ADDRESS_ADDR_IDX: ADDRESS_ADDR_IDX,
+        ADDRESS_TOWN_IDX: ADDRESS_TOWN_IDX,
+        ADDRESS_CITY_IDX: ADDRESS_CITY_IDX,
+        ADDRESS_COUNTY_IDX: ADDRESS_COUNTY_IDX,
+        ADDRESS_STATE_IDX: ADDRESS_STATE_IDX,
+        ADDRESS_POSTCODE_IDX: ADDRESS_POSTCODE_IDX,
+        ADDRESS_GPS_IDX: ADDRESS_GPS_IDX,
 
-      SORT_OPTIONS: sortOptions,
-      ID_TAG: ID_TAG
-    });
+        SORT_OPTIONS: sortOptions,
+        ID_TAG: ID_TAG
+      });
   }])
 
   .factory('addressFactory', addressFactory);
@@ -7852,9 +7855,9 @@ function addressFactory($filter, $injector, baseURL, consoleService, storeFactor
       args = {};
     }
     // no conversions required by default
-    //    if (!args.convert) {
-    //      args.convert = readRspObjectValueConvert;
-    //    }
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
     // add resources required by Schema object
     resourceFactory.addResourcesToArgs(args);
 
@@ -7961,14 +7964,14 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'ADDRSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, ADDRSCHEMA) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getStringModelPropArgs('firstname', { field: 'FNAME' }),
-        schemaProvider.getStringModelPropArgs('lastname', { field: 'LNAME' }),
-        schemaProvider.getStringModelPropArgs('note', { field: 'NOTE' }),
-        schemaProvider.getObjectIdModelPropArgs('address', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDR' }),
-        schemaProvider.getObjectIdModelPropArgs('contactDetails', undefined, undefined, undefined, undefined,  { field: 'CONTACT' }),
-        schemaProvider.getObjectIdModelPropArgs('owner', undefined, undefined, undefined, undefined, { field: 'OWNER' })
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('firstname', { field: 'FNAME' }),
+      schemaProvider.getStringModelPropArgs('lastname', { field: 'LNAME' }),
+      schemaProvider.getStringModelPropArgs('note', { field: 'NOTE' }),
+      schemaProvider.getObjectIdModelPropArgs('address', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDR' }),
+      schemaProvider.getObjectIdModelPropArgs('contactDetails', undefined, undefined, undefined, undefined,  { field: 'CONTACT' }),
+      schemaProvider.getObjectIdModelPropArgs('owner', undefined, undefined, undefined, undefined, { field: 'OWNER' })
+    ],
       ids = {},
       modelProps = [];
 
@@ -7989,8 +7992,8 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [PEOPLE_FNAME_IDX, PEOPLE_LNAME_IDX], 
-        ID_TAG);
+                    [PEOPLE_FNAME_IDX, PEOPLE_LNAME_IDX], 
+                    ID_TAG);
 
     $provide.constant('PEOPLESCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
@@ -8095,10 +8098,10 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'ROLES', function ($provide, schemaProvider, SCHEMA_CONST, ROLES) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
-        schemaProvider.getNumberModelPropArgs('level', ROLES.ROLE_NONE, { field: 'LEVEL' })
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getNumberModelPropArgs('level', ROLES.ROLE_NONE, { field: 'LEVEL' })
+    ],
       ids = {},
       modelProps = [];
 
@@ -8120,8 +8123,8 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [ROLE_NAME_IDX, ROLE_LEVEL_IDX],
-        ID_TAG);
+                      [ROLE_NAME_IDX, ROLE_LEVEL_IDX],
+                      ID_TAG);
 
     $provide.constant('ROLESCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
@@ -8179,9 +8182,9 @@ function roleFactory (SCHEMA_CONST, ROLESCHEMA, resourceFactory) {
     if (!args) {
       args = {};
     }
-    //    if (!args.convert) {
-    //      args.convert = readRspObjectValueConvert;
-    //    }
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
     // add resources required by Schema object
     resourceFactory.addResourcesToArgs(args);
 
@@ -8239,7 +8242,7 @@ angular.module('ct.clientCommon')
 
     subSchemaList.forEach(function (subSchema) {
       var subId,
-        subIds = [];  // unique ids for subschema items
+          subIds = [];  // unique ids for subschema items
 
       for (subId in subSchema.schema.IDs) {
         subIds.push(subSchema.schema.ID_TAG + subId);
@@ -8303,9 +8306,9 @@ angular.module('ct.clientCommon')
     };
 
     schemaProvider.makeSubDocSortList(
-      PEOPLESCHEMA.SORT_OPTIONS, peoplePath, sortOptArgs);
+          PEOPLESCHEMA.SORT_OPTIONS, peoplePath, sortOptArgs);
     schemaProvider.makeSubDocSortList(
-      ADDRSCHEMA.SORT_OPTIONS, addressPath, sortOptArgs);
+          ADDRSCHEMA.SORT_OPTIONS, addressPath, sortOptArgs);
   
     constToProvide = {
       ID_TAG: ID_TAG,
@@ -8338,11 +8341,11 @@ function userFactory($injector, $filter, storeFactory, resourceFactory, compareF
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-      NAME: 'userFactory',
-      getSortFunction: getSortFunction,
-      readUserRsp: readUserRsp
-    },
-    comparinators = [];
+    NAME: 'userFactory',
+    getSortFunction: getSortFunction,
+    readUserRsp: readUserRsp
+  },
+  comparinators = [];
 
   resourceFactory.registerStandardFactory(factory.NAME, {
     storeId: USERSCHEMA.ID_TAG,
@@ -8379,23 +8382,23 @@ function userFactory($injector, $filter, storeFactory, resourceFactory, compareF
    *                            @see Schema.readProperty() for details
    * @returns {object}  user object
    */
-  //  function readRspObject (response, args) {
-  //    if (!args) {
-  //      args = {};
-  //    }
-  //    if (!args.convert) {
-  //      args.convert = readRspObjectValueConvert;
-  //    }
-  //    // add resources required by Schema object
-  //    resourceFactory.addResourcesToArgs(args);
-  //
-  //    var stdArgs = resourceFactory.standardiseArgs(args),
-  //      object = USERSCHEMA.SCHEMA.read(response, stdArgs);
-  //
-  //    con.debug('Read user rsp object: ' + object);
-  //
-  //    return object;
-  //  }
+//  function readRspObject (response, args) {
+//    if (!args) {
+//      args = {};
+//    }
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
+//    // add resources required by Schema object
+//    resourceFactory.addResourcesToArgs(args);
+//
+//    var stdArgs = resourceFactory.standardiseArgs(args),
+//      object = USERSCHEMA.SCHEMA.read(response, stdArgs);
+//
+//    con.debug('Read user rsp object: ' + object);
+//
+//    return object;
+//  }
 
   /**
    * Convert values read from a server election response
@@ -8403,17 +8406,17 @@ function userFactory($injector, $filter, storeFactory, resourceFactory, compareF
    * @param {object}    read value
    * @returns {object}  Converted value
    */
-  //  function readRspObjectValueConvert (id, value) {
-  //    switch (id) {
-  //      case ELECTIONSCHEMA.IDs.ELECTIONDATE:
-  //        value = new Date(value);
-  //        break;
-  //      default:
-  //        // other fields require no conversion
-  //        break;
-  //    }
-  //    return value;
-  //  }
+//  function readRspObjectValueConvert (id, value) {
+//    switch (id) {
+//      case ELECTIONSCHEMA.IDs.ELECTIONDATE:
+//        value = new Date(value);
+//        break;
+//      default:
+//        // other fields require no conversion
+//        break;
+//    }
+//    return value;
+//  }
 
 
   /**
@@ -8456,9 +8459,9 @@ function userFactory($injector, $filter, storeFactory, resourceFactory, compareF
    * @param   {object} b Second user object
    * @returns {number} comparision result
    */
-  //  function compareUsername (a, b) {
-  //    return compareFactory.compareStringFields(USERSCHEMA.SCHEMA, USERSCHEMA.USER_UNAME_IDX, a, b);
-  //  }
+//  function compareUsername (a, b) {
+//    return compareFactory.compareStringFields(USERSCHEMA.SCHEMA, USERSCHEMA.USER_UNAME_IDX, a, b);
+//  }
 
   /**
    * Wrapper function to return comparinator function
@@ -8486,13 +8489,13 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getNumberModelPropArgs('type', undefined, { field: 'TYPE' }),
-        schemaProvider.getStringModelPropArgs('question', { field: 'QUESTION' }),
-        schemaProvider.getStringArrayModelPropArgs('options', { field: 'OPTIONS' }),
-        schemaProvider.getNumberModelPropArgs('rangeMin', 1, { field: 'RANGEMIN' }),
-        schemaProvider.getNumberModelPropArgs('rangeMax', 10, { field: 'RANGEMAX' })
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getNumberModelPropArgs('type', undefined, { field: 'TYPE' }),
+      schemaProvider.getStringModelPropArgs('question', { field: 'QUESTION' }),
+      schemaProvider.getStringArrayModelPropArgs('options', { field: 'OPTIONS' }),
+      schemaProvider.getNumberModelPropArgs('rangeMin', 1, { field: 'RANGEMIN' }),
+      schemaProvider.getNumberModelPropArgs('rangeMax', 10, { field: 'RANGEMAX' })
+    ],
       ids = {},
       modelProps = [];
 
@@ -8513,8 +8516,8 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [QUES_TYPE_IDX, QUES_QUESTION_IDX],
-        ID_TAG),
+                      [QUES_TYPE_IDX, QUES_QUESTION_IDX],
+                      ID_TAG),
 
       questionTypeIds = {
         QUESTION_YES_NO: 0,          // simple yes/no question
@@ -8749,8 +8752,8 @@ function questionFactory($injector, baseURL, SCHEMA_CONST, QUESTIONSCHEMA, store
     }
     // no conversions required by default
     //    if (!args.convert) {
-    //      args.convert = readRspObjectValueConvert;
-    //    }
+//      args.convert = readRspObjectValueConvert;
+//    }
     // add resources required by Schema object
     resourceFactory.addResourcesToArgs(args);
 
@@ -8823,10 +8826,10 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'QUESTIONSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, QUESTIONSCHEMA) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getStringModelPropArgs('answer', { field: 'ANSWER' }),
-        schemaProvider.getObjectIdModelPropArgs('question', 'questionFactory', 'question', QUESTIONSCHEMA, QUESTIONSCHEMA.IDs.ID, { field: 'QUESTION' })
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('answer', { field: 'ANSWER' }),
+      schemaProvider.getObjectIdModelPropArgs('question', 'questionFactory', 'question', QUESTIONSCHEMA, QUESTIONSCHEMA.IDs.ID, { field: 'QUESTION' })
+    ],
       ids = {},
       modelProps = [];
 
@@ -8845,8 +8848,8 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [ANS_QUESTION_IDX],
-        ID_TAG);
+                      [ANS_QUESTION_IDX],
+                      ID_TAG);
 
     $provide.constant('ANSWERSCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
@@ -8910,8 +8913,8 @@ function answerFactory($injector, baseURL, SCHEMA_CONST, ANSWERSCHEMA, storeFact
     }
     // no conversions required by default
     //    if (!args.convert) {
-    //      args.convert = readRspObjectValueConvert;
-    //    }
+//      args.convert = readRspObjectValueConvert;
+//    }
     // add resources required by Schema object
     resourceFactory.addResourcesToArgs(args);
 
@@ -8981,11 +8984,11 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'QUESTIONSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, QUESTIONSCHEMA) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
-        schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
-        schemaProvider.getObjectIdArrayModelPropArgs('questions', 'questionFactory', 'question', QUESTIONSCHEMA, QUESTIONSCHEMA.IDs.ID, { field: 'QUESTIONS' })
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('questions', 'questionFactory', 'question', QUESTIONSCHEMA, QUESTIONSCHEMA.IDs.ID, { field: 'QUESTIONS' })
+    ],
       ids = {},
       modelProps = [];
 
@@ -9008,8 +9011,8 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [SURVEY_NAME_IDX, SURVEY_DESCRIPTION_IDX],
-        ID_TAG);
+                      [SURVEY_NAME_IDX, SURVEY_DESCRIPTION_IDX],
+                      ID_TAG);
 
     $provide.constant('SURVEYSCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
@@ -9043,7 +9046,7 @@ function surveyFactory($injector, baseURL, SURVEYSCHEMA, storeFactory, resourceF
       readResponse: readResponse,
       storeRspObject: storeRspObject
     },
-    con = consoleService.getLogger(factory.NAME);
+   con = consoleService.getLogger(factory.NAME);
 
   resourceFactory.registerStandardFactory(factory.NAME, {
     storeId: SURVEYSCHEMA.ID_TAG,
@@ -9072,9 +9075,9 @@ function surveyFactory($injector, baseURL, SURVEYSCHEMA, storeFactory, resourceF
       args = {};
     }
     // no conversions required by default
-    //    if (!args.convert) {
-    //      args.convert = readRspObjectValueConvert;
-    //    }
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
     // add resources required by Schema object
     resourceFactory.addResourcesToArgs(args);
 
@@ -9126,11 +9129,11 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
-        schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
-        schemaProvider.getStringModelPropArgs('abbreviation', { field: 'ABBREVIATION' })
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
+      schemaProvider.getStringModelPropArgs('abbreviation', { field: 'ABBREVIATION' })
+    ],
       ids = {},
       modelProps = [];
 
@@ -9153,8 +9156,8 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [VOTINGSYS_NAME_IDX, VOTINGSYS_ABBREVIATION_IDX],
-        ID_TAG);
+                [VOTINGSYS_NAME_IDX, VOTINGSYS_ABBREVIATION_IDX],
+                ID_TAG);
 
     $provide.constant('VOTINGSYSSCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
@@ -9221,9 +9224,9 @@ function votingsystemFactory ($injector, $filter, storeFactory, resourceFactory,
       args = {};
     }
     // no conversions required by default
-    //    if (!args.convert) {
-    //      args.convert = readRspObjectValueConvert;
-    //    }
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
     // add resources required by Schema object
     resourceFactory.addResourcesToArgs(args);
 
@@ -9241,17 +9244,17 @@ function votingsystemFactory ($injector, $filter, storeFactory, resourceFactory,
    * @param {object}    read value
    * @returns {object}  Converted value
    */
-  //  function readRspObjectValueConvert (id, value) {
-  //    switch (id) {
-  //      case VOTINGSYSSCHEMA.IDs.???:
-  //        value = <<new value>>;
-  //        break;
-  //      default:
-  //        // other fields require no conversion
-  //        break;
-  //    }
-  //    return value;
-  //  }
+//  function readRspObjectValueConvert (id, value) {
+//    switch (id) {
+//      case VOTINGSYSSCHEMA.IDs.???:
+//        value = <<new value>>;
+//        break;
+//      default:
+//        // other fields require no conversion
+//        break;
+//    }
+//    return value;
+//  }
 
 
   /**
@@ -9289,12 +9292,12 @@ function votingsystemFactory ($injector, $filter, storeFactory, resourceFactory,
       var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
       if (sortItem.idTag === VOTINGSYSSCHEMA.ID_TAG) {
         switch (sortItem.index) {
-          //          case VOTINGSYSSCHEMA.VOTINGSYS_NAME_IDX:
-          //            sortFxn = compareAddress;
-          //            break;
-          //          case VOTINGSYSSCHEMA.VOTINGSYS_ABBREVIATION_IDX:
-          //            sortFxn = compareCity;
-          //            break;
+//          case VOTINGSYSSCHEMA.VOTINGSYS_NAME_IDX:
+//            sortFxn = compareAddress;
+//            break;
+//          case VOTINGSYSSCHEMA.VOTINGSYS_ABBREVIATION_IDX:
+//            sortFxn = compareCity;
+//            break;
           default:
             sortFxn = undefined;
             break;
@@ -9317,14 +9320,14 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'VOTINGSYSSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, VOTINGSYSSCHEMA) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
-        schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
-        schemaProvider.getNumberModelPropArgs('seats', 0, { field: 'SEATS' }),
-        schemaProvider.getDateModelPropArgs('electionDate', undefined, { field: 'ELECTIONDATE' }),
-        schemaProvider.getObjectIdModelPropArgs('system', 'votingsystemFactory', 'system', VOTINGSYSSCHEMA, VOTINGSYSSCHEMA.IDs.ID, { field: 'SYSTEM' }),
-        schemaProvider.getObjectIdArrayModelPropArgs('candidates', undefined, undefined, undefined, undefined, { field: 'CANDIDATES' })
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
+      schemaProvider.getNumberModelPropArgs('seats', 0, { field: 'SEATS' }),
+      schemaProvider.getDateModelPropArgs('electionDate', undefined, { field: 'ELECTIONDATE' }),
+      schemaProvider.getObjectIdModelPropArgs('system', 'votingsystemFactory', 'system', VOTINGSYSSCHEMA, VOTINGSYSSCHEMA.IDs.ID, { field: 'SYSTEM' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('candidates', undefined, undefined, undefined, undefined, { field: 'CANDIDATES' })
+    ],
       ids = {},
       modelProps = [];
 
@@ -9351,8 +9354,8 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [ELECTION_NAME_IDX, ELECTION_SEATS_IDX, ELECTION_ELECTIONDATE_IDX, ELECTION_SYSTEM_IDX],
-        ID_TAG);
+                [ELECTION_NAME_IDX, ELECTION_SEATS_IDX, ELECTION_ELECTIONDATE_IDX, ELECTION_SYSTEM_IDX],
+                ID_TAG);
 
     $provide.constant('ELECTIONSCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
@@ -9488,18 +9491,18 @@ function electionFactory($injector, $filter, storeFactory, resourceFactory, filt
       var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
       if (sortItem.idTag === ELECTIONSCHEMA.ID_TAG) {
         switch (sortItem.index) {
-          //          case ELECTIONSCHEMA.ELECTION_NAME_IDX:
-          //            sortFxn = compareAddress;
-          //            break;
-          //          case ELECTIONSCHEMA.ELECTION_SEATS_IDX:
-          //            sortFxn = compareCity;
-          //            break;
-          //          case ELECTIONSCHEMA.ELECTION_ELECTIONDATE_IDX:
-          //            sortFxn = compareCounty;
-          //            break;
-          //          case ELECTIONSCHEMA.ELECTION_SYSTEM_IDX:
-          //            sortFxn = comparePostcode;
-          //            break;
+//          case ELECTIONSCHEMA.ELECTION_NAME_IDX:
+//            sortFxn = compareAddress;
+//            break;
+//          case ELECTIONSCHEMA.ELECTION_SEATS_IDX:
+//            sortFxn = compareCity;
+//            break;
+//          case ELECTIONSCHEMA.ELECTION_ELECTIONDATE_IDX:
+//            sortFxn = compareCounty;
+//            break;
+//          case ELECTIONSCHEMA.ELECTION_SYSTEM_IDX:
+//            sortFxn = comparePostcode;
+//            break;
           default:
             sortFxn = undefined;
             break;
@@ -9522,19 +9525,19 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'USERSCHEMA', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'ANSWERSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, USERSCHEMA, PEOPLESCHEMA, ADDRSCHEMA, ANSWERSCHEMA) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getBooleanModelPropArgs('available', true, { field: 'AVAILABLE' }),
-        schemaProvider.getBooleanModelPropArgs('dontCanvass', false, { field: 'DONTCANVASS' }),
-        schemaProvider.getBooleanModelPropArgs('tryAgain', false, { field: 'TRYAGAIN' }),
-        schemaProvider.getNumberModelPropArgs('support', -1, { field: 'SUPPORT' }),
-        schemaProvider.getDateModelPropArgs('date', undefined, { field: 'DATE' }),
-        schemaProvider.getObjectIdArrayModelPropArgs('answers', 'answerFactory', 'answer', ANSWERSCHEMA, ANSWERSCHEMA.IDs.ID, { field: 'ANSWERS' }),
-        schemaProvider.getObjectIdModelPropArgs('canvasser', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSER' }),
-        schemaProvider.getObjectIdModelPropArgs('voter', 'peopleFactory', 'person', PEOPLESCHEMA, PEOPLESCHEMA.IDs.ID, { field: 'VOTER' }),
-        schemaProvider.getObjectIdModelPropArgs('address', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESS' }),
-        SCHEMA_CONST.CREATEDAT,
-        SCHEMA_CONST.UPDATEDAT
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getBooleanModelPropArgs('available', true, { field: 'AVAILABLE' }),
+      schemaProvider.getBooleanModelPropArgs('dontCanvass', false, { field: 'DONTCANVASS' }),
+      schemaProvider.getBooleanModelPropArgs('tryAgain', false, { field: 'TRYAGAIN' }),
+      schemaProvider.getNumberModelPropArgs('support', -1, { field: 'SUPPORT' }),
+      schemaProvider.getDateModelPropArgs('date', undefined, { field: 'DATE' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('answers', 'answerFactory', 'answer', ANSWERSCHEMA, ANSWERSCHEMA.IDs.ID, { field: 'ANSWERS' }),
+      schemaProvider.getObjectIdModelPropArgs('canvasser', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSER' }),
+      schemaProvider.getObjectIdModelPropArgs('voter', 'peopleFactory', 'person', PEOPLESCHEMA, PEOPLESCHEMA.IDs.ID, { field: 'VOTER' }),
+      schemaProvider.getObjectIdModelPropArgs('address', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESS' }),
+      SCHEMA_CONST.CREATEDAT,
+      SCHEMA_CONST.UPDATEDAT
+    ],
       ids = {},
       modelProps = [];
 
@@ -9561,8 +9564,8 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [CANVASSRES_AVAILABLE_IDX, CANVASSRES_DONTCANVASS_IDX, CANVASSRES_TRYAGAIN_IDX, CANVASSRES_SUPPORT_IDX, CANVASSRES_DATE_IDX],
-        ID_TAG);
+                      [CANVASSRES_AVAILABLE_IDX, CANVASSRES_DONTCANVASS_IDX, CANVASSRES_TRYAGAIN_IDX, CANVASSRES_SUPPORT_IDX, CANVASSRES_DATE_IDX],
+                      ID_TAG);
 
     $provide.constant('CANVASSRES_SCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
@@ -9617,8 +9620,8 @@ function canvassResultFactory($injector, $filter, baseURL, storeFactory, resourc
     addInterface: factory, // add standard factory functions to this factory
     resources: {
       result: resourceFactory.getResourceConfigWithId('canvassresult', {
-        saveMany: { method: 'POST', isArray: true }
-      })
+                        saveMany: { method: 'POST', isArray: true }
+                      })
     }
   });
   
@@ -9714,8 +9717,8 @@ function canvassResultFactory($injector, $filter, baseURL, storeFactory, resourc
 
     // just basic storage args as subdocs have been processed above
     var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
-      factory: $injector.get(factory.NAME)
-    });
+        factory: $injector.get(factory.NAME)
+      });
 
     return resourceFactory.storeServerRsp(canvassRes, storeArgs);
   }
@@ -9827,7 +9830,7 @@ function canvassResultFactory($injector, $filter, baseURL, storeFactory, resourc
             noneNewer = (array[i].address._id !== value.address._id);
           }
           return noneNewer;
-        });
+      });
     return filteredList;
   }
   
@@ -9844,17 +9847,17 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'ELECTIONSCHEMA', 'SURVEYSCHEMA', 'ADDRSCHEMA', 'USERSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, ELECTIONSCHEMA, SURVEYSCHEMA, ADDRSCHEMA, USERSCHEMA) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
-        schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
-        schemaProvider.getDateModelPropArgs('startDate', undefined, { field: 'STARTDATE' }),
-        schemaProvider.getDateModelPropArgs('endDate', undefined, { field: 'ENDDATE' }),
-        schemaProvider.getObjectIdModelPropArgs('election', 'electionFactory', 'election', ELECTIONSCHEMA, ELECTIONSCHEMA.IDs.ID, { field: 'ELECTION' }),
-        schemaProvider.getObjectIdModelPropArgs('survey', 'surveyFactory', 'survey', SURVEYSCHEMA, SURVEYSCHEMA.IDs.ID, { field: 'SURVEY' }),
-        schemaProvider.getObjectIdArrayModelPropArgs('addresses', 'addressFactory', 'address',  ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESSES' }),
-        schemaProvider.getObjectIdArrayModelPropArgs('canvassers', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSERS' }),
-        schemaProvider.getObjectIdArrayModelPropArgs('results', 'canvassResultFactory', 'result', undefined, undefined, { field: 'RESULTS' })
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
+      schemaProvider.getDateModelPropArgs('startDate', undefined, { field: 'STARTDATE' }),
+      schemaProvider.getDateModelPropArgs('endDate', undefined, { field: 'ENDDATE' }),
+      schemaProvider.getObjectIdModelPropArgs('election', 'electionFactory', 'election', ELECTIONSCHEMA, ELECTIONSCHEMA.IDs.ID, { field: 'ELECTION' }),
+      schemaProvider.getObjectIdModelPropArgs('survey', 'surveyFactory', 'survey', SURVEYSCHEMA, SURVEYSCHEMA.IDs.ID, { field: 'SURVEY' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('addresses', 'addressFactory', 'address',  ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESSES' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('canvassers', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSERS' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('results', 'canvassResultFactory', 'result', undefined, undefined, { field: 'RESULTS' })
+    ],
       ids = {},
       modelProps = [],
       i;
@@ -9884,8 +9887,8 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [CANVASS_NAME_IDX, CANVASS_DESCRIPTION_IDX, CANVASS_STARTDATE_IDX, CANVASS_ENDDATE_IDX, CANVASS_ELECTION_IDX],
-        ID_TAG);
+                      [CANVASS_NAME_IDX, CANVASS_DESCRIPTION_IDX, CANVASS_STARTDATE_IDX, CANVASS_ENDDATE_IDX, CANVASS_ELECTION_IDX],
+                      ID_TAG);
 
     $provide.constant('CANVASSSCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
@@ -9918,23 +9921,23 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-      NAME: 'canvassFactory',
-      readRspObject: readRspObject,
-      readResponse: readResponse,
+    NAME: 'canvassFactory',
+    readRspObject: readRspObject,
+    readResponse: readResponse,
 
-      getSortFunction: getSortFunction,
+    getSortFunction: getSortFunction,
 
-      storeRspObject: storeRspObject,
+    storeRspObject: storeRspObject,
 
-      processAddressResultsLink: processAddressResultsLink,
-      ADDR_RES_LINKADDRESS: 'addrResLinkAddr',  // link address flag for linking addresses & results
-      ADDR_RES_LINKRESULT: 'addrResLinkRes',    // link result flag for linking addresses & results
+    processAddressResultsLink: processAddressResultsLink,
+    ADDR_RES_LINKADDRESS: 'addrResLinkAddr',  // link address flag for linking addresses & results
+    ADDR_RES_LINKRESULT: 'addrResLinkRes',    // link result flag for linking addresses & results
 
-      QUES_RES_LINKQUES: 'quesResLinkQues', // link results flag for linking questions & results
-      QUES_RES_LINKRES: 'quesResLinkRes'    // link results flag for linking questions & results
+    QUES_RES_LINKQUES: 'quesResLinkQues', // link results flag for linking questions & results
+    QUES_RES_LINKRES: 'quesResLinkRes'    // link results flag for linking questions & results
 
-    },
-    con;  // console logger
+  },
+  con;  // console logger
 
   if (consoleService.isEnabled(factory.NAME)) {
     con = consoleService.getLogger(factory.NAME);
@@ -10093,8 +10096,8 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
 
     // just basic storage args as subdocs have been processed above
     var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
-      factory: $injector.get(factory.NAME)
-    });
+        factory: $injector.get(factory.NAME)
+      });
 
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
@@ -10374,13 +10377,13 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'CANVASSSCHEMA', 'USERSCHEMA', 'ADDRSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, CANVASSSCHEMA, USERSCHEMA, ADDRSCHEMA) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getObjectIdModelPropArgs('canvass', 'canvassFactory', 'canvass', CANVASSSCHEMA, CANVASSSCHEMA.IDs.ID, { field: 'CANVASS' }),
-        schemaProvider.getObjectIdModelPropArgs('canvasser', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSER' }),
-        schemaProvider.getObjectIdArrayModelPropArgs('addresses', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESSES' }),
-        SCHEMA_CONST.CREATEDAT,
-        SCHEMA_CONST.UPDATEDAT
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getObjectIdModelPropArgs('canvass', 'canvassFactory', 'canvass', CANVASSSCHEMA, CANVASSSCHEMA.IDs.ID, { field: 'CANVASS' }),
+      schemaProvider.getObjectIdModelPropArgs('canvasser', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSER' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('addresses', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESSES' }),
+      SCHEMA_CONST.CREATEDAT,
+      SCHEMA_CONST.UPDATEDAT
+    ],
       ids = {},
       modelProps = [];
 
@@ -10401,8 +10404,8 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [CANVASSASSIGN_CANVASS_IDX, CANVASSASSIGN_CANVASSER_IDX],
-        ID_TAG);
+                      [CANVASSASSIGN_CANVASS_IDX, CANVASSASSIGN_CANVASSER_IDX],
+                      ID_TAG);
 
     $provide.constant('CANVASSASSIGN_SCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
@@ -10474,8 +10477,8 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
     addInterface: factory, // add standard factory functions to this factory
     resources: {
       assignment: resourceFactory.getResourceConfigWithId('canvassassignment', {
-        saveMany: { method: 'POST', isArray: true }
-      }),
+                        saveMany: { method: 'POST', isArray: true }
+                      }),
       canvasses: resourceFactory.getResourceConfig('canvassassignment/canvasses')
     }
   });
@@ -10730,18 +10733,18 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
         if ((link === addrCanvsrLinkArgs.length) && (canvsrs >= 1) && (addrs >= 1)) {
           // have everything
           var addToArtifacts = function (obj, prop) {
-              if (obj) {
-                if (!artifacts[prop]) {
-                  artifacts[prop] = [];
-                }
-                artifacts[prop].push(obj);
+            if (obj) {
+              if (!artifacts[prop]) {
+                artifacts[prop] = [];
               }
-            },
-            addIdMap = function (obj, prop) {
-              if (obj) {
-                addToArtifacts(miscUtilFactory.arrayToMap(obj, '_id'), prop);
-              }
-            };
+              artifacts[prop].push(obj);
+            }
+          },
+          addIdMap = function (obj, prop) {
+            if (obj) {
+              addToArtifacts(miscUtilFactory.arrayToMap(obj, '_id'), prop);
+            }
+          };
 
           artifacts = {};
 
@@ -10911,8 +10914,8 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
    */
   function findAddrIndex (canvasser, addr) {
     return canvasser.addresses.findIndex(function (entry) {
-      return (entry === this._id);
-    }, addr);
+                                            return (entry === this._id);
+                                          }, addr);
   }
 
   /**
@@ -11005,8 +11008,8 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
     if (canvasser.addresses) {
       canvasser.addresses.forEach(function (addrId) {
         var addr = addrArray.find(function (entry) {
-          return (entry._id === this);
-        }, addrId);
+                                    return (entry._id === this);
+                                  }, addrId);
         if (addr) {
           delete addr.canvasser;
           removeCanvasserBadge(addr);
@@ -11044,14 +11047,14 @@ angular.module('ct.clientCommon')
   .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-        SCHEMA_CONST.ID,
-        schemaProvider.getStringModelPropArgs('type', { field: 'TYPE' }),
-        schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
-        schemaProvider.getStringModelPropArgs('email', { field: 'EMAIL' }),
-        schemaProvider.getStringModelPropArgs('comment', { field: 'COMMENT' }),
-        SCHEMA_CONST.CREATEDAT,
-        SCHEMA_CONST.UPDATEDAT
-      ],
+      SCHEMA_CONST.ID,
+      schemaProvider.getStringModelPropArgs('type', { field: 'TYPE' }),
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('email', { field: 'EMAIL' }),
+      schemaProvider.getStringModelPropArgs('comment', { field: 'COMMENT' }),
+      SCHEMA_CONST.CREATEDAT,
+      SCHEMA_CONST.UPDATEDAT
+    ],
       ids = {},
       modelProps = [];
 
@@ -11074,22 +11077,22 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [TYPE_IDX, NAME_IDX, EMAIL_IDX], 
-        ID_TAG);
+                      [TYPE_IDX, NAME_IDX, EMAIL_IDX], 
+                      ID_TAG);
 
-    $provide.constant('MESSAGESCHEMA', {
-      IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      MODELPROPS: modelProps,
+      $provide.constant('MESSAGESCHEMA', {
+        IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
+        MODELPROPS: modelProps,
 
-      SCHEMA: schema,
-      // row indices
-      TYPE_IDX: TYPE_IDX,
-      NAME_IDX: NAME_IDX,
-      EMAIL_IDX: EMAIL_IDX,
+        SCHEMA: schema,
+        // row indices
+        TYPE_IDX: TYPE_IDX,
+        NAME_IDX: NAME_IDX,
+        EMAIL_IDX: EMAIL_IDX,
 
-      SORT_OPTIONS: sortOptions,
-      ID_TAG: ID_TAG
-    });
+        SORT_OPTIONS: sortOptions,
+        ID_TAG: ID_TAG
+      });
   }])
 
   .factory('messageFactory', messageFactory);
@@ -11141,9 +11144,9 @@ function messageFactory($filter, $injector, baseURL, consoleService, storeFactor
       args = {};
     }
     // no conversions required by default
-    //    if (!args.convert) {
-    //      args.convert = readRspObjectValueConvert;
-    //    }
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
     // add resources required by Schema object
     resourceFactory.addResourcesToArgs(args);
 
@@ -11253,26 +11256,26 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-        [LEVEL_IDX, TITLE_IDX, FROMDATE_IDX], 
-        ID_TAG);
+                      [LEVEL_IDX, TITLE_IDX, FROMDATE_IDX], 
+                      ID_TAG);
 
-    $provide.constant('NOTICESCHEMA', {
-      IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      MODELPROPS: modelProps,
+      $provide.constant('NOTICESCHEMA', {
+        IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
+        MODELPROPS: modelProps,
 
-      SCHEMA: schema,
-      // row indices
-      LEVEL_IDX: LEVEL_IDX,
-      TITLE_IDX: TITLE_IDX,
-      MESSAGE_IDX: MESSAGE_IDX,
-      FROMDATE_IDX: FROMDATE_IDX,
-      TODATE_IDX: TODATE_IDX,
+        SCHEMA: schema,
+        // row indices
+        LEVEL_IDX: LEVEL_IDX,
+        TITLE_IDX: TITLE_IDX,
+        MESSAGE_IDX: MESSAGE_IDX,
+        FROMDATE_IDX: FROMDATE_IDX,
+        TODATE_IDX: TODATE_IDX,
         
-      NOTICETYPEOBJS: noticeTypeObjs,
+        NOTICETYPEOBJS: noticeTypeObjs,
 
-      SORT_OPTIONS: sortOptions,
-      ID_TAG: ID_TAG
-    });
+        SORT_OPTIONS: sortOptions,
+        ID_TAG: ID_TAG
+      });
   }])
 
   .factory('noticeFactory', noticeFactory);
@@ -11458,7 +11461,7 @@ function noticeFactory($filter, $injector, baseURL, consoleService, storeFactory
 /*global angular */
 'use strict';
 
-angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordova', 'ui.bootstrap', 'NgDialogUtil', 'ct.clientCommon', 'chart.js', 'ngIdle', 'timer'])
+angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ui.bootstrap', 'NgDialogUtil', 'ct.clientCommon', 'chart.js', 'ngIdle', 'timer'])
 
   .config(['$stateProvider', '$urlRouterProvider', 'STATES', function ($stateProvider, $urlRouterProvider, STATES) {
 
@@ -11808,27 +11811,28 @@ angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordov
         }]
       })
     
+      // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
       // route for the contactus page
-      .state(STATES.CONTACTUS, {
-        url: getUrl(STATES.CONTACTUS),
-        views: {
-          'content@': {
-            templateUrl : 'views/contactus.html',
-            controller  : 'ContactController'
-          }
-        }
-      })
+      // .state(STATES.CONTACTUS, {
+      //   url: getUrl(STATES.CONTACTUS),
+      //   views: {
+      //     'content@': {
+      //       templateUrl : 'views/contactus.html',
+      //       controller  : 'ContactController'
+      //     }
+      //   }
+      // })
 
-      // route for the support page
-      .state(STATES.SUPPORT, {
-        url: getUrl(STATES.SUPPORT),
-        views: {
-          'content@': {
-            templateUrl : 'views/contactus.html',
-            controller  : 'ContactController'
-          }
-        }
-      });
+      // // route for the support page
+      // .state(STATES.SUPPORT, {
+      //   url: getUrl(STATES.SUPPORT),
+      //   views: {
+      //     'content@': {
+      //       templateUrl : 'views/contactus.html',
+      //       controller  : 'ContactController'
+      //     }
+      //   }
+      // });
 
     routes.forEach(function (route) {
       if (!STATES.ISDISABLED(route.state)) {
@@ -11851,39 +11855,40 @@ angular.module('canvassTrac', ['ct.config', 'ui.router', 'ngResource', 'ngCordov
 
 angular.module('canvassTrac')
 
-  .controller('ContactController', ContactController)
+  // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+  // .controller('ContactController', ContactController)
 
-  .controller('FeedbackController', ['$scope', '$state', 'messageFactory' ,'NgDialogFactory', 'STATES', function ($scope, $state, messageFactory, NgDialogFactory, STATES) {
+  // .controller('FeedbackController', ['$scope', '$state', 'messageFactory' ,'NgDialogFactory', 'STATES', function ($scope, $state, messageFactory, NgDialogFactory, STATES) {
 
 
-    $scope.sendMessage = function () {
+  //   $scope.sendMessage = function () {
 
-      var resource;
-      if ($state.is(STATES.CONTACTUS)) {
-        resource = 'feedback';
-      } else if ($state.is(STATES.SUPPORT)) {
-        resource = 'support';
-      }
+  //     var resource;
+  //     if ($state.is(STATES.CONTACTUS)) {
+  //       resource = 'feedback';
+  //     } else if ($state.is(STATES.SUPPORT)) {
+  //       resource = 'support';
+  //     }
 
-      if (resource) {
-        // post message to server
-        messageFactory.save(resource, $scope.message,
-          // success function
-          function (/*response*/) {
-            // re-init for next comment entry
-            $scope.initMessage(true);
+  //     if (resource) {
+  //       // post message to server
+  //       messageFactory.save(resource, $scope.message,
+  //         // success function
+  //         function (/*response*/) {
+  //           // re-init for next comment entry
+  //           $scope.initMessage(true);
 
-            $scope.messageForm.$setPristine();
-          },
-          // error function
-          function (response) {
-            // response is message
-            NgDialogFactory.error(response, 'Error saving');
-          }
-        );
-      }
-    };
-  }])
+  //           $scope.messageForm.$setPristine();
+  //         },
+  //         // error function
+  //         function (response) {
+  //           // response is message
+  //           NgDialogFactory.error(response, 'Error saving');
+  //         }
+  //       );
+  //     }
+  //   };
+  // }])
 
 
   .controller('AboutController', ['$scope', function ($scope) {
@@ -11892,28 +11897,29 @@ angular.module('canvassTrac')
   }]);
 
 
-ContactController.$inject = ['$scope', '$state', 'STATES', 'MESSAGESCHEMA'];
+// Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+// ContactController.$inject = ['$scope', '$state', 'STATES', 'MESSAGESCHEMA'];
 
-function ContactController ($scope, $state, STATES, MESSAGESCHEMA) {
+// function ContactController ($scope, $state, STATES, MESSAGESCHEMA) {
 
-  // function to initialise feedback object
-  $scope.initMessage = function (submitted) {
-    $scope.message = MESSAGESCHEMA.SCHEMA.getObject();
-    $scope.message.submitted = submitted;
-  };
+//   // function to initialise feedback object
+//   $scope.initMessage = function (submitted) {
+//     $scope.message = MESSAGESCHEMA.SCHEMA.getObject();
+//     $scope.message.submitted = submitted;
+//   };
 
-  if ($state.is(STATES.CONTACTUS)) {
-    $scope.title = 'Send Feedback';
-    $scope.thanks = 'Thank you for your feedback';
-    $scope.entryPrompt = 'Your Feedback';
-  } else if ($state.is(STATES.SUPPORT)) {
-    $scope.title = 'Support Request';
-    $scope.thanks = 'Thank you for your request, you will receive a response as soon as possible.';
-    $scope.entryPrompt = 'Details';
-  }
+//   if ($state.is(STATES.CONTACTUS)) {
+//     $scope.title = 'Send Feedback';
+//     $scope.thanks = 'Thank you for your feedback';
+//     $scope.entryPrompt = 'Your Feedback';
+//   } else if ($state.is(STATES.SUPPORT)) {
+//     $scope.title = 'Support Request';
+//     $scope.thanks = 'Thank you for your request, you will receive a response as soon as possible.';
+//     $scope.entryPrompt = 'Details';
+//   }
 
-  $scope.initMessage();
-}
+//   $scope.initMessage();
+// }
 
 
 
@@ -12082,35 +12088,35 @@ function controllerUtilFactory (authFactory, miscUtilFactory, utilFactory, STATE
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-      setScopeVars: setScopeVars,
-      getStateButton: getStateButton,
-      setSelect: setSelect,
-      toggleSelection: toggleSelection,
-      moveListSelected: moveListSelected
-    },
+    setScopeVars: setScopeVars,
+    getStateButton: getStateButton,
+    setSelect: setSelect,
+    toggleSelection: toggleSelection,
+    moveListSelected: moveListSelected
+  },
 
-    dashTxt = 'Dash',
-    newTxt = 'New',
-    viewTxt = 'View',
-    editTxt = 'Edit',
-    delTxt = 'Delete',
-    buttons = [
-      { txt: dashTxt, icon: DECOR.DASH.icon, tip: 'Go to dashboard', class: DECOR.DASH.class },
-      { txt: newTxt, icon: DECOR.NEW.icon, tip: 'Create new', class: DECOR.NEW.class },
-      { txt: viewTxt, icon: DECOR.VIEW.icon, tip: 'View selected', class: DECOR.VIEW.class },
-      { txt: editTxt, icon: DECOR.EDIT.icon, tip: 'Edit selected', class: DECOR.EDIT.class },
-      { txt: delTxt, icon: DECOR.DEL.icon, tip: 'Delete selected', class: DECOR.DEL.class }
-    ],
-    StateAccessMap = {
+  dashTxt = 'Dash',
+  newTxt = 'New',
+  viewTxt = 'View',
+  editTxt = 'Edit',
+  delTxt = 'Delete',
+  buttons = [
+    { txt: dashTxt, icon: DECOR.DASH.icon, tip: 'Go to dashboard', class: DECOR.DASH.class },
+    { txt: newTxt, icon: DECOR.NEW.icon, tip: 'Create new', class: DECOR.NEW.class },
+    { txt: viewTxt, icon: DECOR.VIEW.icon, tip: 'View selected', class: DECOR.VIEW.class },
+    { txt: editTxt, icon: DECOR.EDIT.icon, tip: 'Edit selected', class: DECOR.EDIT.class },
+    { txt: delTxt, icon: DECOR.DEL.icon, tip: 'Delete selected', class: DECOR.DEL.class }
+  ],
+  StateAccessMap = {
     // map mwnu names to access names
-      VOTINGSYS: ACCESS.VOTINGSYS,
-      ROLES: ACCESS.ROLES,
-      USERS: ACCESS.USERS,
-      ELECTION: ACCESS.ELECTIONS,
-      CANDIDATE: ACCESS.CANDIDATES,
-      CANVASS: ACCESS.CANVASSES,
-      NOTICE: ACCESS.NOTICES
-    };
+    VOTINGSYS: ACCESS.VOTINGSYS,
+    ROLES: ACCESS.ROLES,
+    USERS: ACCESS.USERS,
+    ELECTION: ACCESS.ELECTIONS,
+    CANDIDATE: ACCESS.CANDIDATES,
+    CANVASS: ACCESS.CANVASSES,
+    NOTICE: ACCESS.NOTICES
+  };
 
   return factory;
 
@@ -12389,7 +12395,7 @@ function StateButtonsController($scope, $state, controllerUtilFactory, DECOR) {
   }
 
 
-  function disableButton (forState) {
+function disableButton (forState) {
     var disable = false;
     if (forState) {
       if ($state.is($scope.newState)) {
@@ -12497,11 +12503,11 @@ function menuService(authFactory, MENUS, CONFIG, USER) {
   /*jshint validthis:true */
   this.configMenuAccess = function (baseMenu, override) {
     var menu = {
-        root: baseMenu.root // copy root
-      },
-      substate,
-      entry,
-      count = 0;  // count of menu entries
+      root: baseMenu.root // copy root
+    },
+    substate,
+    entry,
+    count = 0;  // count of menu entries
 
     Object.getOwnPropertyNames(baseMenu).forEach(function (name) {
       if (name !== 'root') {
@@ -12648,7 +12654,8 @@ angular.module('canvassTrac')
     return {
       HOME: {},
       ABOUT: {},
-      CONTACT: {},
+      // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+      // CONTACT: {},
       CONFIG: {},
       CAMPAIGN: {},
       CRUMBS: []
@@ -12697,11 +12704,12 @@ angular.module('canvassTrac')
             name: 'About', sref: STATES.ABOUTUS
           };
           break;
-        case 'CONTACT':
-          tree = {
-            name: 'Contact', sref: STATES.CONTACTUS
-          };
-          break;
+        // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+        // case 'CONTACT':
+        //   tree = {
+        //     name: 'Contact', sref: STATES.CONTACTUS
+        //   };
+        //   break;
         case 'CONFIG':
           toCheck = [
             { sref: STATES.CONFIG,
@@ -12858,7 +12866,8 @@ angular.module('canvassTrac')
     tree = [
       { state: STATES.APP, name: 'Home' },
       { state: STATES.ABOUTUS, name: 'About' },
-      { state: STATES.CONTACTUS, name: 'Contact' }
+      // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+      // { state: STATES.CONTACTUS, name: 'Contact' }
     ];
     if (!STATES.ISDISABLED(STATES.CAMPAIGN)) {
       tree.push({ state: STATES.CAMPAIGN, name: campaign });
@@ -12869,54 +12878,54 @@ angular.module('canvassTrac')
     // add entries from dropdown menus
     [
       { state: STATES.ELECTION, entries: [
-        { state: STATES.ELECTION, name: electionDash, access: accessAllRead },
-        { state: STATES.ELECTION_VIEW, name: 'View Election', access: access1Read },
-        { state: STATES.ELECTION_EDIT, name: 'Update Election', access: access1Update },
-        { state: STATES.ELECTION_NEW, name: 'New Election', access: access1Create }
-      ]
+          { state: STATES.ELECTION, name: electionDash, access: accessAllRead },
+          { state: STATES.ELECTION_VIEW, name: 'View Election', access: access1Read },
+          { state: STATES.ELECTION_EDIT, name: 'Update Election', access: access1Update },
+          { state: STATES.ELECTION_NEW, name: 'New Election', access: access1Create }
+        ]
       },
       { state: STATES.CANDIDATE, entries: [
-        { state: STATES.CANDIDATE, name: candidateDash, access: accessAllRead },
-        { state: STATES.CANDIDATE_VIEW, name: 'View Candidate', access: access1Read },
-        { state: STATES.CANDIDATE_EDIT, name: 'Update Candidate', access: access1Update},
-        { state: STATES.CANDIDATE_NEW, name: 'New Candidate', access: access1Create }
-      ]
+          { state: STATES.CANDIDATE, name: candidateDash, access: accessAllRead },
+          { state: STATES.CANDIDATE_VIEW, name: 'View Candidate', access: access1Read },
+          { state: STATES.CANDIDATE_EDIT, name: 'Update Candidate', access: access1Update},
+          { state: STATES.CANDIDATE_NEW, name: 'New Candidate', access: access1Create }
+        ]
       },
       { state: STATES.CANVASS, entries: [
-        { state: STATES.CANVASS, name: canvassDash, access: accessAllRead },
-        { state: STATES.CANVASS_VIEW, name: 'View Canvass', access: access1Read },
-        { state: STATES.CANVASS_EDIT, name: 'Update Canvass', access: access1Update },
-        { state: STATES.CANVASS_NEW, name: 'New Canvass', access: access1Create }
-      ]
+          { state: STATES.CANVASS, name: canvassDash, access: accessAllRead },
+          { state: STATES.CANVASS_VIEW, name: 'View Canvass', access: access1Read },
+          { state: STATES.CANVASS_EDIT, name: 'Update Canvass', access: access1Update },
+          { state: STATES.CANVASS_NEW, name: 'New Canvass', access: access1Create }
+        ]
       },
       { state: STATES.VOTINGSYS, entries: [
-        { state: STATES.VOTINGSYS, name: votingSysDash, access: accessAllRead },
-        { state: STATES.VOTINGSYS_VIEW, name: 'View Voting System', access: access1Read },
-        { state: STATES.VOTINGSYS_EDIT, name: 'Update Voting System', access: access1Update },
-        { state: STATES.VOTINGSYS_NEW, name: 'New Voting System', access: access1Create }
-      ]
+          { state: STATES.VOTINGSYS, name: votingSysDash, access: accessAllRead },
+          { state: STATES.VOTINGSYS_VIEW, name: 'View Voting System', access: access1Read },
+          { state: STATES.VOTINGSYS_EDIT, name: 'Update Voting System', access: access1Update },
+          { state: STATES.VOTINGSYS_NEW, name: 'New Voting System', access: access1Create }
+        ]
       },
       { state: STATES.ROLES, entries: [
-        { state: STATES.ROLES, name: rolesDash, access: accessAllRead },
-        { state: STATES.ROLES_VIEW, name: 'View Role', access: access1Read },
-        { state: STATES.ROLES_EDIT, name: 'Update Role', access: access1Update },
-        { state: STATES.ROLES_NEW, name: 'New Role', access: access1Create }
-      ]
+          { state: STATES.ROLES, name: rolesDash, access: accessAllRead },
+          { state: STATES.ROLES_VIEW, name: 'View Role', access: access1Read },
+          { state: STATES.ROLES_EDIT, name: 'Update Role', access: access1Update },
+          { state: STATES.ROLES_NEW, name: 'New Role', access: access1Create }
+        ]
       },
       { state: STATES.USERS, entries: [
-        { state: STATES.USERS, name: userDash, access: accessAllRead },
-        { state: STATES.USERS_VIEW, name: 'View User', access: access1Read },
-        { state: STATES.USERS_EDIT, name: 'Update User', access: access1Update },
-        { state: STATES.USERS_NEW, name: 'New User', access: access1Create },
-        { state: STATES.USERS_BATCH, name: 'User Batch Mode', access: accessAllBatch }
-      ]
+          { state: STATES.USERS, name: userDash, access: accessAllRead },
+          { state: STATES.USERS_VIEW, name: 'View User', access: access1Read },
+          { state: STATES.USERS_EDIT, name: 'Update User', access: access1Update },
+          { state: STATES.USERS_NEW, name: 'New User', access: access1Create },
+          { state: STATES.USERS_BATCH, name: 'User Batch Mode', access: accessAllBatch }
+        ]
       },
       { state: STATES.NOTICE, entries: [
-        { state: STATES.NOTICE, name: noticeDash, access: accessAllRead },
-        { state: STATES.NOTICE_VIEW, name: 'View Notice', access: access1Read },
-        { state: STATES.NOTICE_EDIT, name: 'Update Notice', access: access1Update },
-        { state: STATES.NOTICE_NEW, name: 'New Notice', access: access1Create }
-      ]
+          { state: STATES.NOTICE, name: noticeDash, access: accessAllRead },
+          { state: STATES.NOTICE_VIEW, name: 'View Notice', access: access1Read },
+          { state: STATES.NOTICE_EDIT, name: 'Update Notice', access: access1Update },
+          { state: STATES.NOTICE_NEW, name: 'New Notice', access: access1Create }
+        ]
       }
     ].forEach(function (cfgBlock) {
       if (!STATES.ISDISABLED(cfgBlock.state)) {
@@ -12961,7 +12970,8 @@ function HeaderController ($scope, $state, $rootScope, Idle, authFactory, userSe
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   $scope.openLogin = openLogin;
-  $scope.openSupport = openSupport;
+  // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+  // $scope.openSupport = openSupport;
   $scope.logOut = logOut;
 
   if (CONFIG.DEV_MODE) {
@@ -12974,7 +12984,8 @@ function HeaderController ($scope, $state, $rootScope, Idle, authFactory, userSe
 
   $scope.homeMenu = MENUS.HOME;
   $scope.aboutMenu = MENUS.ABOUT;
-  $scope.contactMenu = MENUS.CONTACT;
+  // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+  // $scope.contactMenu = MENUS.CONTACT;
 
   makeBreadcrumb();
   setLoggedIn(CONFIG.NOAUTH ? false : true);
@@ -12991,41 +13002,41 @@ function HeaderController ($scope, $state, $rootScope, Idle, authFactory, userSe
     function (/* arguments not required so ignore
                 event, toState, toParams, fromState, fromParams */){
       makeBreadcrumb();
-    });
-
-  $scope.$on('IdleStart', function() {
-    // the user appears to have gone idle
-    log('IdleStart:');
   });
 
-  $scope.$on('IdleWarn', function(e, countdown) {
-    // follows after the IdleStart event, but includes a countdown until the user is considered timed out
-    // the countdown arg is the number of seconds remaining until then.
-    // you can change the title or display a warning dialog from here.
-    // you can let them resume their session by calling Idle.watch()
+  $scope.$on('IdleStart', function() {
+		// the user appears to have gone idle
+    log('IdleStart:');
+	});
+
+	$scope.$on('IdleWarn', function(e, countdown) {
+		// follows after the IdleStart event, but includes a countdown until the user is considered timed out
+		// the countdown arg is the number of seconds remaining until then.
+		// you can change the title or display a warning dialog from here.
+		// you can let them resume their session by calling Idle.watch()
     log('IdleWarn:', countdown);
 
     if (countdown === CONFIG.AUTOLOGOUTCOUNT) {
       openIdleTimeout();
     }
-  });
+	});
 
-  $scope.$on('IdleTimeout', function() {
-    // timed out (meaning idleDuration + timeout has passed without any activity)
+	$scope.$on('IdleTimeout', function() {
+		// timed out (meaning idleDuration + timeout has passed without any activity)
     log('IdleTimeout:');
-  });
+	});
 
-  $scope.$on('IdleEnd', function() {
-    // the user has come back from AFK and is doing stuff. if you are warning them, you can use this to hide the dialog
+	$scope.$on('IdleEnd', function() {
+		// the user has come back from AFK and is doing stuff. if you are warning them, you can use this to hide the dialog
     log('IdleEnd:');
-  });
+	});
 
-  $scope.$on('Keepalive', function() {
-    // do something to keep the user's session alive
+	$scope.$on('Keepalive', function() {
+		// do something to keep the user's session alive
     log('Keepalive:');
 
     doRefresh();
-  });
+	});
 
 
   if (USER.authenticated) {
@@ -13087,9 +13098,10 @@ function HeaderController ($scope, $state, $rootScope, Idle, authFactory, userSe
     NgDialogFactory.open({ template: 'login/login.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'LoginController' });
   }
 
-  function openSupport () {
-    $state.go(STATES.SUPPORT);
-  }
+  // Heroku SparkPost add-on shutdown 15/10/2020, disable email for the moment
+  // function openSupport () {
+  //   $state.go(STATES.SUPPORT);
+  // }
 
   function openIdleTimeout () {
 
@@ -13632,36 +13644,36 @@ function userService($state, userFactory, NgDialogFactory, controllerUtilFactory
   this.confirmDeleteUSer = function (scope, deleteList, onSuccess, onFailure) {
 
     NgDialogFactory.openAndHandle({
-      template: 'users/confirmdelete_user.html',
-      scope: scope, className: 'ngdialog-theme-default',
-      controller: 'UserDeleteController',
-      data: { list: deleteList }
-    },
-    // process function
-    function (value) {
-      // perform delete
-      var delParams = {};
-      angular.forEach(value, function (entry) {
-        delParams[entry._id] = true;
-      });
+        template: 'users/confirmdelete_user.html',
+        scope: scope, className: 'ngdialog-theme-default',
+        controller: 'UserDeleteController',
+        data: { list: deleteList }
+      },
+      // process function
+      function (value) {
+        // perform delete
+        var delParams = {};
+        angular.forEach(value, function (entry) {
+          delParams[entry._id] = true;
+        });
 
-      userFactory.delete('user', delParams,
-        // success function
-        function (response) {
-          if (onSuccess) {
-            onSuccess(response);
+        userFactory.delete('user', delParams,
+          // success function
+          function (response) {
+            if (onSuccess) {
+              onSuccess(response);
+            }
+          },
+          // error function
+          function (response) {
+            if (onFailure) {
+              onFailure(response);
+            } else {
+              NgDialogFactory.error(response, 'Delete Unsuccessful');
+            }
           }
-        },
-        // error function
-        function (response) {
-          if (onFailure) {
-            onFailure(response);
-          } else {
-            NgDialogFactory.error(response, 'Delete Unsuccessful');
-          }
-        }
-      );
-    });
+        );
+      });
   };
 
   /*jshint validthis:true */
@@ -13734,31 +13746,31 @@ function userService($state, userFactory, NgDialogFactory, controllerUtilFactory
         if (flat) {
           // flatten object
           PEOPLESCHEMA.SCHEMA.forModelProps([
-            PEOPLESCHEMA.IDs.FNAME,
-            PEOPLESCHEMA.IDs.LNAME,
-            PEOPLESCHEMA.IDs.NOTE
-          ], function (field) {
-            var model = field[SCHEMA_CONST.MODELNAME_PROP];
-            if (model) {
-              user[model] = response.person[model];
-            }
+              PEOPLESCHEMA.IDs.FNAME,
+              PEOPLESCHEMA.IDs.LNAME,
+              PEOPLESCHEMA.IDs.NOTE
+            ], function (field) {
+              var model = field[SCHEMA_CONST.MODELNAME_PROP];
+              if (model) {
+                user[model] = response.person[model];
+              }
           });
           ADDRSCHEMA.SCHEMA.forModelProps([
-            ADDRSCHEMA.IDs.ADDR1,
-            ADDRSCHEMA.IDs.ADDR2,
-            ADDRSCHEMA.IDs.ADDR3,
-            ADDRSCHEMA.IDs.TOWN,
-            ADDRSCHEMA.IDs.CITY,
-            ADDRSCHEMA.IDs.COUNTY,
-            ADDRSCHEMA.IDs.STATE,
-            ADDRSCHEMA.IDs.COUNTRY,
-            ADDRSCHEMA.IDs.PCODE,
-            ADDRSCHEMA.IDs.GPS
-          ], function (field) {
-            var model = field[SCHEMA_CONST.MODELNAME_PROP];
-            if (model) {
-              user[model] = response.person.address[model];
-            }
+              ADDRSCHEMA.IDs.ADDR1,
+              ADDRSCHEMA.IDs.ADDR2,
+              ADDRSCHEMA.IDs.ADDR3,
+              ADDRSCHEMA.IDs.TOWN,
+              ADDRSCHEMA.IDs.CITY,
+              ADDRSCHEMA.IDs.COUNTY,
+              ADDRSCHEMA.IDs.STATE,
+              ADDRSCHEMA.IDs.COUNTRY,
+              ADDRSCHEMA.IDs.PCODE,
+              ADDRSCHEMA.IDs.GPS
+            ], function (field) {
+              var model = field[SCHEMA_CONST.MODELNAME_PROP];
+              if (model) {
+                user[model] = response.person.address[model];
+              }
           });
 
           // TODO contactDetails schema & factory
@@ -13767,7 +13779,7 @@ function userService($state, userFactory, NgDialogFactory, controllerUtilFactory
             miscUtilFactory.copyProperties(response.person.contactDetails, user, [
               // from contactDetails model
               'phone', 'mobile', 'email', 'website', 'facebook', 'twitter'
-            ]);
+              ]);
           }
         } else {
           user.person = response.person;
@@ -14165,25 +14177,25 @@ function UserDeleteController($scope, utilFactory) {
 angular.module('canvassTrac')
 
   .directive('file', function(){
-    // Based on http://angularjstutorial.blogspot.ie/2012/12/angularjs-with-input-file-directive.html#.WWi57YjyuHs
-    return {
-      scope: {
-        file: '='   // bidirectional binding
-      },
-      /**
+      // Based on http://angularjstutorial.blogspot.ie/2012/12/angularjs-with-input-file-directive.html#.WWi57YjyuHs
+      return {
+          scope: {
+              file: '='   // bidirectional binding
+          },
+          /**
            * Directive link function
            * @param {object} scope   Scope object
            * @param {object} element jqLite-wrapped element that this directive matches
            * @param {object} attrs   hash object with key-value pairs of normalized attribute names and their corresponding attribute values
            */
-      link: function(scope, element, attrs){
-        element.bind('change', function(event){
-          var file = event.target.files[0];
-          scope.file = file ? file : undefined;
-          scope.$apply();
-        });
-      }
-    };
+          link: function(scope, element, attrs){
+              element.bind('change', function(event){
+                  var file = event.target.files[0];
+                  scope.file = file ? file : undefined;
+                  scope.$apply();
+              });
+          }
+      };
   })
 
   .controller('UserBatchController', UserBatchController);
@@ -14315,32 +14327,32 @@ function electionService($state, electionFactory, NgDialogFactory, controllerUti
   this.confirmDeleteElection = function (scope, deleteList, onSuccess, onFailure) {
 
     NgDialogFactory.openAndHandle({
-      template: 'elections/confirmdelete_election.html',
-      scope: scope, className: 'ngdialog-theme-default',
-      controller: 'ElectionDeleteController',
-      data: { list: deleteList }
-    },
-    // process function
-    function (value) {
-      // perform delete
-      var delParams = {};
-      angular.forEach(value, function (entry) {
-        delParams[entry._id] = true;
-      });
+        template: 'elections/confirmdelete_election.html',
+        scope: scope, className: 'ngdialog-theme-default',
+        controller: 'ElectionDeleteController',
+        data: { list: deleteList }
+      },
+      // process function
+      function (value) {
+        // perform delete
+        var delParams = {};
+        angular.forEach(value, function (entry) {
+          delParams[entry._id] = true;
+        });
 
-      electionFactory.delete('election', delParams,
-        // success function
-        onSuccess,
-        // error function
-        function (response) {
-          if (onFailure) {
-            onFailure(response);
-          } else {
-            NgDialogFactory.error(response, 'Delete Unsuccessful');
+        electionFactory.delete('election', delParams,
+          // success function
+          onSuccess,
+          // error function
+          function (response) {
+            if (onFailure) {
+              onFailure(response);
+            } else {
+              NgDialogFactory.error(response, 'Delete Unsuccessful');
+            }
           }
-        }
-      );
-    });
+        );
+      });
   };
 
   /*jshint validthis:true */
@@ -14779,32 +14791,32 @@ function canvassService($state, canvassFactory, NgDialogFactory, controllerUtilF
   this.confirmDeleteCanvass = function (scope, deleteList, onSuccess, onFailure) {
 
     NgDialogFactory.openAndHandle({
-      template: 'canvasses/confirmdelete_canvass.html',
-      scope: scope, className: 'ngdialog-theme-default',
-      controller: 'CanvassDeleteController',
-      data: { list: deleteList }
-    },
-    // process function
-    function (value) {
-      // perform delete
-      var delParams = {};
-      angular.forEach(value, function (entry) {
-        delParams[entry._id] = true;
-      });
+        template: 'canvasses/confirmdelete_canvass.html',
+        scope: scope, className: 'ngdialog-theme-default',
+        controller: 'CanvassDeleteController',
+        data: { list: deleteList }
+      },
+      // process function
+      function (value) {
+        // perform delete
+        var delParams = {};
+        angular.forEach(value, function (entry) {
+          delParams[entry._id] = true;
+        });
 
-      canvassFactory.delete('canvass', delParams,
-        // success function
-        onSuccess,
-        // error function
-        function (response) {
-          if (onFailure) {
-            onFailure(response);
-          } else {
-            NgDialogFactory.error(response, 'Delete Unsuccessful');
-          }
-        }
-      );
-    });
+        canvassFactory.delete('canvass', delParams,
+            // success function
+            onSuccess,
+            // error function
+            function (response) {
+              if (onFailure) {
+                onFailure(response);
+              } else {
+                NgDialogFactory.error(response, 'Delete Unsuccessful');
+              }
+            }
+          );
+      });
   };
 
   /*jshint validthis:true */
@@ -14847,17 +14859,17 @@ function canvassService($state, canvassFactory, NgDialogFactory, controllerUtilF
       filter;
 
     // display role name rather than id
-    //    if (canvasser) {
-    //      opts = {
-    //        dispTransform: function (dialog, filterVal) {
-    //          var str = filterVal;
-    //          if (dialog === roleDialog) {
-    //            str = canvasser.name;
-    //          }
-    //          return str;
-    //        }
-    //      };
-    //    }
+//    if (canvasser) {
+//      opts = {
+//        dispTransform: function (dialog, filterVal) {
+//          var str = filterVal;
+//          if (dialog === roleDialog) {
+//            str = canvasser.name;
+//          }
+//          return str;
+//        }
+//      };
+//    }
 
     filter = userFactory.newFilter(base, opts);
 
@@ -15219,15 +15231,15 @@ function CanvassController($scope, $state, $stateParams, $filter, $injector, can
           break;
         case $scope.tabs.ADDRESS_TAB:
           modified = deselectListTab($event, $scope.deactiveTab, $selectedIndex,
-            addressFactory.getList(RES.ASSIGNED_ADDR),
-            addressFactory.getList(RES.BACKUP_ASSIGNED_ADDR),
-            'Assigned Addresses Modified');
+                          addressFactory.getList(RES.ASSIGNED_ADDR),
+                          addressFactory.getList(RES.BACKUP_ASSIGNED_ADDR),
+                          'Assigned Addresses Modified');
           break;
         case $scope.tabs.CANVASSER_TAB:
           modified = deselectListTab($event, $scope.deactiveTab, $selectedIndex,
-            userFactory.getList(RES.ASSIGNED_CANVASSER),
-            userFactory.getList(RES.BACKUP_ASSIGNED_CANVASSER),
-            'Assigned Canvassers Modified');
+                          userFactory.getList(RES.ASSIGNED_CANVASSER),
+                          userFactory.getList(RES.BACKUP_ASSIGNED_CANVASSER),
+                          'Assigned Canvassers Modified');
           break;
         case $scope.tabs.ASSIGNMENT_TAB:
           modified = areAllocationsModified();
@@ -15284,8 +15296,8 @@ function CanvassController($scope, $state, $stateParams, $filter, $injector, can
   function deselectListTab ($event, prevTabIndex, nextTabIndex, workList, backupList, title) {
 
     var unmodified = workList.compare(backupList, function (o1, o2) {
-      return (o1._id === o2._id);
-    });
+        return (o1._id === o2._id);
+      });
 
     if (!unmodified) {
       deselectObjectTab($event, prevTabIndex, nextTabIndex, title, function () {
@@ -15450,8 +15462,8 @@ function CanvassController($scope, $state, $stateParams, $filter, $injector, can
         function (response) {
           initTab($scope.tabs.ALL_TABS);
           processCanvassRsp(response,
-            (storeFactory.CREATE_INIT | storeFactory.APPLY_FILTER),
-            requestAssignments);
+                (storeFactory.CREATE_INIT | storeFactory.APPLY_FILTER),
+                requestAssignments);
         },
         // error function
         function (response) {
@@ -15465,17 +15477,17 @@ function CanvassController($scope, $state, $stateParams, $filter, $injector, can
   function processCanvassRsp (response, flags, next) {
     // process a canvass response linking subdoc elements
     $scope.canvass = canvassFactory.readResponse(response,
-      getCanvassRspOptions(flags, next, {
-        linkAddressAndResult: true,
-        linkQuestionAndResult: true
-      }));
+                            getCanvassRspOptions(flags, next, {
+                                                linkAddressAndResult: true,
+                                                linkQuestionAndResult: true
+                                              }));
   }
 
   function getCanvassRspOptions (schema, flags, next, customArgs) {
 
     var args = resourceFactory.getStandardArgsObject(
-        undefined, // no id, this obj will not be used
-        'canvassFactory', 'canvass', schema, flags, next, customArgs),
+                        undefined, // no id, this obj will not be used
+                        'canvassFactory', 'canvass', schema, flags, next, customArgs),
       addrObjId,
       canvsrObjId,
       schemaLink;
@@ -15498,35 +15510,35 @@ function CanvassController($scope, $state, $stateParams, $filter, $injector, can
     }
 
     var addrOpts = getRspAddressOptions(addrObjId,
-        CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.ADDRESSES),
-        (args.flags | storeFactory.COPY_SET)),  // make copy of addresses
+                      CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.ADDRESSES),
+                      (args.flags | storeFactory.COPY_SET)),  // make copy of addresses
       canvsrOpts = getRspCanvasserOptions(canvsrObjId,
-        CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.CANVASSERS),
-        (args.flags | storeFactory.COPY_SET)),  // make copy of canvassers
+                      CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.CANVASSERS),
+                      (args.flags | storeFactory.COPY_SET)),  // make copy of canvassers
       resltsOpts = getRspResultOptions(RES.CANVASS_RESULT,
-        CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.RESULTS),
-        (args.flags | storeFactory.COPY_SET)),   // make copy of results
+                      CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.RESULTS),
+                      (args.flags | storeFactory.COPY_SET)),   // make copy of results
       rspOptions = resourceFactory.getStandardArgsObject(
-        [RES.ACTIVE_CANVASS,  RES.BACKUP_CANVASS],
-        args.factory, args.resource,
-        [ // storage arguments for specific sub sections of survey info
-          // storage info for election
-          getRspElectionOptions(
-            RES.ACTIVE_ELECTION, // id of election object to save
-            CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.ELECTION),
-            args.flags),
-          // storage info for survey
-          getSurveyRspOptions(
-            CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.SURVEY),
-            args.flags),
-          // storage info for addresses
-          addrOpts,
-          // storage info for canvassers
-          canvsrOpts,
-          // storage info for results
-          resltsOpts
-        ],
-        schemaLink, args.flags, args.next, args.customArgs);
+                      [RES.ACTIVE_CANVASS,  RES.BACKUP_CANVASS],
+                      args.factory, args.resource,
+                      [ // storage arguments for specific sub sections of survey info
+                        // storage info for election
+                        getRspElectionOptions(
+                          RES.ACTIVE_ELECTION, // id of election object to save
+                          CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.ELECTION),
+                          args.flags),
+                        // storage info for survey
+                        getSurveyRspOptions(
+                          CANVASSSCHEMA.SCHEMA.getSchemaLink(CANVASSSCHEMA.IDs.SURVEY),
+                          args.flags),
+                        // storage info for addresses
+                        addrOpts,
+                        // storage info for canvassers
+                        canvsrOpts,
+                        // storage info for results
+                        resltsOpts
+                      ],
+                      schemaLink, args.flags, args.next, args.customArgs);
 
     angular.extend(rspOptions, {
       storage: RESOURCE_CONST.STORE_OBJ
@@ -15599,26 +15611,26 @@ function CanvassController($scope, $state, $stateParams, $filter, $injector, can
     });
 
     var optObj = getRspOptionsObject(
-      objId, 'canvassResultFactory', 'result',
-      subObj, schema, flags, next, {
-        getChartType: function (type) {
-          /* chart.js pie, polarArea & doughnut charts may be displayed using
+                  objId, 'canvassResultFactory', 'result',
+                  subObj, schema, flags, next, {
+                    getChartType: function (type) {
+                      /* chart.js pie, polarArea & doughnut charts may be displayed using
                         single data series (i.e. data = []), whereas chart.js radar, line &
                         bar require multiple data series (i.e. data = [[], []]) */
-          switch (type) {
-            case QUESTIONSCHEMA.TYPEIDs.QUESTION_YES_NO:
-            case QUESTIONSCHEMA.TYPEIDs.QUESTION_YES_NO_MAYBE:
-            case QUESTIONSCHEMA.TYPEIDs.QUESTION_CHOICE_SINGLESEL:
-              return CHARTS.PIE;
-            case QUESTIONSCHEMA.TYPEIDs.QUESTION_CHOICE_MULTISEL:
-              return CHARTS.BAR;
-            case QUESTIONSCHEMA.TYPEIDs.QUESTION_RANKING:
-              return CHARTS.POLAR;
-            default:
-              return undefined;
-          }
-        }
-      });
+                      switch (type) {
+                        case QUESTIONSCHEMA.TYPEIDs.QUESTION_YES_NO:
+                        case QUESTIONSCHEMA.TYPEIDs.QUESTION_YES_NO_MAYBE:
+                        case QUESTIONSCHEMA.TYPEIDs.QUESTION_CHOICE_SINGLESEL:
+                          return CHARTS.PIE;
+                        case QUESTIONSCHEMA.TYPEIDs.QUESTION_CHOICE_MULTISEL:
+                          return CHARTS.BAR;
+                        case QUESTIONSCHEMA.TYPEIDs.QUESTION_RANKING:
+                          return CHARTS.POLAR;
+                        default:
+                          return undefined;
+                      }
+                    }
+                  });
     return optObj;
   }
 
@@ -15631,10 +15643,10 @@ function CanvassController($scope, $state, $stateParams, $filter, $injector, can
   function getSurveyRspOptions (schema, flags, next, customArgs) {
 
     var args = resourceFactory.getStandardArgsObject(
-        [RES.ACTIVE_SURVEY, RES.BACKUP_SURVEY],
-        'surveyFactory', 'survey',
-        // will set subObj here
-        schema, flags, next, customArgs),
+                                  [RES.ACTIVE_SURVEY, RES.BACKUP_SURVEY],
+                                  'surveyFactory', 'survey',
+                                  // will set subObj here
+                                  schema, flags, next, customArgs),
       subObj = {
         // storage arguments for specific sub sections of survey info
         objId: RES.SURVEY_QUESTIONS,
@@ -15670,40 +15682,40 @@ function CanvassController($scope, $state, $stateParams, $filter, $injector, can
     }
 
     canvassAssignmentFactory.readResponse(response,
-      getAssignmentRspOptions(flags, next));
+                                          getAssignmentRspOptions(flags, next));
   }
 
   function getAssignmentRspOptions (schema, flags, next) {
 
     var args = resourceFactory.getStandardArgsObject(
-        undefined, // no objId as don't need to save the assignments response
-        'canvassAssignmentFactory', 'assignment',
-        // subObj will be set here
-        schema, flags, next),
+                                undefined, // no objId as don't need to save the assignments response
+                                'canvassAssignmentFactory', 'assignment',
+                                // subObj will be set here
+                                schema, flags, next),
       commonArgs = {
         processArg: RESOURCE_CONST.PROCESS_READ,  // argument only for use during read
       },
       addrOpts = getRspAddressOptions(undefined /* not being saved */,
-        CANVASSASSIGN_SCHEMA.SCHEMA.getSchemaLink(
-          CANVASSASSIGN_SCHEMA.IDs.ADDRESSES
-        ),
-        (args.flags | storeFactory.COPY_SET)),  // make copy of addresses
+                          CANVASSASSIGN_SCHEMA.SCHEMA.getSchemaLink(
+                                CANVASSASSIGN_SCHEMA.IDs.ADDRESSES
+                          ),
+                          (args.flags | storeFactory.COPY_SET)),  // make copy of addresses
       canvsrOpts = getRspCanvasserOptions(undefined /* not being saved */,
-        CANVASSASSIGN_SCHEMA.SCHEMA.getSchemaLink(
-          CANVASSASSIGN_SCHEMA.IDs.CANVASSER
-        ),
-        (args.flags | storeFactory.COPY_SET)),  // make copy of canvasser
+                          CANVASSASSIGN_SCHEMA.SCHEMA.getSchemaLink(
+                                CANVASSASSIGN_SCHEMA.IDs.CANVASSER
+                          ),
+                          (args.flags | storeFactory.COPY_SET)),  // make copy of canvasser
       subObj = [
-        // storage info for canvasser
-        canvsrOpts,
-        // storage info for addresses
-        addrOpts,
-        // storage info for canvass
-        getCanvassRspOptions(
-          CANVASSASSIGN_SCHEMA.SCHEMA.getSchemaLink(
-            CANVASSASSIGN_SCHEMA.IDs.CANVASS
-          ),
-          args.flags)
+          // storage info for canvasser
+          canvsrOpts,
+          // storage info for addresses
+          addrOpts,
+          // storage info for canvass
+          getCanvassRspOptions(
+                          CANVASSASSIGN_SCHEMA.SCHEMA.getSchemaLink(
+                                CANVASSASSIGN_SCHEMA.IDs.CANVASS
+                          ),
+                          args.flags)
       ];
 
     subObj.forEach(function (obj) {
@@ -15715,11 +15727,11 @@ function CanvassController($scope, $state, $stateParams, $filter, $injector, can
     canvsrOpts[canvassAssignmentFactory.ADDR_CANVSR_LINKCANVASSER] = true;
 
     return angular.extend(args, {
-      subObj: subObj,
-      linkAddressAndCanvasser: {
-        labeller: labeller
-      }
-    }, commonArgs);
+                          subObj: subObj,
+                          linkAddressAndCanvasser: {
+                            labeller: labeller
+                          }
+                        }, commonArgs);
   }
 
   
@@ -15789,8 +15801,8 @@ function CanvassController($scope, $state, $stateParams, $filter, $injector, can
         // success function
         function (response) {
           processCanvassRsp(response,
-            (storeFactory.CREATE_INIT | storeFactory.APPLY_FILTER),
-            next);
+                            (storeFactory.CREATE_INIT | storeFactory.APPLY_FILTER),
+                            next);
         },
         // error function
         getErrorFxn(action)
@@ -16232,51 +16244,51 @@ function CanvassSurveyController($scope, $rootScope, $state, $filter, canvassFac
   function confirmDeleteQuestion (deleteList) {
 
     NgDialogFactory.openAndHandle({
-      template: 'canvasses/confirmdelete_question.html', scope: $scope,
-      className: 'ngdialog-theme-default', controller: 'CanvassSurveyController',
-      data: { list: deleteList}
-    },
-    // process function
-    function (value) {
-      // perform delete
-      var delParams = {},
-        idx,
-        updatedSurvey = angular.copy($scope.survey);
-      angular.forEach(value, function (entry) {
-        delParams[entry._id] = true;
+        template: 'canvasses/confirmdelete_question.html', scope: $scope,
+        className: 'ngdialog-theme-default', controller: 'CanvassSurveyController',
+        data: { list: deleteList}
+      },
+      // process function
+      function (value) {
+        // perform delete
+        var delParams = {},
+          idx,
+          updatedSurvey = angular.copy($scope.survey);
+        angular.forEach(value, function (entry) {
+          delParams[entry._id] = true;
 
-        idx = updatedSurvey.questions.findIndex(function (ques) {
-          return (ques === entry._id);
+          idx = updatedSurvey.questions.findIndex(function (ques) {
+            return (ques === entry._id);
+          });
+          if (idx >= 0) {
+            updatedSurvey.questions.splice(idx, 1);
+          }
         });
-        if (idx >= 0) {
-          updatedSurvey.questions.splice(idx, 1);
-        }
+
+        questionFactory.delete('question', delParams,
+          // success function
+          function (/*response*/) {
+            // update survey's list of questions
+            surveyFactory.update('survey', {id: updatedSurvey._id}, updatedSurvey,
+              // success function
+              function (response) {
+                surveyFactory.readResponse(response, $scope.getSurveyRspOptions());
+
+                countQuestionSel();
+              },
+              // error function
+              function (response) {
+                // response is message
+                NgDialogFactory.error(response, 'Unable to retrieve Survey');
+              }
+            );
+          },
+          // error function
+          function (response) {
+            NgDialogFactory.error(response, 'Delete Unsuccessful');
+          }
+        );
       });
-
-      questionFactory.delete('question', delParams,
-        // success function
-        function (/*response*/) {
-          // update survey's list of questions
-          surveyFactory.update('survey', {id: updatedSurvey._id}, updatedSurvey,
-            // success function
-            function (response) {
-              surveyFactory.readResponse(response, $scope.getSurveyRspOptions());
-
-              countQuestionSel();
-            },
-            // error function
-            function (response) {
-              // response is message
-              NgDialogFactory.error(response, 'Unable to retrieve Survey');
-            }
-          );
-        },
-        // error function
-        function (response) {
-          NgDialogFactory.error(response, 'Delete Unsuccessful');
-        }
-      );
-    });
   }
   
   
@@ -16350,7 +16362,7 @@ function CanvassSurveyController($scope, $rootScope, $state, $filter, canvassFac
               if (idx >= 0) {
                 toggleQuestionSel(
                   $scope.questions.updateInList(idx,
-                    questionFactory.readRspObject(response)));
+                              questionFactory.readRspObject(response)));
               }
 
               if (!$scope.survey.questions) {
@@ -16441,7 +16453,7 @@ function CanvassSurveyController($scope, $rootScope, $state, $filter, canvassFac
     /* save the updated survey to the store, as processSurvey in the parent
       controller doesn't see the changes to name & description.
       Something to do with scopes? */
-    //    surveyFactory.setObj(RES.ACTIVE_SURVEY, $scope.survey);
+//    surveyFactory.setObj(RES.ACTIVE_SURVEY, $scope.survey);
   }
   
   
@@ -16494,15 +16506,15 @@ function CanvassAddressController($scope, $state, $stateParams, $filter, address
   $scope.sortList = sortList;
 
   var anyNonBlankQuery = resourceFactory.buildMultiValModelPropQuery(
-    // $or=field1=value1,field2=value2....
-    RESOURCE_CONST.QUERY_OR,
-    addressFactory.getModelPropList({
-      type: SCHEMA_CONST.FIELD_TYPES.STRING,  // get list of properties of type STRING
-    }),
-    function () {
-      return RESOURCE_CONST.QUERY_NBLANK;
-    }
-  );
+      // $or=field1=value1,field2=value2....
+      RESOURCE_CONST.QUERY_OR,
+      addressFactory.getModelPropList({
+        type: SCHEMA_CONST.FIELD_TYPES.STRING,  // get list of properties of type STRING
+      }),
+      function () {
+        return RESOURCE_CONST.QUERY_NBLANK;
+      }
+    );
 
   requestAddressCount();  // get database total address count
 
@@ -16565,7 +16577,7 @@ function CanvassAddressController($scope, $state, $stateParams, $filter, address
       var filter = angular.copy(resList.filter.getFilterValue());
 
       var dialog = NgDialogFactory.open({ template: 'address/addressfilter.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'AddressFilterController', 
-        data: {action: resList.id, title: resList.title, filter: filter}});
+                    data: {action: resList.id, title: resList.title, filter: filter}});
 
       dialog.closePromise.then(function (data) {
         if (!NgDialogFactory.isNgDialogCancel(data.value)) {
@@ -16663,14 +16675,14 @@ function filterSortService (miscUtilFactory, DECOR) {
 
   this.getRequestButtons = function (name, btns) {
     var buttons = [
-        { txt: 'All', cmd: 'a', icon: 'fa fa-list-alt fa-fw', tip: 'Request all ' + name,
-          class: 'btn btn-primary' },
-        { txt: 'Filter', cmd: 'f', icon: 'fa fa-filter fa-fw', tip: 'Filter ' + name,
-          class: 'btn btn-info' },
-        { txt: 'Clear', cmd: 'c', icon: 'fa fa-eraser fa-fw', tip: 'Clear '  + name + ' list',
-          class: 'btn btn-warning' }
-      ],
-      reqButtons = [];
+      { txt: 'All', cmd: 'a', icon: 'fa fa-list-alt fa-fw', tip: 'Request all ' + name,
+        class: 'btn btn-primary' },
+      { txt: 'Filter', cmd: 'f', icon: 'fa fa-filter fa-fw', tip: 'Filter ' + name,
+        class: 'btn btn-info' },
+      { txt: 'Clear', cmd: 'c', icon: 'fa fa-eraser fa-fw', tip: 'Clear '  + name + ' list',
+        class: 'btn btn-warning' }
+    ],
+    reqButtons = [];
 
     for (var i = 0, mask = all; mask <= clear; mask <<= 1, ++i) {
       if ((btns & mask) !== 0) {
@@ -16861,24 +16873,24 @@ function CanvassCanvasserController($scope, $state, $filter, NgDialogFactory, mi
       var filter = angular.copy(resList.filter.getFilterValue());
 
       NgDialogFactory.openAndHandle({
-        template: 'people/personfilter.html', scope: $scope,
-        className: 'ngdialog-theme-default', controller: 'PersonFilterController',
-        data: {action: resList.id, title: resList.title, filter: filter}
-      },
-      // process function
-      function (value) {
+          template: 'people/personfilter.html', scope: $scope,
+          className: 'ngdialog-theme-default', controller: 'PersonFilterController',
+          data: {action: resList.id, title: resList.title, filter: filter}
+        },
+        // process function
+        function (value) {
 
-        var filter = newFilter(value.filter),
-          resList = setFilter(value.action, filter);
-        if (resList) {
-          if (resList.id === RES.UNASSIGNED_CANVASSER) {
-            // request filtered canvassers from server
-            requestCanvassers(resList, filter);
-          } else {
-            resList.applyFilter();
+          var filter = newFilter(value.filter),
+            resList = setFilter(value.action, filter);
+          if (resList) {
+            if (resList.id === RES.UNASSIGNED_CANVASSER) {
+              // request filtered canvassers from server
+              requestCanvassers(resList, filter);
+            } else {
+              resList.applyFilter();
+            }
           }
         }
-      }
         // no cancel function
       );
     }
@@ -16999,9 +17011,9 @@ angular.module('canvassTrac')
   .constant('CANVASSASSIGN', (function () {
     return {
       ASSIGNMENTCHOICES: [{text: 'Yes', val: 'y'},
-        {text: 'No', val: 'n'},
-        {text: 'All', val: 'a'}
-      ]
+                            {text: 'No', val: 'n'},
+                            {text: 'All', val: 'a'}
+                         ]
     };
   })())
 
@@ -17022,14 +17034,14 @@ function CanvassAssignmentController($scope, $rootScope, $state, $filter, canvas
     addressAssignmentTests = makeAddressAssignmentTests(),
     canvasserAssignmentTests = makeCanvasserAssignmentTests(),
     undoStack = storeFactory.newObj(RES.ALLOCATION_UNDOS,
-      undoFactory.newUndoStack, storeFactory.CREATE_INIT);
+                                   undoFactory.newUndoStack, storeFactory.CREATE_INIT);
 
   pagerFactory.addPerPageOptions($scope, 5, 5, 4, 1); // 4 opts, from 5 inc 5, dflt 10
 
   setupGroup(RES.ALLOCATED_ADDR, addressFactory, 'Addresses',
-    CANVASSASSIGN.ASSIGNMENTCHOICES, 'Assigned', false, addrFilterFunction);
+             CANVASSASSIGN.ASSIGNMENTCHOICES, 'Assigned', false, addrFilterFunction);
   setupGroup(RES.ALLOCATED_CANVASSER, userFactory, 'Canvassers',
-    CANVASSASSIGN.ASSIGNMENTCHOICES, 'Has Allocation', true, cnvsrFilterFunction);
+             CANVASSASSIGN.ASSIGNMENTCHOICES, 'Has Allocation', true, cnvsrFilterFunction);
 
   $scope.undoStack = undoStack;
 
@@ -17059,8 +17071,8 @@ function CanvassAssignmentController($scope, $rootScope, $state, $filter, canvas
 
     var filter = RES.getFilterName(id);
     $scope[filter] = storeFactory.newObj(filter, function () {
-      return newFilter(factory);
-    }, storeFactory.CREATE_INIT);
+        return newFilter(factory);
+      }, storeFactory.CREATE_INIT);
 
     var pager = RES.getPagerName(id);
     $scope[pager] = pagerFactory.newPager(pager, [], 1, $scope.perPage, 5);
@@ -17214,12 +17226,12 @@ function CanvassAssignmentController($scope, $rootScope, $state, $filter, canvas
       var filter = angular.copy(resList.filter.getFilterValue());
 
       var dialog = NgDialogFactory.open({ template: 'canvasses/assignmentfilter.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'AssignmentFilterController', 
-        data: {action: resList.id, 
-          ctrl: { title: resList.title,
-            assignmentChoices: resList.assignmentChoices,
-            assignmentLabel: resList.assignmentLabel,
-            nameFields: resList.nameFields},
-          filter: filter}});
+                    data: {action: resList.id, 
+                           ctrl: { title: resList.title,
+                                  assignmentChoices: resList.assignmentChoices,
+                                  assignmentLabel: resList.assignmentLabel,
+                                  nameFields: resList.nameFields},
+                           filter: filter}});
 
       dialog.closePromise.then(function (data) {
         if (!NgDialogFactory.isNgDialogCancel(data.value)) {
@@ -17297,8 +17309,8 @@ function CanvassAssignmentController($scope, $rootScope, $state, $filter, canvas
     var undo;
     if (addr.canvasser) {
       var canvasser = $scope.allocatedCanvasser.findInList(function (element) {
-        return (element._id === addr.canvasser);
-      });
+          return (element._id === addr.canvasser);
+        });
       if (canvasser) {
         undo = canvassAssignmentFactory.unlinkAddrFromCanvasser(canvasser, addr, true);
       }
@@ -17437,9 +17449,9 @@ function CanvassResultController($scope, $rootScope, $state, canvassFactory, ele
   pagerFactory.addPerPageOptions($scope, 5, 5, 4, 1); // 4 opts, from 5 inc 5, dflt 10
 
   setupGroup(RES.ALLOCATED_ADDR, addressFactory, 'Addresses',
-    CANVASSASSIGN.ASSIGNMENTCHOICES, 'Assigned', false);
+             CANVASSASSIGN.ASSIGNMENTCHOICES, 'Assigned', false);
   setupGroup(RES.ALLOCATED_CANVASSER, userFactory, 'Canvassers',
-    CANVASSASSIGN.ASSIGNMENTCHOICES, 'Has Allocation', true);
+             CANVASSASSIGN.ASSIGNMENTCHOICES, 'Has Allocation', true);
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   $scope.getQuestionTypeName = questionFactory.getQuestionTypeName;
@@ -17706,12 +17718,12 @@ function CanvassResultController($scope, $rootScope, $state, canvassFactory, ele
     }
 
     dialog = NgDialogFactory.open({ template: 'canvasses/result.detail.html', scope: $scope, className: 'ngdialog-theme-default', controller: 'ResultDetailController',
-      data: {
-        question: question,
-        chart: chartCtrl(question),
-        details: details,
-        respCnt: $scope.resultCount
-      }});
+                  data: {
+                    question: question,
+                    chart: chartCtrl(question),
+                    details: details,
+                    respCnt: $scope.resultCount
+                  }});
 
     dialog.closePromise.then(function (data) {
       if (!NgDialogFactory.isNgDialogCancel(data.value)) {
@@ -17759,6 +17771,7 @@ function CanvassResultController($scope, $rootScope, $state, canvassFactory, ele
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -17809,6 +17822,7 @@ function ResultDetailController ($scope, CHARTS) {
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -17834,6 +17848,7 @@ function CanvassDeleteController($scope, utilFactory) {
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -17871,6 +17886,7 @@ function AssignmentFilterController($scope) {
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -17910,6 +17926,7 @@ function CanvassTabNavController($scope) {
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -17949,6 +17966,7 @@ function SurveyTabNavController($scope) {
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -17988,6 +18006,7 @@ function AddressTabNavController($scope) {
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -18027,6 +18046,7 @@ function CanvassersTabNavController($scope) {
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -18071,6 +18091,7 @@ function AssignmentTabNavController($scope) {
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -18110,6 +18131,7 @@ function ResultTabNavController($scope) {
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -18139,7 +18161,7 @@ function QuestionController($scope, questionFactory, NgDialogFactory, questionTy
   $scope.getTitle = getTitle;
   $scope.getOkText = getOkText;
   $scope.selectedItemChanged = selectedItemChanged;
-  $scope.questionTypes = questionTypes;
+	$scope.questionTypes = questionTypes;
   $scope.isRequired = isRequired;
 
   if ($scope.ngDialogData.question.type) {
@@ -18229,6 +18251,7 @@ function QuestionController($scope, questionFactory, NgDialogFactory, questionTy
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -18263,6 +18286,7 @@ function AddressFilterController($scope) {
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -18282,32 +18306,32 @@ function noticeService($state, noticeFactory, NgDialogFactory, controllerUtilFac
   this.confirmDeleteNotice = function (scope, deleteList, onSuccess, onFailure) {
 
     NgDialogFactory.openAndHandle({
-      template: 'notices/confirmdelete_notice.html',
-      scope: scope, className: 'ngdialog-theme-default',
-      controller: 'NoticeDeleteController',
-      data: { list: deleteList }
-    },
-    // process function
-    function (value) {
-      // perform delete
-      var delParams = {};
-      angular.forEach(value, function (entry) {
-        delParams[entry._id] = true;
-      });
+        template: 'notices/confirmdelete_notice.html',
+        scope: scope, className: 'ngdialog-theme-default',
+        controller: 'NoticeDeleteController',
+        data: { list: deleteList }
+      },
+      // process function
+      function (value) {
+        // perform delete
+        var delParams = {};
+        angular.forEach(value, function (entry) {
+          delParams[entry._id] = true;
+        });
 
-      noticeFactory.delete('notice', delParams,
-        // success function
-        onSuccess,
-        // error function
-        function (response) {
-          if (onFailure) {
-            onFailure(response);
-          } else {
-            NgDialogFactory.error(response, 'Delete Unsuccessful');
+        noticeFactory.delete('notice', delParams,
+          // success function
+          onSuccess,
+          // error function
+          function (response) {
+            if (onFailure) {
+              onFailure(response);
+            } else {
+              NgDialogFactory.error(response, 'Delete Unsuccessful');
+            }
           }
-        }
-      );
-    });
+        );
+      });
   };
 
   /*jshint validthis:true */
@@ -18346,6 +18370,7 @@ function noticeService($state, noticeFactory, NgDialogFactory, controllerUtilFac
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -18500,6 +18525,7 @@ function NoticeDashController($scope, $rootScope, $state, noticeFactory, noticeS
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
@@ -18678,6 +18704,7 @@ function NoticeController($scope, $rootScope, $state, $stateParams, noticeFactor
 
 
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('canvassTrac')
